@@ -1,0 +1,49 @@
+# -----------------------------
+# OS and editor files
+# -----------------------------
+.DS_Store
+Thumbs.db
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.swp
+*.tmp
+
+# -----------------------------
+# Logs
+# -----------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# -----------------------------
+# Node / frontend artifacts
+# -----------------------------
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+frontend/dist-ssr/
+*.local
+.env
+.env.*
+
+# -----------------------------
+# .NET / backend artifacts
+# -----------------------------
+**/bin/
+**/obj/
+
+# Generated static assets from Vite build output
+backend/wwwroot/
+
+# Tooling caches
+frontend/.vite/
