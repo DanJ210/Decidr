@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { castVote, closeCase, createCase, fetchCaseById, fetchCases } from '../services/api'
+import { acceptCaseInvitation, castVote, closeCase, createCase, declineCaseInvitation, fetchCaseById, fetchCases } from '../services/api'
 import type { ArgumentCase, CaseSide, CreateCaseRequest } from '../types'
 
 interface CourtState {
@@ -87,6 +87,40 @@ export const useCourtStore = defineStore('court', {
         return true
       } catch {
         this.error = 'Unable to close this case. Only participants or moderators can close it.'
+        return false
+      } finally {
+        this.mutating = false
+      }
+    },
+    async acceptInvitation(caseId: string, userId: string, claim: string) {
+      this.mutating = true
+      this.error = null
+
+      try {
+        const updated = await acceptCaseInvitation(caseId, { userId, claim })
+        this.replaceCase(updated)
+        this.selectedCase = updated
+        return true
+      } catch {
+        this.error = 'Unable to accept the invitation right now.'
+        return false
+      } finally {
+        this.mutating = false
+      }
+    },
+    async declineInvitation(caseId: string, userId: string) {
+      this.mutating = true
+      this.error = null
+
+      try {
+        await declineCaseInvitation(caseId, userId)
+        this.cases = this.cases.filter((c) => c.id !== caseId)
+        if (this.selectedCase?.id === caseId) {
+          this.selectedCase = null
+        }
+        return true
+      } catch {
+        this.error = 'Unable to decline the invitation right now.'
         return false
       } finally {
         this.mutating = false

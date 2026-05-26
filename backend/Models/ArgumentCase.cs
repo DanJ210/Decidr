@@ -8,6 +8,7 @@ public enum CaseSide
 
 public enum CaseStatus
 {
+    Pending,
     Open,
     Closed
 }
@@ -16,6 +17,13 @@ public enum UserRole
 {
     Member,
     Moderator
+}
+
+public enum FriendRequestStatus
+{
+    Pending,
+    Accepted,
+    Declined
 }
 
 public record AppUser(
@@ -68,7 +76,8 @@ public record ArgumentCase(
     string Category,
     string Summary,
     ArgumentPost SideA,
-    ArgumentPost SideB,
+    ArgumentPost? SideB,
+    Guid? InvitedUserId,
     CommunityVerdict Verdict,
     CaseStatus Status,
     CaseSide? WinnerSide,
@@ -81,8 +90,33 @@ public record CreateCaseRequest(
     string Summary,
     Guid SideAUserId,
     string SideAClaim,
-    Guid SideBUserId,
-    string SideBClaim
+    Guid InvitedUserId
+);
+
+public record AcceptInvitationRequest(
+    Guid UserId,
+    string Claim
+);
+
+public record DeclineInvitationRequest(
+    Guid UserId
+);
+
+public record SendFriendRequestDto(
+    Guid FromUserId,
+    Guid ToUserId
+);
+
+public record RespondFriendRequestDto(
+    Guid ActorUserId
+);
+
+public record FriendRequest(
+    Guid Id,
+    Guid FromUserId,
+    Guid ToUserId,
+    FriendRequestStatus Status,
+    DateTime CreatedAtUtc
 );
 
 public record CastVoteRequest(

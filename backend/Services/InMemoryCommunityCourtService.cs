@@ -17,6 +17,7 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
     private readonly List<ArgumentCase> _cases;
     private readonly List<CaseVote> _votes;
     private readonly List<UserReward> _rewards;
+    private readonly List<FriendRequest> _friendRequests;
 
     public InMemoryCommunityCourtService()
     {
@@ -64,6 +65,8 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         _rewards = [];
         AwardCasePostingRewards(_cases[0]);
         AwardCasePostingRewards(_cases[1]);
+
+        _friendRequests = [];
     }
 
     public IReadOnlyList<AppUser> GetUsers()
@@ -87,6 +90,7 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         lock (_syncRoot)
         {
             return _cases
+                .Where(c => c.Status != CaseStatus.Pending)
                 .OrderByDescending(c => c.CreatedAtUtc)
                 .Select(RefreshVerdict)
                 .ToList();
@@ -107,20 +111,23 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         lock (_syncRoot)
         {
             var sideAUser = _users.First(u => u.Id == request.SideAUserId);
-            var sideBUser = _users.First(u => u.Id == request.SideBUserId);
             var createdAt = DateTime.UtcNow;
 
-            var created = BuildCase(
+            var created = new ArgumentCase(
                 Guid.NewGuid(),
                 request.Title,
                 request.Category,
                 request.Summary,
                 new ArgumentPost(CaseSide.A, sideAUser.Id, sideAUser.UserName, request.SideAClaim, createdAt),
-                new ArgumentPost(CaseSide.B, sideBUser.Id, sideBUser.UserName, request.SideBClaim, createdAt),
+                SideB: null,
+                InvitedUserId: request.InvitedUserId,
+                new CommunityVerdict(0, 0),
+                CaseStatus.Pending,
+                WinnerSide: null,
                 createdAt);
 
             _cases.Add(created);
-            AwardCasePostingRewards(created);
+            AwardReward(sideAUser.Id, "POST_PARTICIPATION", "CaseCreate", created.Id, "Posted the Side A argument in a new case.");
             return created;
         }
     }
@@ -135,9 +142,9 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                 return (false, "Case not found.", null);
             }
 
-            if (foundCase.Status == CaseStatus.Closed)
+            if (foundCase.Status != CaseStatus.Open)
             {
-                return (false, "Case is closed and can no longer receive votes.", null);
+                return (false, "Case is not open and can no longer receive votes.", null);
             }
 
             if (_users.All(u => u.Id != request.UserId))
@@ -175,9 +182,14 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                 return (false, "Case not found.", null);
             }
 
+            if (foundCase.Status == CaseStatus.Pending)
+            {
+                return (false, "Case is still pending acceptance and cannot be closed this way.", null);
+            }
+
             var actorIsParticipant =
                 foundCase.SideA.UserId == actorUserId ||
-                foundCase.SideB.UserId == actorUserId;
+                (foundCase.SideB?.UserId == actorUserId);
             var actorIsModerator = actorUser.Role == UserRole.Moderator;
 
             if (!actorIsParticipant && !actorIsModerator)
@@ -195,7 +207,7 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
 
             if (closed.WinnerSide is not null)
             {
-                var winnerUserId = closed.WinnerSide == CaseSide.A ? closed.SideA.UserId : closed.SideB.UserId;
+                var winnerUserId = closed.WinnerSide == CaseSide.A ? closed.SideA.UserId : closed.SideB!.UserId;
                 AwardReward(winnerUserId, "CASE_VICTOR", "CaseClose", closed.Id, "Awarded for becoming the victor of this case.");
 
                 var matchingVoterIds = _votes
@@ -231,6 +243,187 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         }
     }
 
+    // --- Friend system ---
+
+    public (bool Success, string? Error) SendFriendRequest(SendFriendRequestDto dto)
+    {
+        lock (_syncRoot)
+        {
+            if (_users.All(u => u.Id != dto.FromUserId))
+            {
+                return (false, "Requesting user not found.");
+            }
+
+            if (_users.All(u => u.Id != dto.ToUserId))
+            {
+                return (false, "Target user not found.");
+            }
+
+            if (dto.FromUserId == dto.ToUserId)
+            {
+                return (false, "You cannot send a friend request to yourself.");
+            }
+
+            var alreadyFriends = _friendRequests.Any(r =>
+                r.Status == FriendRequestStatus.Accepted &&
+                ((r.FromUserId == dto.FromUserId && r.ToUserId == dto.ToUserId) ||
+                 (r.FromUserId == dto.ToUserId && r.ToUserId == dto.FromUserId)));
+
+            if (alreadyFriends)
+            {
+                return (false, "You are already friends with this user.");
+            }
+
+            var pendingExists = _friendRequests.Any(r =>
+                r.Status == FriendRequestStatus.Pending &&
+                ((r.FromUserId == dto.FromUserId && r.ToUserId == dto.ToUserId) ||
+                 (r.FromUserId == dto.ToUserId && r.ToUserId == dto.FromUserId)));
+
+            if (pendingExists)
+            {
+                return (false, "A pending friend request already exists between these users.");
+            }
+
+            _friendRequests.Add(new FriendRequest(Guid.NewGuid(), dto.FromUserId, dto.ToUserId, FriendRequestStatus.Pending, DateTime.UtcNow));
+            return (true, null);
+        }
+    }
+
+    public (bool Success, string? Error) RespondToFriendRequest(Guid requestId, Guid actorUserId, bool accept)
+    {
+        lock (_syncRoot)
+        {
+            var request = _friendRequests.FirstOrDefault(r => r.Id == requestId);
+            if (request is null)
+            {
+                return (false, "Friend request not found.");
+            }
+
+            if (request.ToUserId != actorUserId)
+            {
+                return (false, "Only the recipient can respond to this request.");
+            }
+
+            if (request.Status != FriendRequestStatus.Pending)
+            {
+                return (false, "This request has already been responded to.");
+            }
+
+            var newStatus = accept ? FriendRequestStatus.Accepted : FriendRequestStatus.Declined;
+            var updated = request with { Status = newStatus };
+            var index = _friendRequests.FindIndex(r => r.Id == requestId);
+            _friendRequests[index] = updated;
+            return (true, null);
+        }
+    }
+
+    public IReadOnlyList<AppUser> GetFriends(Guid userId)
+    {
+        lock (_syncRoot)
+        {
+            var friendIds = _friendRequests
+                .Where(r => r.Status == FriendRequestStatus.Accepted &&
+                            (r.FromUserId == userId || r.ToUserId == userId))
+                .Select(r => r.FromUserId == userId ? r.ToUserId : r.FromUserId)
+                .Distinct()
+                .ToHashSet();
+
+            return _users.Where(u => friendIds.Contains(u.Id)).ToList();
+        }
+    }
+
+    public IReadOnlyList<FriendRequest> GetFriendRequests(Guid userId)
+    {
+        lock (_syncRoot)
+        {
+            return _friendRequests
+                .Where(r => r.ToUserId == userId && r.Status == FriendRequestStatus.Pending)
+                .OrderByDescending(r => r.CreatedAtUtc)
+                .ToList();
+        }
+    }
+
+    // --- Case invitations ---
+
+    public IReadOnlyList<ArgumentCase> GetPendingInvitations(Guid userId)
+    {
+        lock (_syncRoot)
+        {
+            return _cases
+                .Where(c => c.Status == CaseStatus.Pending && c.InvitedUserId == userId)
+                .OrderByDescending(c => c.CreatedAtUtc)
+                .ToList();
+        }
+    }
+
+    public (bool Success, string? Error, ArgumentCase? UpdatedCase) AcceptCaseInvitation(Guid caseId, AcceptInvitationRequest request)
+    {
+        lock (_syncRoot)
+        {
+            var foundCase = _cases.FirstOrDefault(c => c.Id == caseId);
+            if (foundCase is null)
+            {
+                return (false, "Case not found.", null);
+            }
+
+            if (foundCase.Status != CaseStatus.Pending)
+            {
+                return (false, "This case is not awaiting acceptance.", null);
+            }
+
+            if (foundCase.InvitedUserId != request.UserId)
+            {
+                return (false, "You are not the invited user for this case.", null);
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Claim))
+            {
+                return (false, "A claim is required to accept the invitation.", null);
+            }
+
+            var sideBUser = _users.FirstOrDefault(u => u.Id == request.UserId);
+            if (sideBUser is null)
+            {
+                return (false, "User not found.", null);
+            }
+
+            var sideB = new ArgumentPost(CaseSide.B, sideBUser.Id, sideBUser.UserName, request.Claim, DateTime.UtcNow);
+            var opened = foundCase with { SideB = sideB, Status = CaseStatus.Open, InvitedUserId = null };
+            ReplaceCase(opened);
+
+            AwardReward(sideBUser.Id, "POST_PARTICIPATION", "CaseCreate", opened.Id, "Posted the Side B argument in a new case.");
+            return (true, null, opened);
+        }
+    }
+
+    public (bool Success, string? Error) DeclineCaseInvitation(Guid caseId, Guid actorUserId)
+    {
+        lock (_syncRoot)
+        {
+            var foundCase = _cases.FirstOrDefault(c => c.Id == caseId);
+            if (foundCase is null)
+            {
+                return (false, "Case not found.");
+            }
+
+            if (foundCase.Status != CaseStatus.Pending)
+            {
+                return (false, "This case is not awaiting acceptance.");
+            }
+
+            if (foundCase.InvitedUserId != actorUserId)
+            {
+                return (false, "You are not the invited user for this case.");
+            }
+
+            var declined = foundCase with { Status = CaseStatus.Closed, InvitedUserId = null };
+            ReplaceCase(declined);
+            return (true, null);
+        }
+    }
+
+    // --- Private helpers ---
+
     private ArgumentCase RefreshVerdict(ArgumentCase argumentCase)
     {
         var caseVotes = _votes.Where(v => v.CaseId == argumentCase.Id).ToList();
@@ -259,7 +452,10 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
     private void AwardCasePostingRewards(ArgumentCase argumentCase)
     {
         AwardReward(argumentCase.SideA.UserId, "POST_PARTICIPATION", "CaseCreate", argumentCase.Id, "Posted the Side A argument in a new case.");
-        AwardReward(argumentCase.SideB.UserId, "POST_PARTICIPATION", "CaseCreate", argumentCase.Id, "Posted the Side B argument in a new case.");
+        if (argumentCase.SideB is not null)
+        {
+            AwardReward(argumentCase.SideB.UserId, "POST_PARTICIPATION", "CaseCreate", argumentCase.Id, "Posted the Side B argument in a new case.");
+        }
     }
 
     private void AwardReward(Guid userId, string badgeCode, string sourceType, Guid sourceId, string reason)
@@ -294,9 +490,10 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
             summary,
             sideA,
             sideB,
+            InvitedUserId: null,
             new CommunityVerdict(0, 0),
             CaseStatus.Open,
-            null,
+            WinnerSide: null,
             createdAt);
     }
 

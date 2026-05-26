@@ -1,6 +1,7 @@
 export type CaseSide = 'A' | 'B'
-export type CaseStatus = 'Open' | 'Closed'
+export type CaseStatus = 'Pending' | 'Open' | 'Closed'
 export type UserRole = 'Member' | 'Moderator'
+export type FriendRequestStatus = 'Pending' | 'Accepted' | 'Declined'
 
 export interface AppUser {
   id: string
@@ -28,10 +29,19 @@ export interface ArgumentCase {
   category: string
   summary: string
   sideA: ArgumentPost
-  sideB: ArgumentPost
+  sideB: ArgumentPost | null
+  invitedUserId: string | null
   verdict: CommunityVerdict
   status: CaseStatus
   winnerSide: CaseSide | null
+  createdAtUtc: string
+}
+
+export interface FriendRequest {
+  id: string
+  fromUserId: string
+  toUserId: string
+  status: FriendRequestStatus
   createdAtUtc: string
 }
 
@@ -41,8 +51,25 @@ export interface CreateCaseRequest {
   summary: string
   sideAUserId: string
   sideAClaim: string
-  sideBUserId: string
-  sideBClaim: string
+  invitedUserId: string
+}
+
+export interface AcceptInvitationRequest {
+  userId: string
+  claim: string
+}
+
+export interface DeclineInvitationRequest {
+  userId: string
+}
+
+export interface SendFriendRequestDto {
+  fromUserId: string
+  toUserId: string
+}
+
+export interface RespondFriendRequestDto {
+  actorUserId: string
 }
 
 export interface CastVoteRequest {

@@ -1,14 +1,29 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
+import { useAuthStore } from '../stores/auth'
 import { useCourtStore } from '../stores/court'
+import { useFriendsStore } from '../stores/friends'
 
 const courtStore = useCourtStore()
+const authStore = useAuthStore()
+const friendsStore = useFriendsStore()
 
-onMounted(() => {
+async function loadInvitations() {
+  const userId = authStore.selectedUser?.id
+  if (userId) {
+    await friendsStore.loadInvitations(userId)
+  }
+}
+
+onMounted(async () => {
   if (!courtStore.cases.length) {
     void courtStore.loadCases()
   }
+
+  await loadInvitations()
 })
+
+watch(() => authStore.selectedUserId, loadInvitations)
 
 const hottestCases = computed(() => {
   return [...courtStore.cases]
@@ -30,6 +45,29 @@ const hottestCases = computed(() => {
       This scaffold includes starter routing, state, and API integration.
     </p>
     <RouterLink to="/cases/new" class="hero-cta">Create a New Case</RouterLink>
+  </section>
+
+  <!-- Pending invitations for the current user -->
+  <section v-if="friendsStore.invitations.length" class="board">
+    <header class="board-header">
+      <h2>My Invitations</h2>
+      <span>{{ friendsStore.invitations.length }} pending</span>
+    </header>
+    <ul class="case-grid">
+      <li v-for="inv in friendsStore.invitations" :key="inv.id" class="case-card">
+        <div class="top-row">
+          <span class="pill">{{ inv.category }}</span>
+          <span class="status-pill status-open">Awaiting Your Response</span>
+        </div>
+        <h3>{{ inv.title }}</h3>
+        <p>{{ inv.summary }}</p>
+        <p class="split">
+          <span>Side A: {{ inv.sideA.userName }}</span>
+          <span>Side B: You</span>
+        </p>
+        <RouterLink :to="`/cases/${inv.id}`" class="case-link">Respond to Invitation</RouterLink>
+      </li>
+    </ul>
   </section>
 
   <section class="board">
@@ -57,10 +95,11 @@ const hottestCases = computed(() => {
         </div>
         <div class="split">
           <span>Side A: {{ item.sideA.userName }}</span>
-          <span>Side B: {{ item.sideB.userName }}</span>
+          <span>Side B: {{ item.sideB?.userName }}</span>
         </div>
         <RouterLink :to="`/cases/${item.id}`" class="case-link">View Case</RouterLink>
       </li>
     </ul>
   </section>
 </template>
+

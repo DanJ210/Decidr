@@ -31,4 +31,37 @@ public class UsersController : ControllerBase
 
         return Ok(_courtService.GetUserRewards(id));
     }
+
+    [HttpGet("{id:guid}/friends")]
+    public ActionResult<IEnumerable<AppUser>> GetFriends(Guid id)
+    {
+        if (_courtService.GetUser(id) is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(_courtService.GetFriends(id));
+    }
+
+    [HttpGet("{id:guid}/friend-requests")]
+    public ActionResult<IEnumerable<FriendRequest>> GetFriendRequests(Guid id)
+    {
+        if (_courtService.GetUser(id) is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(_courtService.GetFriendRequests(id));
+    }
+
+    [HttpGet("{id:guid}/invitations")]
+    public ActionResult<IEnumerable<ArgumentCase>> GetInvitations(Guid id)
+    {
+        if (_courtService.GetUser(id) is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(_courtService.GetPendingInvitations(id));
+    }
 }

@@ -1,49 +1,68 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { computed, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useCourtStore } from '../stores/court'
+import { useFriendsStore } from '../stores/friends'
 
 const courtStore = useCourtStore()
 const authStore = useAuthStore()
+const friendsStore = useFriendsStore()
 const router = useRouter()
 
 const form = reactive({
   title: '',
   category: '',
   summary: '',
-  sideAUserId: '',
   sideAClaim: '',
-  sideBUserId: '',
-  sideBClaim: '',
+  invitedUserId: '',
 })
 
-function hydrateDefaultUsers() {
-  if (authStore.users.length >= 2) {
-    form.sideAUserId = authStore.selectedUser?.id ?? authStore.users[0].id
-    form.sideBUserId = authStore.users.find((u) => u.id !== form.sideAUserId)?.id ?? authStore.users[1].id
+async function loadData() {
+  if (!authStore.users.length) {
+    await authStore.loadUsers()
+  }
+
+  const userId = authStore.selectedUser?.id
+  if (userId) {
+    await friendsStore.loadFriends(userId)
+  }
+
+  if (!form.invitedUserId) {
+    const firstOther = authStore.users.find((u) => u.id !== authStore.selectedUser?.id)
+    if (firstOther) {
+      form.invitedUserId = firstOther.id
+    }
   }
 }
 
-if (!authStore.users.length) {
-  void authStore.loadUsers().then(hydrateDefaultUsers)
-} else {
-  hydrateDefaultUsers()
-}
+void loadData()
+
+const friends = computed(() => friendsStore.friends)
+
+const otherUsers = computed(() =>
+  authStore.users.filter((u) => u.id !== authStore.selectedUser?.id),
+)
+
+const friendIds = computed(() => new Set(friends.value.map((f) => f.id)))
+
+const inviteOptions = computed(() => {
+  const friendList = otherUsers.value.filter((u) => friendIds.value.has(u.id))
+  const nonFriends = otherUsers.value.filter((u) => !friendIds.value.has(u.id))
+  return { friends: friendList, others: nonFriends }
+})
 
 async function submit() {
-  if (!form.sideAUserId || !form.sideBUserId) {
-    return
-  }
+  const userId = authStore.selectedUser?.id
+  if (!userId || !form.invitedUserId) return
 
   const created = await courtStore.createCase({
     title: form.title,
     category: form.category,
     summary: form.summary,
-    sideAUserId: form.sideAUserId,
+    sideAUserId: userId,
     sideAClaim: form.sideAClaim,
-    sideBUserId: form.sideBUserId,
-    sideBClaim: form.sideBClaim,
+    invitedUserId: form.invitedUserId,
   })
 
   if (created) {
@@ -55,7 +74,7 @@ async function submit() {
 <template>
   <section class="detail-shell">
     <p class="kicker">New Court Case</p>
-    <h1>Create a New Argument Duel</h1>
+    <h1>Start an Argument Duel</h1>
 
     <form class="case-form" @submit.prevent="submit">
       <label>
@@ -75,40 +94,44 @@ async function submit() {
 
       <div class="arguments">
         <section>
-          <h2>Side A</h2>
+          <h2>Your Side (Side A)</h2>
+          <p class="notice">
+            Playing as: <strong>{{ authStore.selectedUser?.displayName ?? '—' }}</strong>
+          </p>
           <label>
-            User
-            <select v-model="form.sideAUserId" required>
-              <option v-for="user in authStore.users" :key="`a-${user.id}`" :value="user.id">
-                {{ user.displayName }}
-              </option>
-            </select>
-          </label>
-          <label>
-            Claim
-            <textarea v-model="form.sideAClaim" required rows="4" />
+            Your Claim
+            <textarea v-model="form.sideAClaim" required rows="4" placeholder="State your argument…" />
           </label>
         </section>
 
         <section>
-          <h2>Side B</h2>
+          <h2>Invite to Side B</h2>
+          <p class="notice">Pick a friend or any user to write the opposing side.</p>
           <label>
-            User
-            <select v-model="form.sideBUserId" required>
-              <option v-for="user in authStore.users" :key="`b-${user.id}`" :value="user.id">
-                {{ user.displayName }}
-              </option>
+            Invite User
+            <select v-model="form.invitedUserId" required>
+              <optgroup v-if="inviteOptions.friends.length" label="Friends">
+                <option v-for="user in inviteOptions.friends" :key="user.id" :value="user.id">
+                  {{ user.displayName }} (@{{ user.userName }})
+                </option>
+              </optgroup>
+              <optgroup v-if="inviteOptions.others.length" :label="inviteOptions.friends.length ? 'Other Users' : 'Users'">
+                <option v-for="user in inviteOptions.others" :key="user.id" :value="user.id">
+                  {{ user.displayName }} (@{{ user.userName }})
+                </option>
+              </optgroup>
             </select>
           </label>
-          <label>
-            Claim
-            <textarea v-model="form.sideBClaim" required rows="4" />
-          </label>
+          <p class="notice">
+            They will receive an invitation to write their response before the case goes live.
+          </p>
         </section>
       </div>
 
       <div class="action-bar">
-        <button type="submit" class="action-btn" :disabled="courtStore.mutating">Create Case</button>
+        <button type="submit" class="action-btn" :disabled="courtStore.mutating">
+          Send Invitation &amp; Create Case
+        </button>
         <RouterLink to="/" class="case-link">Cancel</RouterLink>
       </div>
     </form>
@@ -116,3 +139,4 @@ async function submit() {
     <p v-if="courtStore.error" class="notice error">{{ courtStore.error }}</p>
   </section>
 </template>
+

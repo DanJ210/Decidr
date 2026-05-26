@@ -34,20 +34,24 @@ public class CasesController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Title) ||
             string.IsNullOrWhiteSpace(request.Category) ||
             string.IsNullOrWhiteSpace(request.Summary) ||
-            string.IsNullOrWhiteSpace(request.SideAClaim) ||
-            string.IsNullOrWhiteSpace(request.SideBClaim))
+            string.IsNullOrWhiteSpace(request.SideAClaim))
         {
             return BadRequest("All text fields are required.");
         }
 
-        if (request.SideAUserId == request.SideBUserId)
+        if (request.SideAUserId == request.InvitedUserId)
         {
-            return BadRequest("Side A and Side B must be different users.");
+            return BadRequest("You cannot invite yourself to Side B.");
         }
 
-        if (_courtService.GetUser(request.SideAUserId) is null || _courtService.GetUser(request.SideBUserId) is null)
+        if (_courtService.GetUser(request.SideAUserId) is null)
         {
-            return BadRequest("One or more posting users do not exist.");
+            return BadRequest("Side A user does not exist.");
+        }
+
+        if (_courtService.GetUser(request.InvitedUserId) is null)
+        {
+            return BadRequest("Invited user does not exist.");
         }
 
         var created = _courtService.CreateCase(request);
@@ -76,6 +80,30 @@ public class CasesController : ControllerBase
         }
 
         return Ok(result.UpdatedCase);
+    }
+
+    [HttpPost("{id:guid}/accept")]
+    public ActionResult<ArgumentCase> AcceptInvitation(Guid id, [FromBody] AcceptInvitationRequest request)
+    {
+        var result = _courtService.AcceptCaseInvitation(id, request);
+        if (!result.Success)
+        {
+            return BadRequest(result.Error);
+        }
+
+        return Ok(result.UpdatedCase);
+    }
+
+    [HttpPost("{id:guid}/decline")]
+    public ActionResult DeclineInvitation(Guid id, [FromBody] DeclineInvitationRequest request)
+    {
+        var result = _courtService.DeclineCaseInvitation(id, request.UserId);
+        if (!result.Success)
+        {
+            return BadRequest(result.Error);
+        }
+
+        return NoContent();
     }
 
     [HttpGet("{id:guid}/result")]
