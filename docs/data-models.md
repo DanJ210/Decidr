@@ -15,14 +15,22 @@ Models are defined in `backend/Models/ArgumentCase.cs` and mirrored in `frontend
 ### `CaseStatus`
 | Value | Description |
 |-------|-------------|
-| `Open` | Accepting votes |
-| `Closed` | Voting ended, winner resolved |
+| `Pending` | Case created; waiting for the invited user to write Side B |
+| `Open` | Both sides posted; accepting community votes |
+| `Closed` | Voting ended; winner resolved (or invitation declined) |
 
 ### `UserRole`
 | Value | Description |
 |-------|-------------|
 | `Member` | Standard community member |
 | `Moderator` | Can close any case |
+
+### `FriendRequestStatus`
+| Value | Description |
+|-------|-------------|
+| `Pending` | Request sent, not yet responded to |
+| `Accepted` | Both users are now friends |
+| `Declined` | Request was rejected |
 
 ---
 
@@ -72,12 +80,26 @@ The central entity representing a debate case.
 | `Title` | `string` | Short description of the dispute |
 | `Category` | `string` | Topic category (e.g. `Relationships`) |
 | `Summary` | `string` | Neutral summary of the disagreement |
-| `SideA` | `ArgumentPost` | Side A's argument |
-| `SideB` | `ArgumentPost` | Side B's argument |
+| `SideA` | `ArgumentPost` | Side A's argument (always set) |
+| `SideB` | `ArgumentPost?` | Side B's argument — `null` while status is `Pending` |
+| `InvitedUserId` | `Guid?` | The user invited to write Side B; `null` once they respond |
 | `Verdict` | `CommunityVerdict` | Current vote counts |
-| `Status` | `CaseStatus` | `Open` or `Closed` |
-| `WinnerSide` | `CaseSide?` | `null` until closed; `null` on a tie |
+| `Status` | `CaseStatus` | `Pending`, `Open`, or `Closed` |
+| `WinnerSide` | `CaseSide?` | `null` until closed; `null` on a tie or declined invitation |
 | `CreatedAtUtc` | `DateTime` | When case was created |
+
+---
+
+### `FriendRequest`
+A directed friend request between two users.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Id` | `Guid` | Unique identifier |
+| `FromUserId` | `Guid` | User who sent the request |
+| `ToUserId` | `Guid` | User who received the request |
+| `Status` | `FriendRequestStatus` | `Pending`, `Accepted`, or `Declined` |
+| `CreatedAtUtc` | `DateTime` | When the request was sent |
 
 ---
 
@@ -146,15 +168,44 @@ API-facing reward shape returned by `GET /api/users/{id}/rewards`.
 ## Request DTOs
 
 ### `CreateCaseRequest`
-| Field | Type |
-|-------|------|
-| `Title` | `string` |
-| `Category` | `string` |
-| `Summary` | `string` |
-| `SideAUserId` | `Guid` |
-| `SideAClaim` | `string` |
-| `SideBUserId` | `Guid` |
-| `SideBClaim` | `string` |
+Creates a new `Pending` case. Side B is filled in when the invited user accepts.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Title` | `string` | Case title |
+| `Category` | `string` | Topic category |
+| `Summary` | `string` | Neutral summary |
+| `SideAUserId` | `Guid` | Case creator (Side A poster) |
+| `SideAClaim` | `string` | Creator's argument |
+| `InvitedUserId` | `Guid` | User invited to write Side B |
+
+### `AcceptInvitationRequest`
+Used by the invited user to accept and provide their Side B claim.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `UserId` | `Guid` | Must match `InvitedUserId` on the case |
+| `Claim` | `string` | Side B argument text |
+
+### `DeclineInvitationRequest`
+Used by the invited user to decline the invitation.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `UserId` | `Guid` | Must match `InvitedUserId` on the case |
+
+### `SendFriendRequestDto`
+| Field | Type | Description |
+|-------|------|-------------|
+| `FromUserId` | `Guid` | User sending the request |
+| `ToUserId` | `Guid` | User receiving the request |
+
+### `RespondFriendRequestDto`
+Used for both accept and decline friend request endpoints.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ActorUserId` | `Guid` | Must match `ToUserId` of the request |
 
 ### `CastVoteRequest`
 | Field | Type |
