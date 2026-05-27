@@ -43,14 +43,26 @@ const inviterName = computed(() => {
   return selected.sideA.userName
 })
 
+const isParticipant = computed(() => {
+  const selected = caseItem.value
+  const user = activeUser.value
+  if (!selected || !user) return false
+  return selected.sideA.userId === user.id || selected.sideB?.userId === user.id
+})
+
+const canVote = computed(() => {
+  const selected = caseItem.value
+  const user = activeUser.value
+  return !!selected && !!user && selected.status === 'Open' && !isParticipant.value
+})
+
 const canCloseCase = computed(() => {
   const selected = caseItem.value
   const user = activeUser.value
   if (!selected || !user || selected.status !== 'Open') return false
 
-  const isParticipant = selected.sideA.userId === user.id || selected.sideB?.userId === user.id
   const isModerator = user.role === 'Moderator'
-  return isParticipant || isModerator
+  return isParticipant.value || isModerator
 })
 
 const closePermissionMessage = computed(() => {
@@ -215,7 +227,7 @@ async function declineInvitation() {
             <button
               type="button"
               class="action-btn"
-              :disabled="caseItem.status === 'Closed' || !authStore.selectedUser || courtStore.mutating"
+              :disabled="!canVote || courtStore.mutating"
               @click="vote('A')"
             >
               Vote Side A
@@ -223,7 +235,7 @@ async function declineInvitation() {
             <button
               type="button"
               class="action-btn"
-              :disabled="caseItem.status === 'Closed' || !authStore.selectedUser || courtStore.mutating"
+              :disabled="!canVote || courtStore.mutating"
               @click="vote('B')"
             >
               Vote Side B
@@ -238,6 +250,9 @@ async function declineInvitation() {
             </button>
           </div>
 
+          <p v-if="caseItem.status === 'Open' && isParticipant" class="status-text">
+            You are a participant in this case and cannot vote.
+          </p>
           <p v-if="closePermissionMessage" class="status-text">{{ closePermissionMessage }}</p>
         </section>
       </template>

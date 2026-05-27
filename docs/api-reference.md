@@ -102,6 +102,7 @@ Casts a community vote on a case.
 **Validation**
 - Case must exist and be `Open`.
 - User must exist.
+- User must not be a participant in the case (Side A or Side B poster).
 - User may only vote once per case.
 
 **Response `200 OK`** — updated `ArgumentCase`  

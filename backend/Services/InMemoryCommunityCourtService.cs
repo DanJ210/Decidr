@@ -152,6 +152,11 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                 return (false, "User not found.", null);
             }
 
+            if (foundCase.SideA.UserId == request.UserId || foundCase.SideB?.UserId == request.UserId)
+            {
+                return (false, "Case participants cannot vote on their own case.", null);
+            }
+
             if (_votes.Any(v => v.CaseId == caseId && v.UserId == request.UserId))
             {
                 return (false, "User has already voted on this case.", null);
