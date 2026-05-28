@@ -184,6 +184,14 @@ Returns incoming pending friend requests for the user.
 
 ---
 
+### `GET /api/users/{id}/friend-requests/sent`
+Returns outgoing pending friend requests sent by the user.
+
+**Response `200 OK`** — `FriendRequest[]`  
+**Response `404 Not Found`** — user does not exist
+
+---
+
 ### `GET /api/users/{id}/invitations`
 Returns pending case invitations where the user is the invited Side B participant.
 

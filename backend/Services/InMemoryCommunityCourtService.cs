@@ -381,6 +381,17 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         }
     }
 
+    public IReadOnlyList<FriendRequest> GetOutgoingFriendRequests(Guid userId)
+    {
+        lock (_syncRoot)
+        {
+            return _friendRequests
+                .Where(r => r.FromUserId == userId && r.Status == FriendRequestStatus.Pending)
+                .OrderByDescending(r => r.CreatedAtUtc)
+                .ToList();
+        }
+    }
+
     public bool AreFriends(Guid userId, Guid otherUserId)
     {
         lock (_syncRoot)

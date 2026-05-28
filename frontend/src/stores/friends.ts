@@ -3,6 +3,7 @@ import {
   fetchFriendRequests,
   fetchFriends,
   fetchInvitations,
+  fetchOutgoingFriendRequests,
   removeFriend as removeFriendApi,
   respondToFriendRequest,
   sendFriendRequest,
@@ -12,6 +13,7 @@ import type { AppUser, ArgumentCase, FriendRequest } from '../types'
 interface FriendsState {
   friends: AppUser[]
   incomingRequests: FriendRequest[]
+  outgoingRequests: FriendRequest[]
   invitations: ArgumentCase[]
   loading: boolean
   error: string | null
@@ -21,6 +23,7 @@ export const useFriendsStore = defineStore('friends', {
   state: (): FriendsState => ({
     friends: [],
     incomingRequests: [],
+    outgoingRequests: [],
     invitations: [],
     loading: false,
     error: null,
@@ -50,6 +53,18 @@ export const useFriendsStore = defineStore('friends', {
         this.loading = false
       }
     },
+    async loadOutgoingRequests(userId: string) {
+      this.loading = true
+      this.error = null
+
+      try {
+        this.outgoingRequests = await fetchOutgoingFriendRequests(userId)
+      } catch {
+        this.error = 'Unable to load sent friend requests right now.'
+      } finally {
+        this.loading = false
+      }
+    },
     async loadInvitations(userId: string) {
       this.loading = true
       this.error = null
@@ -67,6 +82,7 @@ export const useFriendsStore = defineStore('friends', {
 
       try {
         await sendFriendRequest({ fromUserId, toUserId })
+        await this.loadOutgoingRequests(fromUserId)
         return true
       } catch {
         this.error = 'Unable to send friend request right now.'
@@ -100,6 +116,7 @@ export const useFriendsStore = defineStore('friends', {
     clearAll() {
       this.friends = []
       this.incomingRequests = []
+      this.outgoingRequests = []
       this.invitations = []
     },
   },

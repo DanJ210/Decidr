@@ -19,6 +19,7 @@ public interface ICommunityCourtService
     (bool Success, string? Error) RemoveFriend(Guid actorUserId, Guid friendUserId);
     IReadOnlyList<AppUser> GetFriends(Guid userId);
     IReadOnlyList<FriendRequest> GetFriendRequests(Guid userId);
+    IReadOnlyList<FriendRequest> GetOutgoingFriendRequests(Guid userId);
     bool AreFriends(Guid userId, Guid otherUserId);
 
     // Case invitations

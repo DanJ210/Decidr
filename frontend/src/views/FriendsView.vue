@@ -13,6 +13,7 @@ async function loadAll(userId: string) {
   await Promise.all([
     friendsStore.loadFriends(userId),
     friendsStore.loadFriendRequests(userId),
+    friendsStore.loadOutgoingRequests(userId),
   ])
 }
 
@@ -53,14 +54,25 @@ const filteredUsers = computed(() =>
 
 const friendIds = computed(() => new Set(friendsStore.friends.map((f) => f.id)))
 const incomingRequesterIds = computed(() => new Set(friendsStore.incomingRequests.map((r) => r.fromUserId)))
+const outgoingRequesteeIds = computed(() => new Set(friendsStore.outgoingRequests.map((r) => r.toUserId)))
 
 const searchableCandidates = computed(() =>
-  filteredUsers.value.filter((u) => !friendIds.value.has(u.id) && !incomingRequesterIds.value.has(u.id)),
+  filteredUsers.value.filter(
+    (u) =>
+      !friendIds.value.has(u.id) &&
+      !incomingRequesterIds.value.has(u.id) &&
+      !outgoingRequesteeIds.value.has(u.id),
+  ),
 )
 
 const fromUserName = computed(() => {
   return (fromUserId: string) =>
     authStore.users.find((u) => u.id === fromUserId)?.displayName ?? fromUserId
+})
+
+const toUserName = computed(() => {
+  return (toUserId: string) =>
+    authStore.users.find((u) => u.id === toUserId)?.displayName ?? toUserId
 })
 
 async function sendRequest() {
@@ -125,6 +137,20 @@ async function removeFriend(friendUserId: string) {
             <button class="action-btn" @click="respondToRequest(req.id, true)">Accept</button>
             <button class="action-btn danger" @click="respondToRequest(req.id, false)">Decline</button>
           </div>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Outgoing pending friend requests -->
+    <section v-if="friendsStore.outgoingRequests.length" class="board">
+      <header class="board-header">
+        <h2>Sent Requests</h2>
+        <span>{{ friendsStore.outgoingRequests.length }} pending</span>
+      </header>
+      <ul class="case-grid">
+        <li v-for="req in friendsStore.outgoingRequests" :key="req.id" class="case-card">
+          <p>Friend request sent to <strong>{{ toUserName(req.toUserId) }}</strong>.</p>
+          <span class="pill">Pending</span>
         </li>
       </ul>
     </section>
