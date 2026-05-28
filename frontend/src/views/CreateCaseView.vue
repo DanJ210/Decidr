@@ -105,18 +105,20 @@ async function submit() {
 
         <section>
           <h2>Invite to Side B</h2>
-          <p class="notice">Pick a connected friend to write the opposing side.</p>
-          <label>
+          <p class="notice" role="status" aria-live="polite">Pick a connected friend to write the opposing side.</p>
+          <label v-if="inviteCandidates.length">
             Invite User
-            <select v-model="form.invitedUserId" required :disabled="!inviteCandidates.length">
-              <option value="" disabled>
-                {{ inviteCandidates.length ? 'Choose a friend…' : 'No connected friends available' }}
-              </option>
+            <select v-model="form.invitedUserId" required>
+              <option value="" disabled>Choose a friend…</option>
               <option v-for="user in inviteCandidates" :key="user.id" :value="user.id">
                 {{ user.displayName }} (@{{ user.userName }})
               </option>
             </select>
           </label>
+          <p v-else class="notice">
+            You need at least one friend connection before creating a case.
+            <RouterLink to="/friends" class="case-link">Manage friends</RouterLink>
+          </p>
           <p class="notice">
             They will receive an invitation to write their response before the case goes live.
             Add friends from the Friends page to invite more people.
@@ -125,11 +127,19 @@ async function submit() {
       </div>
 
       <div class="action-bar">
-        <button type="submit" class="action-btn" :disabled="courtStore.mutating || !form.invitedUserId">
+        <button
+          type="submit"
+          class="action-btn"
+          :disabled="courtStore.mutating || !form.invitedUserId"
+          aria-describedby="create-case-help"
+        >
           Send Invitation &amp; Create Case
         </button>
         <RouterLink to="/" class="case-link">Cancel</RouterLink>
       </div>
+      <p v-if="!form.invitedUserId" id="create-case-help" class="notice">
+        Select a connected friend before sending the invitation.
+      </p>
     </form>
 
     <p v-if="courtStore.error" class="notice error">{{ courtStore.error }}</p>
