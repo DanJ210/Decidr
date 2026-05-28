@@ -111,6 +111,11 @@ public record RespondFriendRequestDto(
     Guid ActorUserId
 );
 
+public record RemoveFriendDto(
+    Guid ActorUserId,
+    Guid FriendUserId
+);
+
 public record FriendRequest(
     Guid Id,
     Guid FromUserId,

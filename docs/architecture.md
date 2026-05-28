@@ -63,7 +63,7 @@ Cases are created in a `Pending` state. Only the creator's Side A claim is store
 `GET /api/cases` deliberately excludes `Pending` cases, keeping the public feed clean. `Pending` cases are surfaced to the invited user via `GET /api/users/{id}/invitations` and shown in the "My Invitations" section on the home page.
 
 ### Friend System
-Users can send, accept, and decline friend requests. Accepted friendships are derived from `_friendRequests` where `Status == Accepted`. When creating a new case, the user's friend list is surfaced at the top of the invite dropdown to make it easy to challenge a friend. Friending is entirely optional — any user can be invited to Side B regardless of friendship status.
+Users can send, accept, decline, and remove friend connections. Accepted friendships are derived from `_friendRequests` where `Status == Accepted`. When creating a new case, invitations are restricted to accepted friends only.
 
 ### Reward System
 Badges are awarded automatically at key lifecycle events:
@@ -79,4 +79,3 @@ There is no authentication system. The frontend stores a `selectedUserId` in `lo
 
 ### Frontend–Backend Integration
 In production, `dotnet run` serves both the API and the compiled Vue SPA. The backend registers `UseDefaultFiles()`, `UseStaticFiles()`, and `MapFallbackToFile("index.html")` so Vue Router can handle client-side navigation. In development, the Vite dev server handles the frontend and proxies API calls to the .NET backend.
-

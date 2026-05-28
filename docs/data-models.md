@@ -207,6 +207,14 @@ Used for both accept and decline friend request endpoints.
 |-------|------|-------------|
 | `ActorUserId` | `Guid` | Must match `ToUserId` of the request |
 
+### `RemoveFriendDto`
+Used to remove an accepted friend connection.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ActorUserId` | `Guid` | User performing the removal |
+| `FriendUserId` | `Guid` | Friend to disconnect |
+
 ### `CastVoteRequest`
 | Field | Type |
 |-------|------|

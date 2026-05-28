@@ -322,6 +322,39 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         }
     }
 
+    public (bool Success, string? Error) RemoveFriend(Guid actorUserId, Guid friendUserId)
+    {
+        lock (_syncRoot)
+        {
+            if (_users.All(u => u.Id != actorUserId))
+            {
+                return (false, "Acting user not found.");
+            }
+
+            if (_users.All(u => u.Id != friendUserId))
+            {
+                return (false, "Friend user not found.");
+            }
+
+            if (actorUserId == friendUserId)
+            {
+                return (false, "You cannot remove yourself as a friend.");
+            }
+
+            var removed = _friendRequests.RemoveAll(r =>
+                r.Status == FriendRequestStatus.Accepted &&
+                ((r.FromUserId == actorUserId && r.ToUserId == friendUserId) ||
+                 (r.FromUserId == friendUserId && r.ToUserId == actorUserId)));
+
+            if (removed == 0)
+            {
+                return (false, "Users are not currently connected as friends.");
+            }
+
+            return (true, null);
+        }
+    }
+
     public IReadOnlyList<AppUser> GetFriends(Guid userId)
     {
         lock (_syncRoot)
@@ -345,6 +378,17 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                 .Where(r => r.ToUserId == userId && r.Status == FriendRequestStatus.Pending)
                 .OrderByDescending(r => r.CreatedAtUtc)
                 .ToList();
+        }
+    }
+
+    public bool AreFriends(Guid userId, Guid otherUserId)
+    {
+        lock (_syncRoot)
+        {
+            return _friendRequests.Any(r =>
+                r.Status == FriendRequestStatus.Accepted &&
+                ((r.FromUserId == userId && r.ToUserId == otherUserId) ||
+                 (r.FromUserId == otherUserId && r.ToUserId == userId)));
         }
     }
 

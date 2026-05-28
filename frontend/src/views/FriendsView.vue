@@ -7,6 +7,7 @@ const authStore = useAuthStore()
 const friendsStore = useFriendsStore()
 
 const addFriendId = ref('')
+const searchTerm = ref('')
 
 async function loadAll(userId: string) {
   await Promise.all([
@@ -36,13 +37,25 @@ watch(
   },
 )
 
-const otherUsers = computed(() =>
-  authStore.users.filter((u) => {
-    if (u.id === authStore.selectedUser?.id) return false
-    const alreadyFriend = friendsStore.friends.some((f) => f.id === u.id)
-    const hasPendingRequest = friendsStore.incomingRequests.some((r) => r.fromUserId === u.id)
-    return !alreadyFriend && !hasPendingRequest
-  }),
+const normalizedSearch = computed(() => searchTerm.value.trim().toLowerCase())
+
+const filteredUsers = computed(() =>
+  authStore.users
+    .filter((u) => u.id !== authStore.selectedUser?.id)
+    .filter((u) => {
+      if (!normalizedSearch.value) return true
+      return (
+        u.displayName.toLowerCase().includes(normalizedSearch.value) ||
+        u.userName.toLowerCase().includes(normalizedSearch.value)
+      )
+    }),
+)
+
+const friendIds = computed(() => new Set(friendsStore.friends.map((f) => f.id)))
+const incomingRequesterIds = computed(() => new Set(friendsStore.incomingRequests.map((r) => r.fromUserId)))
+
+const searchableCandidates = computed(() =>
+  filteredUsers.value.filter((u) => !friendIds.value.has(u.id) && !incomingRequesterIds.value.has(u.id)),
 )
 
 const fromUserName = computed(() => {
@@ -70,6 +83,13 @@ async function respondToRequest(requestId: string, accept: boolean) {
     await friendsStore.loadFriends(userId)
   }
 }
+
+async function removeFriend(friendUserId: string) {
+  const userId = authStore.selectedUser?.id
+  if (!userId) return
+
+  await friendsStore.removeFriend(userId, friendUserId)
+}
 </script>
 
 <template>
@@ -79,6 +99,18 @@ async function respondToRequest(requestId: string, accept: boolean) {
 
     <p v-if="friendsStore.loading" class="notice">Loading...</p>
     <p v-if="friendsStore.error" class="notice error">{{ friendsStore.error }}</p>
+
+    <section class="board">
+      <header class="board-header">
+        <h2>Search Users</h2>
+      </header>
+      <form class="case-form" @submit.prevent>
+        <label>
+          Name or username
+          <input v-model="searchTerm" placeholder="Search users..." />
+        </label>
+      </form>
+    </section>
 
     <!-- Incoming friend requests -->
     <section v-if="friendsStore.incomingRequests.length" class="board">
@@ -111,6 +143,11 @@ async function respondToRequest(requestId: string, accept: boolean) {
           <h3>{{ friend.displayName }}</h3>
           <p>@{{ friend.userName }}</p>
           <span class="pill">{{ friend.role }}</span>
+          <div class="action-bar">
+            <button type="button" class="action-btn danger" @click="removeFriend(friend.id)">
+              Remove Friend
+            </button>
+          </div>
         </li>
       </ul>
     </section>
@@ -125,7 +162,7 @@ async function respondToRequest(requestId: string, accept: boolean) {
           Select User
           <select v-model="addFriendId" required>
             <option value="" disabled>Choose a user…</option>
-            <option v-for="user in otherUsers" :key="user.id" :value="user.id">
+            <option v-for="user in searchableCandidates" :key="user.id" :value="user.id">
               {{ user.displayName }} (@{{ user.userName }})
             </option>
           </select>
@@ -136,6 +173,9 @@ async function respondToRequest(requestId: string, accept: boolean) {
           </button>
         </div>
       </form>
+      <p v-if="!searchableCandidates.length" class="notice">
+        No users available to add for this search.
+      </p>
     </section>
   </section>
 </template>

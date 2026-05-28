@@ -3,6 +3,7 @@ import {
   fetchFriendRequests,
   fetchFriends,
   fetchInvitations,
+  removeFriend as removeFriendApi,
   respondToFriendRequest,
   sendFriendRequest,
 } from '../services/api'
@@ -81,6 +82,18 @@ export const useFriendsStore = defineStore('friends', {
         return true
       } catch {
         this.error = 'Unable to respond to this request right now.'
+        return false
+      }
+    },
+    async removeFriend(actorUserId: string, friendUserId: string): Promise<boolean> {
+      this.error = null
+
+      try {
+        await removeFriendApi({ actorUserId, friendUserId })
+        this.friends = this.friends.filter((f) => f.id !== friendUserId)
+        return true
+      } catch {
+        this.error = 'Unable to remove this friend right now.'
         return false
       }
     },

@@ -42,6 +42,7 @@ Creates a new debate case in `Pending` status. Side B is not set yet — the inv
 - All text fields must be non-empty.
 - `sideAUserId` and `invitedUserId` must be different.
 - Both user IDs must exist.
+- `sideAUserId` and `invitedUserId` must be connected as accepted friends.
 
 **Response `201 Created`** — `ArgumentCase` (status `Pending`) with `Location` header  
 **Response `400 Bad Request`** — validation failure message
@@ -241,3 +242,22 @@ Declines a pending friend request. Only the recipient (`toUserId`) may decline.
 **Response `204 No Content`**  
 **Response `400 Bad Request`** — error message
 
+---
+
+### `POST /api/friends/remove`
+Removes an accepted friendship connection between two users.
+
+**Request body**
+```json
+{
+  "actorUserId": "guid",
+  "friendUserId": "guid"
+}
+```
+
+**Validation**
+- Both users must exist and be different.
+- Users must already be connected as accepted friends.
+
+**Response `204 No Content`**  
+**Response `400 Bad Request`** — error message

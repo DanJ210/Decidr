@@ -72,6 +72,11 @@ export interface RespondFriendRequestDto {
   actorUserId: string
 }
 
+export interface RemoveFriendDto {
+  actorUserId: string
+  friendUserId: string
+}
+
 export interface CastVoteRequest {
   userId: string
   side: CaseSide

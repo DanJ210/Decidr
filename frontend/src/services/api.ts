@@ -7,6 +7,7 @@ import type {
   CloseCaseRequest,
   CreateCaseRequest,
   FriendRequest,
+  RemoveFriendDto,
   RespondFriendRequestDto,
   SendFriendRequestDto,
   UserRewardView,
@@ -83,4 +84,8 @@ export async function sendFriendRequest(dto: SendFriendRequestDto): Promise<void
 export async function respondToFriendRequest(requestId: string, dto: RespondFriendRequestDto, accept: boolean): Promise<void> {
   const path = accept ? 'accept' : 'decline'
   await apiClient.post(`/friends/${requestId}/${path}`, dto)
+}
+
+export async function removeFriend(dto: RemoveFriendDto): Promise<void> {
+  await apiClient.post('/friends/remove', dto)
 }

@@ -22,8 +22,8 @@ frontend/src/
 ├── views/
 │   ├── HomeView.vue      # Case listing page + My Invitations section
 │   ├── CaseDetailView.vue# Single case view — handles Pending/Open/Closed states
-│   ├── CreateCaseView.vue# Form to start a new case and invite a Side B opponent
-│   ├── FriendsView.vue   # Friends list, incoming requests, add friend
+│   ├── CreateCaseView.vue# Form to start a new case and invite a connected Side B friend
+│   ├── FriendsView.vue   # Friend search, incoming requests, add/remove friend
 │   └── RewardsView.vue   # Badge/reward display for the current user
 └── components/
     └── HelloWorld.vue    # (Scaffold placeholder)
@@ -137,7 +137,7 @@ Defined in `services/api.ts`. All functions use a shared Axios instance with `ba
 |----------|--------|----------|-------------|
 | `fetchCases()` | `GET` | `/cases` | Get all public cases |
 | `fetchCaseById(id)` | `GET` | `/cases/{id}` | Get one case (any status) |
-| `createCase(request)` | `POST` | `/cases` | Create a new `Pending` case |
+| `createCase(request)` | `POST` | `/cases` | Create a new `Pending` case (friend connection required for invite) |
 | `castVote(caseId, request)` | `POST` | `/cases/{id}/vote` | Cast a vote |
 | `closeCase(caseId, request)` | `POST` | `/cases/{id}/close` | Close a case |
 | `acceptCaseInvitation(caseId, request)` | `POST` | `/cases/{id}/accept` | Accept invitation and provide Side B claim |
@@ -149,6 +149,7 @@ Defined in `services/api.ts`. All functions use a shared Axios instance with `ba
 | `fetchInvitations(userId)` | `GET` | `/users/{id}/invitations` | Get pending case invitations |
 | `sendFriendRequest(dto)` | `POST` | `/friends/request` | Send a friend request |
 | `respondToFriendRequest(id, dto, accept)` | `POST` | `/friends/{id}/accept` or `.../decline` | Accept or decline a friend request |
+| `removeFriend(dto)` | `POST` | `/friends/remove` | Remove an accepted friend connection |
 
 ---
 
@@ -157,4 +158,3 @@ Defined in `services/api.ts`. All functions use a shared Axios instance with `ba
 `types.ts` mirrors the backend C# models as TypeScript interfaces. See [Data Models](./data-models.md) for full field descriptions.
 
 Key types: `AppUser`, `ArgumentCase`, `ArgumentPost`, `CommunityVerdict`, `FriendRequest`, `FriendRequestStatus`, `UserRewardView`, `CreateCaseRequest`, `AcceptInvitationRequest`, `DeclineInvitationRequest`, `SendFriendRequestDto`, `RespondFriendRequestDto`, `CastVoteRequest`, `CloseCaseRequest`.
-
