@@ -83,6 +83,18 @@ export const useFriendsStore = defineStore('friends', {
 
       try {
         await sendFriendRequest({ fromUserId, toUserId })
+        // Optimistically add to outgoing list so the UI updates immediately
+        this.outgoingRequests = [
+          ...this.outgoingRequests,
+          {
+            id: `temp-${Date.now()}`,
+            fromUserId,
+            toUserId,
+            status: 'Pending' as const,
+            createdAtUtc: new Date().toISOString(),
+          },
+        ]
+        // Then sync with the server to get the real ID
         await this.loadOutgoingRequests(fromUserId)
         return true
       } catch {
