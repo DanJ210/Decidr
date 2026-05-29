@@ -172,11 +172,12 @@ async function removeFriend(friendUserId: string) {
     </section>
 
     <!-- Outgoing pending friend requests -->
-    <section v-if="friendsStore.outgoingRequests.length" class="board">
+    <section v-if="friendsStore.outgoingRequests.length || friendsStore.outgoingError" class="board">
       <header class="board-header">
         <h2>Sent Requests</h2>
         <span>{{ friendsStore.outgoingRequests.length }} pending</span>
       </header>
+      <p v-if="friendsStore.outgoingError" class="notice error">{{ friendsStore.outgoingError }}</p>
       <ul class="case-grid">
         <li v-for="req in friendsStore.outgoingRequests" :key="req.id" class="case-card">
           <p>Friend request sent to <strong>{{ toUserName(req.toUserId) }}</strong>.</p>

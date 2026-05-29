@@ -17,6 +17,7 @@ interface FriendsState {
   invitations: ArgumentCase[]
   loading: boolean
   error: string | null
+  outgoingError: string | null
 }
 
 export const useFriendsStore = defineStore('friends', {
@@ -27,6 +28,7 @@ export const useFriendsStore = defineStore('friends', {
     invitations: [],
     loading: false,
     error: null,
+    outgoingError: null,
   }),
   actions: {
     async loadFriends(userId: string) {
@@ -55,13 +57,13 @@ export const useFriendsStore = defineStore('friends', {
     },
     async loadOutgoingRequests(userId: string) {
       this.loading = true
-      this.error = null
+      this.outgoingError = null
 
       try {
         const data = await fetchOutgoingFriendRequests(userId)
         this.outgoingRequests = data
       } catch {
-        this.error = 'Unable to load sent friend requests right now.'
+        this.outgoingError = 'Unable to load sent friend requests right now.'
       } finally {
         this.loading = false
       }
