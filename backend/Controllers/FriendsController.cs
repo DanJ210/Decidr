@@ -50,4 +50,16 @@ public class FriendsController : ControllerBase
 
         return NoContent();
     }
+
+    [HttpPost("remove")]
+    public ActionResult RemoveFriend([FromBody] RemoveFriendDto dto)
+    {
+        var result = _courtService.RemoveFriend(dto.ActorUserId, dto.FriendUserId);
+        if (!result.Success)
+        {
+            return BadRequest(result.Error);
+        }
+
+        return NoContent();
+    }
 }

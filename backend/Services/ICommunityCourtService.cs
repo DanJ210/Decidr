@@ -16,8 +16,11 @@ public interface ICommunityCourtService
     // Friend system
     (bool Success, string? Error) SendFriendRequest(SendFriendRequestDto dto);
     (bool Success, string? Error) RespondToFriendRequest(Guid requestId, Guid actorUserId, bool accept);
+    (bool Success, string? Error) RemoveFriend(Guid actorUserId, Guid friendUserId);
     IReadOnlyList<AppUser> GetFriends(Guid userId);
     IReadOnlyList<FriendRequest> GetFriendRequests(Guid userId);
+    IReadOnlyList<FriendRequest> GetOutgoingFriendRequests(Guid userId);
+    bool AreFriends(Guid userId, Guid otherUserId);
 
     // Case invitations
     IReadOnlyList<ArgumentCase> GetPendingInvitations(Guid userId);

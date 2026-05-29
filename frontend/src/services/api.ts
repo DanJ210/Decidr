@@ -7,6 +7,7 @@ import type {
   CloseCaseRequest,
   CreateCaseRequest,
   FriendRequest,
+  RemoveFriendDto,
   RespondFriendRequestDto,
   SendFriendRequestDto,
   UserRewardView,
@@ -71,6 +72,15 @@ export async function fetchFriendRequests(userId: string): Promise<FriendRequest
   return data
 }
 
+export async function fetchOutgoingFriendRequests(userId: string): Promise<FriendRequest[]> {
+  const { data, headers } = await apiClient.get<FriendRequest[]>(`/users/${userId}/sent-requests`)
+  if (!Array.isArray(data)) {
+    const contentType = headers['content-type'] ?? 'unknown'
+    throw new Error(`Unexpected response for outgoing friend requests (${contentType}).`)
+  }
+  return data
+}
+
 export async function fetchInvitations(userId: string): Promise<ArgumentCase[]> {
   const { data } = await apiClient.get<ArgumentCase[]>(`/users/${userId}/invitations`)
   return data
@@ -83,4 +93,8 @@ export async function sendFriendRequest(dto: SendFriendRequestDto): Promise<void
 export async function respondToFriendRequest(requestId: string, dto: RespondFriendRequestDto, accept: boolean): Promise<void> {
   const path = accept ? 'accept' : 'decline'
   await apiClient.post(`/friends/${requestId}/${path}`, dto)
+}
+
+export async function removeFriend(dto: RemoveFriendDto): Promise<void> {
+  await apiClient.post('/friends/remove', dto)
 }

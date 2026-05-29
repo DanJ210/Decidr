@@ -54,6 +54,11 @@ public class CasesController : ControllerBase
             return BadRequest("Invited user does not exist.");
         }
 
+        if (!_courtService.AreFriends(request.SideAUserId, request.InvitedUserId))
+        {
+            return BadRequest("You can only invite users who are connected as friends.");
+        }
+
         var created = _courtService.CreateCase(request);
         return CreatedAtAction(nameof(GetCaseById), new { id = created.Id }, created);
     }

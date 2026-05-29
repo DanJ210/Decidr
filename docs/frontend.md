@@ -22,8 +22,8 @@ frontend/src/
 ├── views/
 │   ├── HomeView.vue      # Case listing page + My Invitations section
 │   ├── CaseDetailView.vue# Single case view — handles Pending/Open/Closed states
-│   ├── CreateCaseView.vue# Form to start a new case and invite a Side B opponent
-│   ├── FriendsView.vue   # Friends list, incoming requests, add friend
+│   ├── CreateCaseView.vue# Form to start a new case and invite a connected Side B friend
+│   ├── FriendsView.vue   # Friend search, incoming requests, add/remove friend
 │   └── RewardsView.vue   # Badge/reward display for the current user
 └── components/
     └── HelloWorld.vue    # (Scaffold placeholder)
@@ -98,17 +98,21 @@ Manages the social graph: friends list, incoming friend requests, and pending ca
 |-------|------|-------------|
 | `friends` | `AppUser[]` | Accepted friends of the current user |
 | `incomingRequests` | `FriendRequest[]` | Pending friend requests addressed to the current user |
+| `outgoingRequests` | `FriendRequest[]` | Pending friend requests sent by the current user |
 | `invitations` | `ArgumentCase[]` | Pending case invitations where the user is invited to Side B |
 | `loading` | `boolean` | Any fetch in progress |
 | `error` | `string \| null` | Last error message |
+| `outgoingError` | `string \| null` | Last error message from loading sent friend requests |
 
 | Action | Description |
 |--------|-------------|
 | `loadFriends(userId)` | Fetches accepted friends |
 | `loadFriendRequests(userId)` | Fetches incoming pending friend requests |
+| `loadOutgoingRequests(userId)` | Fetches sent pending friend requests |
 | `loadInvitations(userId)` | Fetches pending case invitations for the user |
 | `sendRequest(fromUserId, toUserId)` | Sends a friend request |
 | `respondToRequest(requestId, actorUserId, accept)` | Accepts or declines a friend request; removes it from `incomingRequests` |
+| `removeFriend(actorUserId, friendUserId)` | Removes an existing friend connection |
 | `clearAll()` | Clears all state (used on user switch) |
 
 ---
@@ -137,7 +141,7 @@ Defined in `services/api.ts`. All functions use a shared Axios instance with `ba
 |----------|--------|----------|-------------|
 | `fetchCases()` | `GET` | `/cases` | Get all public cases |
 | `fetchCaseById(id)` | `GET` | `/cases/{id}` | Get one case (any status) |
-| `createCase(request)` | `POST` | `/cases` | Create a new `Pending` case |
+| `createCase(request)` | `POST` | `/cases` | Create a new `Pending` case (friend connection required for invite) |
 | `castVote(caseId, request)` | `POST` | `/cases/{id}/vote` | Cast a vote |
 | `closeCase(caseId, request)` | `POST` | `/cases/{id}/close` | Close a case |
 | `acceptCaseInvitation(caseId, request)` | `POST` | `/cases/{id}/accept` | Accept invitation and provide Side B claim |
@@ -146,9 +150,11 @@ Defined in `services/api.ts`. All functions use a shared Axios instance with `ba
 | `fetchUserRewards(userId)` | `GET` | `/users/{id}/rewards` | Get user rewards |
 | `fetchFriends(userId)` | `GET` | `/users/{id}/friends` | Get user's friends |
 | `fetchFriendRequests(userId)` | `GET` | `/users/{id}/friend-requests` | Get incoming friend requests |
+| `fetchOutgoingFriendRequests(userId)` | `GET` | `/users/{id}/sent-requests` | Get sent pending friend requests |
 | `fetchInvitations(userId)` | `GET` | `/users/{id}/invitations` | Get pending case invitations |
 | `sendFriendRequest(dto)` | `POST` | `/friends/request` | Send a friend request |
 | `respondToFriendRequest(id, dto, accept)` | `POST` | `/friends/{id}/accept` or `.../decline` | Accept or decline a friend request |
+| `removeFriend(dto)` | `POST` | `/friends/remove` | Remove an accepted friend connection |
 
 ---
 
@@ -157,4 +163,3 @@ Defined in `services/api.ts`. All functions use a shared Axios instance with `ba
 `types.ts` mirrors the backend C# models as TypeScript interfaces. See [Data Models](./data-models.md) for full field descriptions.
 
 Key types: `AppUser`, `ArgumentCase`, `ArgumentPost`, `CommunityVerdict`, `FriendRequest`, `FriendRequestStatus`, `UserRewardView`, `CreateCaseRequest`, `AcceptInvitationRequest`, `DeclineInvitationRequest`, `SendFriendRequestDto`, `RespondFriendRequestDto`, `CastVoteRequest`, `CloseCaseRequest`.
-

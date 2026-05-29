@@ -22,6 +22,7 @@ onMounted(() => {
       <div class="top-controls">
         <nav class="quick-links">
           <RouterLink to="/cases/new" class="case-link">New Case</RouterLink>
+          <RouterLink to="/friends" class="case-link">Friends</RouterLink>
           <RouterLink to="/rewards" class="case-link">My Rewards</RouterLink>
         </nav>
 

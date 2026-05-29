@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive } from 'vue'
+import { computed, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useCourtStore } from '../stores/court'
@@ -29,27 +29,26 @@ async function loadData() {
   }
 
   if (!form.invitedUserId) {
-    const firstOther = authStore.users.find((u) => u.id !== authStore.selectedUser?.id)
-    if (firstOther) {
-      form.invitedUserId = firstOther.id
+    const firstFriend = friendsStore.friends[0]
+    if (firstFriend) {
+      form.invitedUserId = firstFriend.id
     }
   }
 }
 
 void loadData()
 
-const friends = computed(() => friendsStore.friends)
+const inviteCandidates = computed(() => friendsStore.friends)
 
-const otherUsers = computed(() =>
-  authStore.users.filter((u) => u.id !== authStore.selectedUser?.id),
-)
+watch(inviteCandidates, (friends) => {
+  if (!friends.length) {
+    form.invitedUserId = ''
+    return
+  }
 
-const friendIds = computed(() => new Set(friends.value.map((f) => f.id)))
-
-const inviteOptions = computed(() => {
-  const friendList = otherUsers.value.filter((u) => friendIds.value.has(u.id))
-  const nonFriends = otherUsers.value.filter((u) => !friendIds.value.has(u.id))
-  return { friends: friendList, others: nonFriends }
+  if (!friends.some((friend) => friend.id === form.invitedUserId)) {
+    form.invitedUserId = friends[0].id
+  }
 })
 
 async function submit() {
@@ -106,37 +105,43 @@ async function submit() {
 
         <section>
           <h2>Invite to Side B</h2>
-          <p class="notice">Pick a friend or any user to write the opposing side.</p>
-          <label>
+          <p class="notice" role="status" aria-live="polite">Pick a connected friend to write the opposing side.</p>
+          <label v-if="inviteCandidates.length">
             Invite User
             <select v-model="form.invitedUserId" required>
-              <optgroup v-if="inviteOptions.friends.length" label="Friends">
-                <option v-for="user in inviteOptions.friends" :key="user.id" :value="user.id">
-                  {{ user.displayName }} (@{{ user.userName }})
-                </option>
-              </optgroup>
-              <optgroup v-if="inviteOptions.others.length" :label="inviteOptions.friends.length ? 'Other Users' : 'Users'">
-                <option v-for="user in inviteOptions.others" :key="user.id" :value="user.id">
-                  {{ user.displayName }} (@{{ user.userName }})
-                </option>
-              </optgroup>
+              <option value="" disabled>Choose a friend…</option>
+              <option v-for="user in inviteCandidates" :key="user.id" :value="user.id">
+                {{ user.displayName }} (@{{ user.userName }})
+              </option>
             </select>
           </label>
+          <p v-else class="notice">
+            You need at least one friend connection before creating a case.
+            <RouterLink to="/friends" class="case-link">Manage friends</RouterLink>
+          </p>
           <p class="notice">
             They will receive an invitation to write their response before the case goes live.
+            Add friends from the Friends page to invite more people.
           </p>
         </section>
       </div>
 
       <div class="action-bar">
-        <button type="submit" class="action-btn" :disabled="courtStore.mutating">
+        <button
+          type="submit"
+          class="action-btn"
+          :disabled="courtStore.mutating || !form.invitedUserId"
+          :aria-describedby="form.invitedUserId ? undefined : 'create-case-help'"
+        >
           Send Invitation &amp; Create Case
         </button>
         <RouterLink to="/" class="case-link">Cancel</RouterLink>
       </div>
+      <p v-if="!form.invitedUserId" id="create-case-help" class="notice">
+        Select a connected friend before sending the invitation.
+      </p>
     </form>
 
     <p v-if="courtStore.error" class="notice error">{{ courtStore.error }}</p>
   </section>
 </template>
-
