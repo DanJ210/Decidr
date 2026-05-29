@@ -131,7 +131,7 @@ async function submit() {
           type="submit"
           class="action-btn"
           :disabled="courtStore.mutating || !form.invitedUserId"
-          aria-describedby="create-case-help"
+          :aria-describedby="form.invitedUserId ? undefined : 'create-case-help'"
         >
           Send Invitation &amp; Create Case
         </button>
