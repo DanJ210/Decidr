@@ -19,6 +19,7 @@ const userSearchTerm = ref('')
 const friendSearchTerm = ref('')
 
 async function loadAll(userId: string) {
+  friendsStore.setActiveUser(userId)
   await friendsStore.loadFriends(userId)
   await friendsStore.loadFriendRequests(userId)
   await friendsStore.loadOutgoingRequests(userId)

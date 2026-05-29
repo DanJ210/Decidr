@@ -15,6 +15,7 @@ interface FriendsState {
   incomingRequests: FriendRequest[]
   outgoingRequests: FriendRequest[]
   invitations: ArgumentCase[]
+  activeUserId: string | null
   loading: boolean
   error: string | null
   outgoingError: string | null
@@ -26,46 +27,67 @@ export const useFriendsStore = defineStore('friends', {
     incomingRequests: [],
     outgoingRequests: [],
     invitations: [],
+    activeUserId: null,
     loading: false,
     error: null,
     outgoingError: null,
   }),
   actions: {
+    setActiveUser(userId: string | null) {
+      this.activeUserId = userId
+    },
     async loadFriends(userId: string) {
+      const requestUserId = userId
       this.loading = true
       this.error = null
 
       try {
-        this.friends = await fetchFriends(userId)
+        const friends = await fetchFriends(userId)
+        if (this.activeUserId !== requestUserId) return
+        this.friends = friends
       } catch {
+        if (this.activeUserId !== requestUserId) return
         this.error = 'Unable to load friends right now.'
       } finally {
-        this.loading = false
+        if (this.activeUserId === requestUserId) {
+          this.loading = false
+        }
       }
     },
     async loadFriendRequests(userId: string) {
+      const requestUserId = userId
       this.loading = true
       this.error = null
 
       try {
-        this.incomingRequests = await fetchFriendRequests(userId)
+        const requests = await fetchFriendRequests(userId)
+        if (this.activeUserId !== requestUserId) return
+        this.incomingRequests = requests
       } catch {
+        if (this.activeUserId !== requestUserId) return
         this.error = 'Unable to load friend requests right now.'
       } finally {
-        this.loading = false
+        if (this.activeUserId === requestUserId) {
+          this.loading = false
+        }
       }
     },
     async loadOutgoingRequests(userId: string) {
+      const requestUserId = userId
       this.loading = true
       this.outgoingError = null
 
       try {
         const data = await fetchOutgoingFriendRequests(userId)
+        if (this.activeUserId !== requestUserId) return
         this.outgoingRequests = data
       } catch {
+        if (this.activeUserId !== requestUserId) return
         this.outgoingError = 'Unable to load sent friend requests right now.'
       } finally {
-        this.loading = false
+        if (this.activeUserId === requestUserId) {
+          this.loading = false
+        }
       }
     },
     async loadInvitations(userId: string) {
