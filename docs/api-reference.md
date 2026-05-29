@@ -184,7 +184,7 @@ Returns incoming pending friend requests for the user.
 
 ---
 
-### `GET /api/users/{id}/friend-requests/sent`
+### `GET /api/users/{id}/sent-requests`
 Returns outgoing pending friend requests sent by the user.
 
 **Response `200 OK`** — `FriendRequest[]`  

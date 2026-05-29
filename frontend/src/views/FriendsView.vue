@@ -2,11 +2,12 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useFriendsStore } from '../stores/friends'
+import type { AppUser } from '../types'
 
 type UserStatus = 'friend' | 'request-sent' | 'request-received' | 'none'
 
 interface UserWithStatus {
-  user: (typeof authStore.users)[0]
+  user: AppUser
   status: UserStatus
   requestId?: string
 }
@@ -18,11 +19,9 @@ const userSearchTerm = ref('')
 const friendSearchTerm = ref('')
 
 async function loadAll(userId: string) {
-  await Promise.all([
-    friendsStore.loadFriends(userId),
-    friendsStore.loadFriendRequests(userId),
-    friendsStore.loadOutgoingRequests(userId),
-  ])
+  await friendsStore.loadFriends(userId)
+  await friendsStore.loadFriendRequests(userId)
+  await friendsStore.loadOutgoingRequests(userId)
 }
 
 onMounted(async () => {
@@ -143,9 +142,9 @@ async function removeFriend(friendUserId: string) {
               Send Friend Request
             </button>
           </div>
-          <div v-else-if="status === 'request-received'" class="action-bar">
-            <button class="action-btn" @click="respondToRequest(requestId!, true)">Accept</button>
-            <button class="action-btn danger" @click="respondToRequest(requestId!, false)">Decline</button>
+          <div v-else-if="status === 'request-received' && requestId" class="action-bar">
+            <button class="action-btn" @click="respondToRequest(requestId, true)">Accept</button>
+            <button class="action-btn danger" @click="respondToRequest(requestId, false)">Decline</button>
           </div>
         </li>
       </ul>

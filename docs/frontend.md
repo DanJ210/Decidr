@@ -102,6 +102,7 @@ Manages the social graph: friends list, incoming friend requests, and pending ca
 | `invitations` | `ArgumentCase[]` | Pending case invitations where the user is invited to Side B |
 | `loading` | `boolean` | Any fetch in progress |
 | `error` | `string \| null` | Last error message |
+| `outgoingError` | `string \| null` | Last error message from loading sent friend requests |
 
 | Action | Description |
 |--------|-------------|
@@ -111,6 +112,7 @@ Manages the social graph: friends list, incoming friend requests, and pending ca
 | `loadInvitations(userId)` | Fetches pending case invitations for the user |
 | `sendRequest(fromUserId, toUserId)` | Sends a friend request |
 | `respondToRequest(requestId, actorUserId, accept)` | Accepts or declines a friend request; removes it from `incomingRequests` |
+| `removeFriend(actorUserId, friendUserId)` | Removes an existing friend connection |
 | `clearAll()` | Clears all state (used on user switch) |
 
 ---
@@ -148,7 +150,7 @@ Defined in `services/api.ts`. All functions use a shared Axios instance with `ba
 | `fetchUserRewards(userId)` | `GET` | `/users/{id}/rewards` | Get user rewards |
 | `fetchFriends(userId)` | `GET` | `/users/{id}/friends` | Get user's friends |
 | `fetchFriendRequests(userId)` | `GET` | `/users/{id}/friend-requests` | Get incoming friend requests |
-| `fetchOutgoingFriendRequests(userId)` | `GET` | `/users/{id}/friend-requests/sent` | Get sent pending friend requests |
+| `fetchOutgoingFriendRequests(userId)` | `GET` | `/users/{id}/sent-requests` | Get sent pending friend requests |
 | `fetchInvitations(userId)` | `GET` | `/users/{id}/invitations` | Get pending case invitations |
 | `sendFriendRequest(dto)` | `POST` | `/friends/request` | Send a friend request |
 | `respondToFriendRequest(id, dto, accept)` | `POST` | `/friends/{id}/accept` or `.../decline` | Accept or decline a friend request |

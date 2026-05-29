@@ -133,6 +133,9 @@ export const useFriendsStore = defineStore('friends', {
       this.incomingRequests = []
       this.outgoingRequests = []
       this.invitations = []
+      this.loading = false
+      this.error = null
+      this.outgoingError = null
     },
   },
 })
