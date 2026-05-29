@@ -110,12 +110,10 @@ export function useFriends() {
   }
 
   return {
-    authStore,
     friendsStore,
     userSearchTerm,
     friendSearchTerm,
     normalizedUserSearch,
-    normalizedFriendSearch,
     userSearchResults,
     filteredFriends,
     fromUserName,

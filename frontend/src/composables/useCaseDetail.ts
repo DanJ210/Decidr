@@ -126,7 +126,6 @@ export function useCaseDetail() {
     courtStore,
     sideBClaim,
     caseItem,
-    activeUser,
     totalVotes,
     isInvited,
     inviterName,
