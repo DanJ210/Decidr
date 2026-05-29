@@ -58,7 +58,8 @@ export const useFriendsStore = defineStore('friends', {
       this.error = null
 
       try {
-        this.outgoingRequests = await fetchOutgoingFriendRequests(userId)
+        const data = await fetchOutgoingFriendRequests(userId)
+        this.outgoingRequests = Array.isArray(data) ? data : []
       } catch {
         this.error = 'Unable to load sent friend requests right now.'
       } finally {

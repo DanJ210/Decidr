@@ -73,8 +73,8 @@ export async function fetchFriendRequests(userId: string): Promise<FriendRequest
 }
 
 export async function fetchOutgoingFriendRequests(userId: string): Promise<FriendRequest[]> {
-  const { data } = await apiClient.get<FriendRequest[]>(`/users/${userId}/friend-requests/sent`)
-  return data
+  const { data } = await apiClient.get<FriendRequest[]>(`/users/${userId}/sent-requests`)
+  return Array.isArray(data) ? data : []
 }
 
 export async function fetchInvitations(userId: string): Promise<ArgumentCase[]> {

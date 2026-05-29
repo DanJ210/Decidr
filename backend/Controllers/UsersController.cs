@@ -54,7 +54,7 @@ public class UsersController : ControllerBase
         return Ok(_courtService.GetFriendRequests(id));
     }
 
-    [HttpGet("{id:guid}/friend-requests/sent")]
+    [HttpGet("{id:guid}/sent-requests")]
     public ActionResult<IEnumerable<FriendRequest>> GetOutgoingFriendRequests(Guid id)
     {
         if (_courtService.GetUser(id) is null)
