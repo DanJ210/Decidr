@@ -73,8 +73,12 @@ export async function fetchFriendRequests(userId: string): Promise<FriendRequest
 }
 
 export async function fetchOutgoingFriendRequests(userId: string): Promise<FriendRequest[]> {
-  const { data } = await apiClient.get<FriendRequest[]>(`/users/${userId}/sent-requests`)
-  return Array.isArray(data) ? data : []
+  const { data, headers } = await apiClient.get<FriendRequest[]>(`/users/${userId}/sent-requests`)
+  if (!Array.isArray(data)) {
+    const contentType = headers['content-type'] ?? 'unknown'
+    throw new Error(`Unexpected response for outgoing friend requests (${contentType}).`)
+  }
+  return data
 }
 
 export async function fetchInvitations(userId: string): Promise<ArgumentCase[]> {
