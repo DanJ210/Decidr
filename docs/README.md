@@ -21,4 +21,4 @@
 | [Architecture](./architecture.md) | System layout and component relationships |
 | [API Reference](./api-reference.md) | All REST endpoints with request/response shapes |
 | [Data Models](./data-models.md) | C# records/enums and their TypeScript counterparts |
-| [Frontend Guide](./frontend.md) | Views, stores, router, and service layer |
+| [Frontend Guide](./frontend.md) | Views, stores, router, and mobile-first UX plan |
