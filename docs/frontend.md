@@ -149,13 +149,13 @@ Used by `RewardsView`. Reacts to `selectedUserId` changes via `watchEffect`, loa
 ---
 
 ### `useHottestCases` — `composables/useHottestCases.ts`
-Used by `HomeView`. Loads cases and invitations on mount, refreshes invitations when the active user changes, and exposes the top-6 most-voted cases.
+Used by `HomeView`. Loads cases and invitations on mount, refreshes invitations when the active user changes, and exposes the full case feed sorted by vote count.
 
 | Returned | Type | Description |
 |----------|------|-------------|
 | `courtStore` | `CourtStore` | Loading/error state and raw cases list |
 | `friendsStore` | `FriendsStore` | Exposes `invitations` for the My Invitations section |
-| `hottestCases` | `ComputedRef<ArgumentCase[]>` | Top 6 cases sorted by total vote count (descending) |
+| `caseFeed` | `ComputedRef<ArgumentCase[]>` | All cases sorted by total vote count (descending) |
 
 ---
 
