@@ -19,6 +19,12 @@ frontend/src/
 │   ├── court.ts         # Case list and case detail state (Pinia store)
 │   ├── friends.ts       # Friends, friend requests, and invitations (Pinia store)
 │   └── rewards.ts       # User reward badges (Pinia store)
+├── composables/
+│   ├── useCaseDetail.ts  # Reactive logic for CaseDetailView (computed permissions, actions)
+│   ├── useCreateCase.ts  # Form state + submit logic for CreateCaseView
+│   ├── useFriends.ts     # User search, friend filtering, and friend-management actions
+│   ├── useGroupedRewards.ts # Rewards loading + tier-grouped computed for RewardsView
+│   └── useHottestCases.ts   # Sorted case list + invitations loading for HomeView
 ├── views/
 │   ├── HomeView.vue      # Case listing page + My Invitations section
 │   ├── CaseDetailView.vue# Single case view — handles Pending/Open/Closed states
@@ -28,6 +34,88 @@ frontend/src/
 └── components/
     └── HelloWorld.vue    # (Scaffold placeholder)
 ```
+
+---
+
+## Composables
+
+Composables in `composables/` encapsulate reactive logic that would otherwise live inline in `<script setup>`. Each composable calls stores, sets up watchers, and returns only the values and functions the view needs.
+
+### `useCaseDetail` — `composables/useCaseDetail.ts`
+Used by `CaseDetailView`. Loads the case on mount from the URL param, then derives permission flags and exposes all case actions.
+
+| Returned | Type | Description |
+|----------|------|-------------|
+| `courtStore` | `CourtStore` | Direct store reference (loading/mutating/error state) |
+| `sideBClaim` | `Ref<string>` | Two-way bound text for the Side B invitation response |
+| `caseItem` | `ComputedRef` | The currently loaded case (`selectedCase`) |
+| `totalVotes` | `ComputedRef<number>` | Sum of votes for both sides |
+| `isInvited` | `ComputedRef<boolean>` | `true` when the active user is the invited Side B participant |
+| `inviterName` | `ComputedRef<string>` | Username of the Side A participant |
+| `isParticipant` | `ComputedRef<boolean>` | `true` when the active user is Side A or Side B |
+| `canVote` | `ComputedRef<boolean>` | `true` when the case is Open and the user is not a participant |
+| `canCloseCase` | `ComputedRef<boolean>` | `true` when the user is a participant or moderator |
+| `closePermissionMessage` | `ComputedRef<string>` | Contextual hint shown below the Close button |
+| `vote(side)` | `function` | Casts a vote and refreshes the case |
+| `closeCase()` | `function` | Closes the case and refreshes it |
+| `acceptInvitation()` | `function` | Submits the Side B claim and refreshes the case |
+| `declineInvitation()` | `function` | Declines the invitation and navigates back to `/` |
+
+---
+
+### `useCreateCase` — `composables/useCreateCase.ts`
+Used by `CreateCaseView`. Owns the reactive form, loads prerequisite data, keeps `invitedUserId` in sync with the friends list, and handles form submission.
+
+| Returned | Type | Description |
+|----------|------|-------------|
+| `authStore` | `AuthStore` | Used to display the active user's name in the template |
+| `courtStore` | `CourtStore` | Exposes `mutating` and `error` for the submit button and error message |
+| `form` | `Reactive` | Form fields: `title`, `category`, `summary`, `sideAClaim`, `invitedUserId` |
+| `inviteCandidates` | `ComputedRef<AppUser[]>` | Friends eligible to be invited (Side B) |
+| `submit()` | `function` | Creates the case via the store and navigates to the new case page |
+
+---
+
+### `useFriends` — `composables/useFriends.ts`
+Used by `FriendsView`. Loads all friend data on mount and on user switch, and encapsulates the search, filtering, and mutating actions.
+
+| Returned | Type | Description |
+|----------|------|-------------|
+| `friendsStore` | `FriendsStore` | Loading/error state and all raw lists |
+| `userSearchTerm` | `Ref<string>` | Two-way bound search input for finding new friends |
+| `friendSearchTerm` | `Ref<string>` | Two-way bound filter input for the friends list |
+| `normalizedUserSearch` | `ComputedRef<string>` | Trimmed + lowercased `userSearchTerm` |
+| `userSearchResults` | `ComputedRef<UserWithStatus[]>` | Filtered user list annotated with friendship status |
+| `filteredFriends` | `ComputedRef<AppUser[]>` | Friends list filtered by `friendSearchTerm` |
+| `fromUserName(id)` | `function` | Resolves a user ID to a display name (incoming requests) |
+| `toUserName(id)` | `function` | Resolves a user ID to a display name (outgoing requests) |
+| `sendRequest(toUserId)` | `function` | Sends a friend request from the active user |
+| `respondToRequest(id, accept)` | `function` | Accepts or declines an incoming request and refreshes friends |
+| `removeFriend(friendUserId)` | `function` | Removes an accepted friend connection |
+
+Exported types: `UserStatus`, `UserWithStatus`.
+
+---
+
+### `useGroupedRewards` — `composables/useGroupedRewards.ts`
+Used by `RewardsView`. Reacts to `selectedUserId` changes via `watchEffect`, loading or clearing rewards automatically, and groups them by tier.
+
+| Returned | Type | Description |
+|----------|------|-------------|
+| `authStore` | `AuthStore` | Used for the page heading (selected user's display name) |
+| `rewardsStore` | `RewardsStore` | Loading/error state and raw rewards list |
+| `groupedRewards` | `ComputedRef<Record<string, UserRewardView[]>>` | Rewards keyed by tier name |
+
+---
+
+### `useHottestCases` — `composables/useHottestCases.ts`
+Used by `HomeView`. Loads cases and invitations on mount, refreshes invitations when the active user changes, and exposes the top-6 most-voted cases.
+
+| Returned | Type | Description |
+|----------|------|-------------|
+| `courtStore` | `CourtStore` | Loading/error state and raw cases list |
+| `friendsStore` | `FriendsStore` | Exposes `invitations` for the My Invitations section |
+| `hottestCases` | `ComputedRef<ArgumentCase[]>` | Top 6 cases sorted by total vote count (descending) |
 
 ---
 
