@@ -25,6 +25,7 @@ export function useCreateCase() {
 
     const userId = authStore.selectedUser?.id
     if (userId) {
+      friendsStore.setActiveUser(userId)
       await friendsStore.loadFriends(userId)
     }
 
