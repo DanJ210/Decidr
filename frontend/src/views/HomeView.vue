@@ -24,7 +24,7 @@ const { courtStore, friendsStore, caseFeed } = useHottestCases()
           <span>↔️ You</span>
         </div>
         <div class="card-actions">
-          <RouterLink :to="`/cases/${inv.id}`" class="action-btn" style="text-align:center;text-decoration:none;">
+          <RouterLink :to="`/cases/${inv.id}`" class="action-btn">
             Respond to Invitation
           </RouterLink>
         </div>
@@ -62,7 +62,7 @@ const { courtStore, friendsStore, caseFeed } = useHottestCases()
           <span v-else class="status-pill status-open">Awaiting Side B</span>
         </div>
         <div class="card-actions">
-          <RouterLink :to="`/cases/${item.id}`" class="action-btn" style="text-align:center;text-decoration:none;">
+          <RouterLink :to="`/cases/${item.id}`" class="action-btn">
             View &amp; Vote
           </RouterLink>
         </div>

@@ -271,6 +271,8 @@ a {
 
 .card-actions .action-btn {
   flex: 1;
+  text-align: center;
+  text-decoration: none;
 }
 
 .split {
