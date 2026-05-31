@@ -597,6 +597,7 @@ a {
 
   .active-user-picker {
     border: 1px solid #e0d8c8;
+    border-top: 0;
     border-radius: 0 0 14px 14px;
     margin-bottom: 1rem;
   }
