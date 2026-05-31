@@ -77,7 +77,7 @@ a {
 
 .active-user-picker select {
   flex: 1;
-  min-height: 2rem;
+  min-height: 2.75rem;
   border: 1px solid #d8cfbf;
   border-radius: 8px;
   background: #fff;
