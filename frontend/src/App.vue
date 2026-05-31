@@ -1,10 +1,16 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import BottomNav from './components/BottomNav.vue'
 
 const authStore = useAuthStore()
 const menuOpen = ref(false)
+const route = useRoute()
+
+watch(route, () => {
+  menuOpen.value = false
+})
 
 function toggleMenu() {
   menuOpen.value = !menuOpen.value
