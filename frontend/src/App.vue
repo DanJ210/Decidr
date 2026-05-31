@@ -41,6 +41,7 @@ onMounted(() => {
         </nav>
 
         <button
+          type="button"
           class="hamburger-btn mobile-only"
           :aria-expanded="menuOpen"
           :aria-label="menuOpen ? 'Close navigation menu' : 'Open navigation menu'"

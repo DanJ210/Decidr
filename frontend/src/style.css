@@ -94,6 +94,12 @@ a {
   background: rgba(0, 0, 0, 0.05);
 }
 
+.hamburger-btn:focus-visible {
+  outline: 2px solid #20456d;
+  outline-offset: 2px;
+  background: rgba(0, 0, 0, 0.05);
+}
+
 .hamburger-bar {
   display: block;
   width: 22px;
@@ -146,7 +152,7 @@ a {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 4rem;
+  height: calc(4rem + env(safe-area-inset-bottom, 0));
   display: flex;
   justify-content: space-around;
   align-items: center;
@@ -207,7 +213,11 @@ a {
 .bottom-nav-fab:focus {
   background: #173c62;
   transform: scale(1.06);
-  outline: none;
+}
+
+.bottom-nav-fab:focus-visible {
+  outline: 2px solid #20456d;
+  outline-offset: 3px;
 }
 
 /* ─── Feed & case cards ──────────────────────────────────── */
@@ -310,7 +320,7 @@ a {
   flex-wrap: wrap;
 }
 
-.participants span {
+.participants span:not(.status-pill) {
   background: #f3f4f6;
   border-radius: 999px;
   padding: 0.15rem 0.5rem;
