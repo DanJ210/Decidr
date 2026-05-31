@@ -592,13 +592,11 @@ a {
   .top-nav {
     border-radius: 14px;
     border: 1px solid #e0d8c8;
-    border-bottom: none;
     margin: 1rem 0 0;
   }
 
   .active-user-picker {
     border: 1px solid #e0d8c8;
-    border-top: none;
     border-radius: 0 0 14px 14px;
     margin-bottom: 1rem;
   }
