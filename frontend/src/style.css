@@ -35,6 +35,12 @@ a {
 
 /* ─── Top bar ────────────────────────────────────────────── */
 
+.top-area {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
 .top-nav {
   display: flex;
   justify-content: space-between;
@@ -44,9 +50,6 @@ a {
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(4px);
   border-bottom: 1px solid #e0d8c8;
-  position: sticky;
-  top: 0;
-  z-index: 100;
 }
 
 .brand {
@@ -61,25 +64,73 @@ a {
   display: none;
 }
 
+.mobile-only {
+  display: block;
+}
+
 .quick-links {
   display: flex;
   gap: 0.75rem;
 }
 
-.user-picker {
+/* ─── Hamburger button ───────────────────────────────────── */
+
+.hamburger-btn {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  font-size: 0.75rem;
-  color: #4f5a6b;
+  gap: 5px;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.4rem;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  border-radius: 8px;
 }
 
-.user-picker select {
-  border: 1px solid #d8cfbf;
-  border-radius: 8px;
-  background: #fff;
-  padding: 0.35rem 0.5rem;
-  font: inherit;
+.hamburger-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.hamburger-bar {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: #131821;
+  border-radius: 2px;
+}
+
+/* ─── Hamburger dropdown menu ────────────────────────────── */
+
+.hamburger-menu {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(4px);
+  border-bottom: 1px solid #e0d8c8;
+}
+
+.hamburger-item {
+  text-decoration: none;
+  color: #131821;
+  font-size: 1rem;
+  font-weight: 500;
+  padding: 0.9rem 1.25rem;
+  min-height: 2.75rem;
+  border-top: 1px solid #f0ece4;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hamburger-item:first-child {
+  border-top: none;
+}
+
+.hamburger-item:hover {
+  background: #f8f5ef;
 }
 
 /* ─── Main content ───────────────────────────────────────── */
@@ -165,6 +216,9 @@ a {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
 
 .feed-header {
@@ -496,15 +550,22 @@ a {
     padding: 1.5rem 0;
   }
 
+  .top-area {
+    position: static;
+  }
+
   .top-nav {
     border-radius: 14px;
     border: 1px solid #e0d8c8;
     margin: 1rem 0 0;
-    position: static;
   }
 
   .desktop-only {
     display: flex;
+  }
+
+  .mobile-only {
+    display: none;
   }
 
   .bottom-nav {
