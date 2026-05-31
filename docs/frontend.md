@@ -37,6 +37,46 @@ frontend/src/
 
 ---
 
+## Mobile-first UX plan (social feed)
+
+Goal: make Decidr feel like a social-first mobile app (Instagram-style) with a case feed as the home screen, primary actions within thumb reach, and fast scanning of cases.
+
+### Information architecture
+
+- **Primary tabs (bottom nav):** Home (case feed), Create (center action), Friends, Rewards, Profile (or Settings).
+- **Secondary actions:** Filters, search, and notifications live in the top app bar on mobile.
+- **Entry points:** The case feed is the default route; detail pages open from feed cards.
+
+### Layout & navigation changes
+
+- **App shell:** Shift to a full-width, mobile-first container (no fixed max width on small screens).
+- **Top app bar:** Brand + optional notifications/search; collapse secondary links into icons.
+- **Bottom navigation:** Persistent bottom nav with 4–5 items; make “Create Case” the center primary action (FAB).
+- **Desktop view:** Add a wider breakpoint where bottom nav becomes a left rail or top bar, while keeping feed cards centered.
+
+### Case feed (home page) experience
+
+- **Feed card hierarchy:** Category pill → title → summary → side participants → vote count → status.
+- **Action row:** “Vote” (if open) and “View Case” as primary/secondary CTAs.
+- **Infinite scroll / pagination:** Replace “top 6 cases” with a paged feed and load-on-scroll.
+- **Optional media:** Reserve space for a thumbnail (even if placeholder) to create a social feed feel.
+
+### Case detail and social layers
+
+- **Sticky action bar:** Keep vote/close/share actions fixed on mobile.
+- **Threaded updates:** Add a compact activity timeline (votes, closure, invitations).
+- **Friends surface:** Promote friend invitations and pending requests as “notifications” items.
+
+### Implementation checklist for this repo
+
+- **App layout:** Update `App.vue` to include a bottom nav component and a slimmer top bar for mobile.
+- **Components:** Add `components/BottomNav.vue` and (optional) `components/AppHeader.vue`.
+- **Styles:** Extend `style.css` with mobile-first defaults, then add `@media (min-width: 900px)` for desktop.
+- **Routes:** Ensure bottom-nav destinations map to existing routes; optionally add `/profile`.
+- **Feed data:** Update `useHottestCases` (or add `useCaseFeed`) to support pagination and sorting.
+- **Home view:** Refactor `HomeView.vue` into a vertically stacked feed with action rows per card.
+- **A11y:** Keep tap targets ≥ 44px, use contrast-safe colors, and ensure keyboard focus states remain visible.
+
 ## Composables
 
 Composables in `composables/` encapsulate reactive logic that would otherwise live inline in `<script setup>`. Each composable calls stores, sets up watchers, and returns only the values and functions the view needs.
@@ -109,13 +149,13 @@ Used by `RewardsView`. Reacts to `selectedUserId` changes via `watchEffect`, loa
 ---
 
 ### `useHottestCases` — `composables/useHottestCases.ts`
-Used by `HomeView`. Loads cases and invitations on mount, refreshes invitations when the active user changes, and exposes the top-6 most-voted cases.
+Used by `HomeView`. Loads cases and invitations on mount, refreshes invitations when the active user changes, and exposes the full case feed sorted by vote count.
 
 | Returned | Type | Description |
 |----------|------|-------------|
 | `courtStore` | `CourtStore` | Loading/error state and raw cases list |
 | `friendsStore` | `FriendsStore` | Exposes `invitations` for the My Invitations section |
-| `hottestCases` | `ComputedRef<ArgumentCase[]>` | Top 6 cases sorted by total vote count (descending) |
+| `caseFeed` | `ComputedRef<ArgumentCase[]>` | All cases sorted by total vote count (descending) |
 
 ---
 
