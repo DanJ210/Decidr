@@ -7,7 +7,7 @@ The frontend is a Vue 3 SPA built with Vite and TypeScript. Source lives in `fro
 ```
 frontend/src/
 ├── main.ts              # App bootstrap (Vue, Pinia, Router)
-├── App.vue              # Root component
+├── App.vue              # Root component (includes temporary Active User picker)
 ├── types.ts             # Shared TypeScript types (mirrors backend models)
 ├── style.css            # Global styles
 ├── router/

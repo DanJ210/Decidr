@@ -20,6 +20,13 @@ function closeMenu() {
   menuOpen.value = false
 }
 
+function handleUserChange(event: Event) {
+  const userId = (event.target as HTMLSelectElement).value
+  if (userId) {
+    authStore.setSelectedUser(userId)
+  }
+}
+
 onMounted(() => {
   if (!authStore.users.length) {
     void authStore.loadUsers()
@@ -52,6 +59,21 @@ onMounted(() => {
           <span class="hamburger-bar"></span>
         </button>
       </header>
+
+      <div class="active-user-picker">
+        <label for="active-user-select">Active User</label>
+        <select
+          id="active-user-select"
+          :value="authStore.selectedUserId ?? ''"
+          :disabled="authStore.loading || !authStore.users.length"
+          @change="handleUserChange"
+        >
+          <option value="" disabled>Select a user</option>
+          <option v-for="user in authStore.users" :key="user.id" :value="user.id">
+            {{ user.displayName }}
+          </option>
+        </select>
+      </div>
 
       <nav v-if="menuOpen" class="hamburger-menu" aria-label="Site navigation">
         <RouterLink to="/" class="hamburger-item" @click="closeMenu">

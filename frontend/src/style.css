@@ -60,6 +60,31 @@ a {
   color: #131821;
 }
 
+.active-user-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem 0.75rem;
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid #e0d8c8;
+}
+
+.active-user-picker label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.active-user-picker select {
+  flex: 1;
+  min-height: 2rem;
+  border: 1px solid #d8cfbf;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+}
+
 .desktop-only {
   display: none;
 }
@@ -567,7 +592,15 @@ a {
   .top-nav {
     border-radius: 14px;
     border: 1px solid #e0d8c8;
+    border-bottom: none;
     margin: 1rem 0 0;
+  }
+
+  .active-user-picker {
+    border: 1px solid #e0d8c8;
+    border-top: none;
+    border-radius: 0 0 14px 14px;
+    margin-bottom: 1rem;
   }
 
   .desktop-only {
@@ -591,4 +624,3 @@ a {
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   }
 }
-
