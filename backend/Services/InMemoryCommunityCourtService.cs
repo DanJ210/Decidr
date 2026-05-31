@@ -59,8 +59,6 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         ];
 
         _votes = [];
-        SeedVotes(firstCaseId, 118, 143);
-        SeedVotes(secondCaseId, 209, 96);
 
         _rewards = [];
         AwardCasePostingRewards(_cases[0]);
@@ -157,12 +155,32 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                 return (false, "Case participants cannot vote on their own case.", null);
             }
 
-            if (_votes.Any(v => v.CaseId == caseId && v.UserId == request.UserId))
+            var existingVoteIndex = _votes.FindIndex(v => v.CaseId == caseId && v.UserId == request.UserId);
+            if (existingVoteIndex >= 0)
             {
-                return (false, "User has already voted on this case.", null);
+                var existingVote = _votes[existingVoteIndex];
+                if (existingVote.Side == request.Side)
+                {
+                    return (false, "You already voted for this side.", null);
+                }
+
+                if (existingVote.ChangeCount >= 1)
+                {
+                    return (false, "You can only change your vote once.", null);
+                }
+
+                _votes[existingVoteIndex] = existingVote with
+                {
+                    Side = request.Side,
+                    ChangeCount = existingVote.ChangeCount + 1
+                };
+
+                var updatedVerdict = RefreshVerdict(foundCase);
+                ReplaceCase(updatedVerdict);
+                return (true, null, updatedVerdict);
             }
 
-            _votes.Add(new CaseVote(caseId, request.UserId, request.Side, DateTime.UtcNow));
+            _votes.Add(new CaseVote(caseId, request.UserId, request.Side, DateTime.UtcNow, 0));
             AwardReward(request.UserId, "VOTE_PARTICIPATION", "CaseVote", caseId, "Thanks for participating in community judging.");
 
             var refreshed = RefreshVerdict(foundCase);
@@ -566,16 +584,4 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         }
     }
 
-    private void SeedVotes(Guid caseId, int sideAVotes, int sideBVotes)
-    {
-        for (var i = 0; i < sideAVotes; i++)
-        {
-            _votes.Add(new CaseVote(caseId, Guid.NewGuid(), CaseSide.A, DateTime.UtcNow.AddMinutes(-i)));
-        }
-
-        for (var i = 0; i < sideBVotes; i++)
-        {
-            _votes.Add(new CaseVote(caseId, Guid.NewGuid(), CaseSide.B, DateTime.UtcNow.AddMinutes(-i - 2)));
-        }
-    }
 }
