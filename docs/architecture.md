@@ -79,3 +79,6 @@ There is no authentication system. The frontend stores a `selectedUserId` in `lo
 
 ### Frontend–Backend Integration
 In production, `dotnet run` serves both the API and the compiled Vue SPA. The backend registers `UseDefaultFiles()`, `UseStaticFiles()`, and `MapFallbackToFile("index.html")` so Vue Router can handle client-side navigation. In development, the Vite dev server handles the frontend and proxies API calls to the .NET backend.
+
+### Response Compression
+The backend enables Brotli and Gzip response compression (including HTTPS responses) for API JSON payloads and static assets. This reduces transfer size and improves page/API latency, especially on slower networks.
