@@ -1,21 +1,9 @@
 using backend.Models;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using Npgsql;
-using NpgsqlTypes;
-using Microsoft.Extensions.Logging;
 
 namespace backend.Services;
 
-public class PersistentCommunityCourtService : ICommunityCourtService
+public class InMemoryCommunityCourtService : ICommunityCourtService
 {
-    private sealed record PersistedCourtState(
-        List<AppUser> Users,
-        List<ArgumentCase> Cases,
-        List<CaseVote> Votes,
-        List<UserReward> Rewards,
-        List<FriendRequest> FriendRequests);
-
     private static readonly List<RewardBadge> BadgeCatalog =
     [
         new("VOTE_PARTICIPATION", "Community Juror", "jury", "Bronze", "Awarded for participating in community voting."),
@@ -30,27 +18,9 @@ public class PersistentCommunityCourtService : ICommunityCourtService
     private readonly List<CaseVote> _votes;
     private readonly List<UserReward> _rewards;
     private readonly List<FriendRequest> _friendRequests;
-    private readonly string? _connectionString;
-    private readonly ILogger<PersistentCommunityCourtService> _logger;
-    private readonly JsonSerializerOptions _jsonOptions = new();
 
-    public PersistentCommunityCourtService(IConfiguration configuration, ILogger<PersistentCommunityCourtService> logger)
+    public InMemoryCommunityCourtService()
     {
-        _connectionString = configuration.GetConnectionString("DefaultConnection");
-        _logger = logger;
-        _jsonOptions.Converters.Add(new JsonStringEnumConverter());
-
-        var persistedState = TryLoadStateFromDatabase();
-        if (persistedState is not null)
-        {
-            _users = persistedState.Users;
-            _cases = persistedState.Cases;
-            _votes = persistedState.Votes;
-            _rewards = persistedState.Rewards;
-            _friendRequests = persistedState.FriendRequests;
-            return;
-        }
-
         _users =
         [
             new(Guid.Parse("89f651a2-d6ad-43b6-a2d8-209da7599387"), "alex_t", "Alex", UserRole.Member),
@@ -60,14 +30,41 @@ public class PersistentCommunityCourtService : ICommunityCourtService
             new(Guid.Parse("e1d2e6fb-c79f-4d18-8dd9-c9507487e2c4"), "sam_k", "Sam", UserRole.Moderator)
         ];
 
-        _cases = [];
+        var firstCaseId = Guid.Parse("2fd6fa9e-8ed5-4ea3-b0ef-e42fdf47c2f1");
+        var secondCaseId = Guid.Parse("af1ea95c-9f7f-4cd5-b948-3c2f12c31f74");
+
+        var alex = _users.Single(u => u.UserName == "alex_t");
+        var jordan = _users.Single(u => u.UserName == "jordan_r");
+        var casey = _users.Single(u => u.UserName == "casey_l");
+        var morgan = _users.Single(u => u.UserName == "morgan_p");
+
+        _cases =
+        [
+            BuildCase(
+                firstCaseId,
+                "Was cancelling 20 minutes before dinner justified?",
+                "Relationships",
+                "One side says a last-minute work escalation made attendance impossible. The other says there was enough notice to communicate sooner.",
+                new ArgumentPost(CaseSide.A, alex.Id, alex.UserName, "I had an urgent production incident and couldn't step away without risking customer downtime.", DateTime.UtcNow.AddHours(-16)),
+                new ArgumentPost(CaseSide.B, jordan.Id, jordan.UserName, "I started cooking hours earlier and only learned the cancellation at the last moment.", DateTime.UtcNow.AddHours(-15)),
+                DateTime.UtcNow.AddDays(-1)),
+            BuildCase(
+                secondCaseId,
+                "Should roommates split utility overuse charges?",
+                "Roommates",
+                "Heating bill spiked. Side A wants a proportional split based on room heater usage. Side B wants an equal split.",
+                new ArgumentPost(CaseSide.A, casey.Id, casey.UserName, "The meter smart plugs show one room used triple the power, so the extra should not be shared equally.", DateTime.UtcNow.AddHours(-30)),
+                new ArgumentPost(CaseSide.B, morgan.Id, morgan.UserName, "We agreed to split utilities evenly from day one, and changing that retroactively is unfair.", DateTime.UtcNow.AddHours(-28)),
+                DateTime.UtcNow.AddDays(-2))
+        ];
 
         _votes = [];
 
         _rewards = [];
+        AwardCasePostingRewards(_cases[0]);
+        AwardCasePostingRewards(_cases[1]);
 
         _friendRequests = [];
-        PersistStateToDatabase();
     }
 
     public IReadOnlyList<AppUser> GetUsers()
@@ -129,7 +126,6 @@ public class PersistentCommunityCourtService : ICommunityCourtService
 
             _cases.Add(created);
             AwardReward(sideAUser.Id, "POST_PARTICIPATION", "CaseCreate", created.Id, "Posted the Side A argument in a new case.");
-            PersistStateToDatabase();
             return created;
         }
     }
@@ -181,7 +177,6 @@ public class PersistentCommunityCourtService : ICommunityCourtService
 
                 var updatedVerdict = RefreshVerdict(foundCase);
                 ReplaceCase(updatedVerdict);
-                PersistStateToDatabase();
                 return (true, null, updatedVerdict);
             }
 
@@ -190,7 +185,6 @@ public class PersistentCommunityCourtService : ICommunityCourtService
 
             var refreshed = RefreshVerdict(foundCase);
             ReplaceCase(refreshed);
-            PersistStateToDatabase();
             return (true, null, refreshed);
         }
     }
@@ -250,7 +244,6 @@ public class PersistentCommunityCourtService : ICommunityCourtService
                 }
             }
 
-            PersistStateToDatabase();
             return (true, null, closed);
         }
     }
@@ -315,7 +308,6 @@ public class PersistentCommunityCourtService : ICommunityCourtService
             }
 
             _friendRequests.Add(new FriendRequest(Guid.NewGuid(), dto.FromUserId, dto.ToUserId, FriendRequestStatus.Pending, DateTime.UtcNow));
-            PersistStateToDatabase();
             return (true, null);
         }
     }
@@ -344,7 +336,6 @@ public class PersistentCommunityCourtService : ICommunityCourtService
             var updated = request with { Status = newStatus };
             var index = _friendRequests.FindIndex(r => r.Id == requestId);
             _friendRequests[index] = updated;
-            PersistStateToDatabase();
             return (true, null);
         }
     }
@@ -378,7 +369,6 @@ public class PersistentCommunityCourtService : ICommunityCourtService
                 return (false, "Users are not currently connected as friends.");
             }
 
-            PersistStateToDatabase();
             return (true, null);
         }
     }
@@ -480,7 +470,6 @@ public class PersistentCommunityCourtService : ICommunityCourtService
             ReplaceCase(opened);
 
             AwardReward(sideBUser.Id, "POST_PARTICIPATION", "CaseCreate", opened.Id, "Posted the Side B argument in a new case.");
-            PersistStateToDatabase();
             return (true, null, opened);
         }
     }
@@ -507,94 +496,8 @@ public class PersistentCommunityCourtService : ICommunityCourtService
 
             var declined = foundCase with { Status = CaseStatus.Closed, InvitedUserId = null };
             ReplaceCase(declined);
-            PersistStateToDatabase();
             return (true, null);
         }
-    }
-
-    private PersistedCourtState? TryLoadStateFromDatabase()
-    {
-        if (string.IsNullOrWhiteSpace(_connectionString))
-        {
-            return null;
-        }
-
-        try
-        {
-            using var connection = new NpgsqlConnection(_connectionString);
-            connection.Open();
-            EnsureStateTable(connection);
-
-            using var command = new NpgsqlCommand("SELECT state FROM community_court_state WHERE id = 1", connection);
-            var rawState = command.ExecuteScalar() as string;
-            if (string.IsNullOrWhiteSpace(rawState))
-            {
-                return null;
-            }
-
-            var state = JsonSerializer.Deserialize<PersistedCourtState>(rawState, _jsonOptions);
-            if (state is null)
-            {
-                _logger.LogWarning("Community court state row exists but could not be deserialized. Falling back to seed data.");
-                return null;
-            }
-
-            return state;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Could not load community court state from Postgres. Falling back to seed data.");
-            return null;
-        }
-    }
-
-    private void PersistStateToDatabase()
-    {
-        if (string.IsNullOrWhiteSpace(_connectionString))
-        {
-            return;
-        }
-
-        try
-        {
-            using var connection = new NpgsqlConnection(_connectionString);
-            connection.Open();
-            EnsureStateTable(connection);
-
-            var state = new PersistedCourtState(
-                _users.ToList(),
-                _cases.ToList(),
-                _votes.ToList(),
-                _rewards.ToList(),
-                _friendRequests.ToList());
-
-            var jsonState = JsonSerializer.Serialize(state, _jsonOptions);
-
-            using var command = new NpgsqlCommand(@"
-INSERT INTO community_court_state (id, state, updated_at)
-VALUES (1, @state, NOW())
-ON CONFLICT (id)
-DO UPDATE SET state = EXCLUDED.state, updated_at = NOW();", connection);
-            command.Parameters.Add("state", NpgsqlDbType.Jsonb).Value = jsonState;
-            command.ExecuteNonQuery();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to persist community court state to Postgres.");
-        }
-    }
-
-    private static void EnsureStateTable(NpgsqlConnection connection)
-    {
-        using var command = new NpgsqlCommand(@"
-CREATE TABLE IF NOT EXISTS community_court_state (
-    id INTEGER PRIMARY KEY,
-    state JSONB NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT community_court_state_single_row CHECK (id = 1)
-);", connection);
-
-        command.ExecuteNonQuery();
     }
 
     // --- Private helpers ---
@@ -624,6 +527,15 @@ CREATE TABLE IF NOT EXISTS community_court_state (
         return refreshed with { WinnerSide = winner };
     }
 
+    private void AwardCasePostingRewards(ArgumentCase argumentCase)
+    {
+        AwardReward(argumentCase.SideA.UserId, "POST_PARTICIPATION", "CaseCreate", argumentCase.Id, "Posted the Side A argument in a new case.");
+        if (argumentCase.SideB is not null)
+        {
+            AwardReward(argumentCase.SideB.UserId, "POST_PARTICIPATION", "CaseCreate", argumentCase.Id, "Posted the Side B argument in a new case.");
+        }
+    }
+
     private void AwardReward(Guid userId, string badgeCode, string sourceType, Guid sourceId, string reason)
     {
         var alreadyAwarded = _rewards.Any(r =>
@@ -638,6 +550,29 @@ CREATE TABLE IF NOT EXISTS community_court_state (
         }
 
         _rewards.Add(new UserReward(userId, badgeCode, sourceType, sourceId, reason, DateTime.UtcNow));
+    }
+
+    private static ArgumentCase BuildCase(
+        Guid id,
+        string title,
+        string category,
+        string summary,
+        ArgumentPost sideA,
+        ArgumentPost sideB,
+        DateTime createdAt)
+    {
+        return new ArgumentCase(
+            id,
+            title,
+            category,
+            summary,
+            sideA,
+            sideB,
+            InvitedUserId: null,
+            new CommunityVerdict(0, 0),
+            CaseStatus.Open,
+            WinnerSide: null,
+            createdAt);
     }
 
     private void ReplaceCase(ArgumentCase updated)
