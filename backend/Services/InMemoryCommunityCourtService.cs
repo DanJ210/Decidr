@@ -12,6 +12,9 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         new("CASE_VICTOR", "Court Victor", "crown", "Gold", "Awarded to the winning side poster when a case is closed.")
     ];
 
+    private static readonly IReadOnlyDictionary<string, RewardBadge> BadgeCatalogByCode =
+        BadgeCatalog.ToDictionary(badge => badge.Code);
+
     private readonly object _syncRoot = new();
     private readonly List<AppUser> _users;
     private readonly List<ArgumentCase> _cases;
@@ -252,14 +255,12 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
     {
         lock (_syncRoot)
         {
-            var badgeByCode = BadgeCatalog.ToDictionary(b => b.Code, b => b);
-
             return _rewards
                 .Where(r => r.UserId == userId)
                 .OrderByDescending(r => r.AwardedAtUtc)
                 .Select(r =>
                 {
-                    var badge = badgeByCode[r.BadgeCode];
+                    var badge = BadgeCatalogByCode[r.BadgeCode];
                     return new UserRewardView(r.BadgeCode, badge.Label, badge.IconKey, badge.Tier, r.Reason, r.AwardedAtUtc);
                 })
                 .ToList();
