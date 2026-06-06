@@ -354,7 +354,7 @@ public class EfCoreCourtService : ICommunityCourtService
 
         return _db.Users
             .Where(u => friendIds.Contains(u.Id))
-            .Select(u => MapUser(u))
+            .Select(u => new AppUser(u.Id, u.UserName, u.DisplayName, u.Role))
             .ToList();
     }
 
