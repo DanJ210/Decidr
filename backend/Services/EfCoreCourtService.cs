@@ -222,16 +222,35 @@ public class EfCoreCourtService : ICommunityCourtService
             var winnerUserId = caseEntity.WinnerSide == CaseSide.A ? caseEntity.SideAUserId : caseEntity.SideBUserId!.Value;
             AwardReward(winnerUserId, "CASE_VICTOR", "CaseClose", caseEntity.Id, "Awarded for becoming the victor of this case.");
 
-            var matchingVoterIds = _db.CaseVotes
-                .Where(v => v.CaseId == caseId && v.Side == caseEntity.WinnerSide)
-                .Select(v => v.UserId)
-                .Distinct()
-                .ToList();
+var matchingVoterIds = _db.CaseVotes
+    .Where(v => v.CaseId == caseId && v.Side == caseEntity.WinnerSide)
+    .Select(v => v.UserId)
+    .Distinct()
+    .ToList();
 
-            foreach (var voterId in matchingVoterIds)
-            {
-                AwardReward(voterId, "VOTE_WINNER_MATCH", "CaseClose", caseEntity.Id, "Your vote matched the winning side.");
-            }
+var alreadyAwardedVoterIds = _db.UserRewards
+    .Where(r => r.BadgeCode == "VOTE_WINNER_MATCH" &&
+                r.SourceType == "CaseClose" &&
+                r.SourceId == caseEntity.Id &&
+                matchingVoterIds.Contains(r.UserId))
+    .Select(r => r.UserId)
+    .ToHashSet();
+
+foreach (var voterId in matchingVoterIds)
+{
+    if (alreadyAwardedVoterIds.Contains(voterId)) continue;
+
+    _db.UserRewards.Add(new UserRewardEntity
+    {
+        Id = Guid.NewGuid(),
+        UserId = voterId,
+        BadgeCode = "VOTE_WINNER_MATCH",
+        SourceType = "CaseClose",
+        SourceId = caseEntity.Id,
+        Reason = "Your vote matched the winning side.",
+        AwardedAtUtc = DateTime.UtcNow
+    });
+}
 
             _db.SaveChanges();
         }
