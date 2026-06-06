@@ -132,6 +132,11 @@ namespace backend.Data.Migrations
                 column: "InvitedUserId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Cases_InvitedUserId_Status",
+                table: "Cases",
+                columns: new[] { "InvitedUserId", "Status" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Cases_SideAUserId",
                 table: "Cases",
                 column: "SideAUserId");
@@ -140,6 +145,11 @@ namespace backend.Data.Migrations
                 name: "IX_Cases_SideBUserId",
                 table: "Cases",
                 column: "SideBUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Cases_Status_CreatedAtUtc",
+                table: "Cases",
+                columns: new[] { "Status", "CreatedAtUtc" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_CaseVotes_UserId",
@@ -152,9 +162,19 @@ namespace backend.Data.Migrations
                 column: "FromUserId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_FriendRequests_FromUserId_Status",
+                table: "FriendRequests",
+                columns: new[] { "FromUserId", "Status" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_FriendRequests_ToUserId",
                 table: "FriendRequests",
                 column: "ToUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_FriendRequests_ToUserId_Status",
+                table: "FriendRequests",
+                columns: new[] { "ToUserId", "Status" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_UserRewards_BadgeCode",

@@ -90,9 +90,13 @@ namespace backend.Data.Migrations
 
                     b.HasIndex("InvitedUserId");
 
+                    b.HasIndex("InvitedUserId", "Status");
+
                     b.HasIndex("SideAUserId");
 
                     b.HasIndex("SideBUserId");
+
+                    b.HasIndex("Status", "CreatedAtUtc");
 
                     b.ToTable("Cases");
                 });
@@ -145,7 +149,11 @@ namespace backend.Data.Migrations
 
                     b.HasIndex("FromUserId");
 
+                    b.HasIndex("FromUserId", "Status");
+
                     b.HasIndex("ToUserId");
+
+                    b.HasIndex("ToUserId", "Status");
 
                     b.ToTable("FriendRequests");
                 });

@@ -53,6 +53,9 @@ public class DecidirDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(c => c.InvitedUserId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasIndex(c => new { c.Status, c.CreatedAtUtc });
+            e.HasIndex(c => new { c.InvitedUserId, c.Status });
         });
 
         modelBuilder.Entity<CaseVoteEntity>(e =>
@@ -102,6 +105,9 @@ public class DecidirDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(f => f.ToUserId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasIndex(f => new { f.ToUserId, f.Status });
+            e.HasIndex(f => new { f.FromUserId, f.Status });
         });
 
         modelBuilder.Entity<RewardBadgeEntity>(e =>
