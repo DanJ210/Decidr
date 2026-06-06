@@ -393,7 +393,8 @@ public class EfCoreCourtService : ICommunityCourtService
         return _db.Cases
             .Where(c => c.Status == CaseStatus.Pending && c.InvitedUserId == userId)
             .OrderByDescending(c => c.CreatedAtUtc)
-            .Select(c => MapCase(c))
+            .ToList()
+            .Select(MapCase)
             .ToList();
     }
 
