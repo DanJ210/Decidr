@@ -30,7 +30,7 @@ public class EfCoreCourtService : ICommunityCourtService
     {
         return _db.Users
             .OrderBy(u => u.DisplayName)
-            .Select(u => MapUser(u))
+            .Select(u => new AppUser(u.Id, u.UserName, u.DisplayName, u.Role))
             .ToList();
     }
 
