@@ -372,7 +372,7 @@ public class EfCoreCourtService : ICommunityCourtService
         return _db.FriendRequests
             .Where(r => r.FromUserId == userId && r.Status == FriendRequestStatus.Pending)
             .OrderByDescending(r => r.CreatedAtUtc)
-            .Select(r => MapFriendRequest(r))
+            .Select(r => new FriendRequest(r.Id, r.FromUserId, r.ToUserId, r.Status, r.CreatedAtUtc))
             .ToList();
     }
 
