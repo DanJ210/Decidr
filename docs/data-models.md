@@ -112,6 +112,7 @@ An individual community vote (internal, not exposed via API).
 | `UserId` | `Guid` | The voter |
 | `Side` | `CaseSide` | Which side they voted for |
 | `CreatedAtUtc` | `DateTime` | When the vote was cast |
+| `ChangeCount` | `int` | Number of times the voter switched sides after the initial vote (max 1) |
 
 ---
 

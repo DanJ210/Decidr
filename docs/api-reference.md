@@ -104,7 +104,9 @@ Casts a community vote on a case.
 - Case must exist and be `Open`.
 - User must exist.
 - User must not be a participant in the case (Side A or Side B poster).
-- User may only vote once per case.
+- First vote creates the vote record.
+- A voter may switch sides once after their initial vote.
+- Additional changes after that are rejected.
 
 **Response `200 OK`** — updated `ArgumentCase`  
 **Response `400 Bad Request`** — error message
