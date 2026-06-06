@@ -54,7 +54,7 @@ else
 var app = builder.Build();
 
 // Apply EF Core migrations and seed data when a database connection is configured.
-if (!string.IsNullOrWhiteSpace(connectionString))
+if (app.Environment.IsDevelopment() && !string.IsNullOrWhiteSpace(connectionString))
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<DecidirDbContext>();
