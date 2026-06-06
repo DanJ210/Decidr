@@ -262,25 +262,31 @@ foreach (var voterId in matchingVoterIds)
     // Rewards
     // -------------------------------------------------------------------------
 
-    public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
-    {
-        var badgeByCode = BadgeCatalog.ToDictionary(b => b.Code, b => b);
+public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
+{
+    var badgeByCode = _db.RewardBadges
+        .AsNoTracking()
+        .ToDictionary(b => b.Code, b => new RewardBadge(b.Code, b.Label, b.IconKey, b.Tier, b.Description));
 
-        return _db.UserRewards
-            .Where(r => r.UserId == userId)
-            .OrderByDescending(r => r.AwardedAtUtc)
-            .AsEnumerable()
-            .Select(r =>
+    var fallbackBadgeByCode = BadgeCatalog.ToDictionary(b => b.Code, b => b);
+
+    return _db.UserRewards
+        .AsNoTracking()
+        .Where(r => r.UserId == userId)
+        .OrderByDescending(r => r.AwardedAtUtc)
+        .AsEnumerable()
+        .Select(r =>
+        {
+            if (!badgeByCode.TryGetValue(r.BadgeCode, out var badge) &&
+                !fallbackBadgeByCode.TryGetValue(r.BadgeCode, out badge))
             {
-                if (!badgeByCode.TryGetValue(r.BadgeCode, out var badge))
-                {
-                    return new UserRewardView(r.BadgeCode, r.BadgeCode, "", "", r.Reason, r.AwardedAtUtc);
-                }
+                return new UserRewardView(r.BadgeCode, r.BadgeCode, "", "", r.Reason, r.AwardedAtUtc);
+            }
 
-                return new UserRewardView(r.BadgeCode, badge.Label, badge.IconKey, badge.Tier, r.Reason, r.AwardedAtUtc);
-            })
-            .ToList();
-    }
+            return new UserRewardView(r.BadgeCode, badge.Label, badge.IconKey, badge.Tier, r.Reason, r.AwardedAtUtc);
+        })
+        .ToList();
+}
 
     // -------------------------------------------------------------------------
     // Friend system
