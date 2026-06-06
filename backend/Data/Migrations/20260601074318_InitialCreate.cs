@@ -127,6 +127,41 @@ namespace backend.Data.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_Cases_InvitedUserId",
+                table: "Cases",
+                column: "InvitedUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Cases_SideAUserId",
+                table: "Cases",
+                column: "SideAUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Cases_SideBUserId",
+                table: "Cases",
+                column: "SideBUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CaseVotes_UserId",
+                table: "CaseVotes",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_FriendRequests_FromUserId",
+                table: "FriendRequests",
+                column: "FromUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_FriendRequests_ToUserId",
+                table: "FriendRequests",
+                column: "ToUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_UserRewards_BadgeCode",
+                table: "UserRewards",
+                column: "BadgeCode");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_UserRewards_UserId_BadgeCode_SourceType_SourceId",
                 table: "UserRewards",
                 columns: new[] { "UserId", "BadgeCode", "SourceType", "SourceId" },
@@ -137,14 +172,83 @@ namespace backend.Data.Migrations
                 table: "Users",
                 column: "UserName",
                 unique: true);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_Cases_Users_InvitedUserId",
+                table: "Cases",
+                column: "InvitedUserId",
+                principalTable: "Users",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Restrict);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_Cases_Users_SideAUserId",
+                table: "Cases",
+                column: "SideAUserId",
+                principalTable: "Users",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Restrict);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_Cases_Users_SideBUserId",
+                table: "Cases",
+                column: "SideBUserId",
+                principalTable: "Users",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Restrict);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_CaseVotes_Cases_CaseId",
+                table: "CaseVotes",
+                column: "CaseId",
+                principalTable: "Cases",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_CaseVotes_Users_UserId",
+                table: "CaseVotes",
+                column: "UserId",
+                principalTable: "Users",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Restrict);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_FriendRequests_Users_FromUserId",
+                table: "FriendRequests",
+                column: "FromUserId",
+                principalTable: "Users",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Restrict);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_FriendRequests_Users_ToUserId",
+                table: "FriendRequests",
+                column: "ToUserId",
+                principalTable: "Users",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Restrict);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_UserRewards_RewardBadges_BadgeCode",
+                table: "UserRewards",
+                column: "BadgeCode",
+                principalTable: "RewardBadges",
+                principalColumn: "Code",
+                onDelete: ReferentialAction.Restrict);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_UserRewards_Users_UserId",
+                table: "UserRewards",
+                column: "UserId",
+                principalTable: "Users",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Restrict);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "Cases");
-
             migrationBuilder.DropTable(
                 name: "CaseVotes");
 
@@ -152,10 +256,13 @@ namespace backend.Data.Migrations
                 name: "FriendRequests");
 
             migrationBuilder.DropTable(
-                name: "RewardBadges");
+                name: "Cases");
 
             migrationBuilder.DropTable(
                 name: "UserRewards");
+
+            migrationBuilder.DropTable(
+                name: "RewardBadges");
 
             migrationBuilder.DropTable(
                 name: "Users");

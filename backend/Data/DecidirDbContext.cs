@@ -40,12 +40,34 @@ public class DecidirDbContext : DbContext
             e.Property(c => c.SideBClaim).HasMaxLength(2048);
             e.Property(c => c.Status).HasConversion<string>();
             e.Property(c => c.WinnerSide).HasConversion<string?>();
+
+            e.HasOne<UserEntity>()
+                .WithMany()
+                .HasForeignKey(c => c.SideAUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<UserEntity>()
+                .WithMany()
+                .HasForeignKey(c => c.SideBUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<UserEntity>()
+                .WithMany()
+                .HasForeignKey(c => c.InvitedUserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<CaseVoteEntity>(e =>
         {
             e.HasKey(v => new { v.CaseId, v.UserId });
             e.Property(v => v.Side).HasConversion<string>();
+
+            e.HasOne<CaseEntity>()
+                .WithMany()
+                .HasForeignKey(v => v.CaseId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<UserEntity>()
+                .WithMany()
+                .HasForeignKey(v => v.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<UserRewardEntity>(e =>
@@ -56,12 +78,30 @@ public class DecidirDbContext : DbContext
             e.Property(r => r.Reason).IsRequired().HasMaxLength(512);
             // Prevent duplicate awards for the same badge on the same source
             e.HasIndex(r => new { r.UserId, r.BadgeCode, r.SourceType, r.SourceId }).IsUnique();
+
+            e.HasOne<UserEntity>()
+                .WithMany()
+                .HasForeignKey(r => r.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<RewardBadgeEntity>()
+                .WithMany()
+                .HasForeignKey(r => r.BadgeCode)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<FriendRequestEntity>(e =>
         {
             e.HasKey(f => f.Id);
             e.Property(f => f.Status).HasConversion<string>();
+
+            e.HasOne<UserEntity>()
+                .WithMany()
+                .HasForeignKey(f => f.FromUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<UserEntity>()
+                .WithMany()
+                .HasForeignKey(f => f.ToUserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<RewardBadgeEntity>(e =>

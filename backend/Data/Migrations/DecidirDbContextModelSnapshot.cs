@@ -88,6 +88,12 @@ namespace backend.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("InvitedUserId");
+
+                    b.HasIndex("SideAUserId");
+
+                    b.HasIndex("SideBUserId");
+
                     b.ToTable("Cases");
                 });
 
@@ -110,6 +116,8 @@ namespace backend.Data.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("CaseId", "UserId");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("CaseVotes");
                 });
@@ -134,6 +142,10 @@ namespace backend.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FromUserId");
+
+                    b.HasIndex("ToUserId");
 
                     b.ToTable("FriendRequests");
                 });
@@ -262,10 +274,76 @@ namespace backend.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BadgeCode");
+
                     b.HasIndex("UserId", "BadgeCode", "SourceType", "SourceId")
                         .IsUnique();
 
                     b.ToTable("UserRewards");
+                });
+
+            modelBuilder.Entity("backend.Data.Entities.CaseEntity", b =>
+                {
+                    b.HasOne("backend.Data.Entities.UserEntity", null)
+                        .WithMany()
+                        .HasForeignKey("InvitedUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("backend.Data.Entities.UserEntity", null)
+                        .WithMany()
+                        .HasForeignKey("SideAUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("backend.Data.Entities.UserEntity", null)
+                        .WithMany()
+                        .HasForeignKey("SideBUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("backend.Data.Entities.CaseVoteEntity", b =>
+                {
+                    b.HasOne("backend.Data.Entities.CaseEntity", null)
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("backend.Data.Entities.UserEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("backend.Data.Entities.FriendRequestEntity", b =>
+                {
+                    b.HasOne("backend.Data.Entities.UserEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FromUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("backend.Data.Entities.UserEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ToUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("backend.Data.Entities.UserRewardEntity", b =>
+                {
+                    b.HasOne("backend.Data.Entities.RewardBadgeEntity", null)
+                        .WithMany()
+                        .HasForeignKey("BadgeCode")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("backend.Data.Entities.UserEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }
