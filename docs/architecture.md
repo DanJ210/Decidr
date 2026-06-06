@@ -33,15 +33,17 @@ Decidr is a full-stack single-page application (SPA). The ASP.NET Core backend e
 │  └──────────────┬───────────────────────┘  │
 │                 │ ICommunityCourtService    │
 │  ┌──────────────▼───────────────────────┐  │
-│  │  InMemoryCommunityCourtService       │  │
-│  │  (singleton, thread-safe)            │  │
+│  │  EfCoreCourtService                  │  │
+│  │  (scoped, EF Core-backed)            │  │
 │  │                                      │  │
-│  │  _users          List<AppUser>       │  │
-│  │  _cases          List<ArgumentCase>  │  │
-│  │  _votes          List<CaseVote>      │  │
-│  │  _rewards        List<UserReward>    │  │
-│  │  _friendRequests List<FriendRequest> │  │
+│  │  DbSet<UserEntity>                   │  │
+│  │  DbSet<CaseEntity>                   │  │
+│  │  DbSet<CaseVoteEntity>               │  │
+│  │  DbSet<UserRewardEntity>             │  │
+│  │  DbSet<FriendRequestEntity>          │  │
 │  └──────────────────────────────────────┘  │
+│                                            │
+│  PostgreSQL via Npgsql + EF Core Migrations│
 │                                            │
 │  Static files → wwwroot (Vue build)        │
 └────────────────────────────────────────────┘
@@ -49,11 +51,16 @@ Decidr is a full-stack single-page application (SPA). The ASP.NET Core backend e
 
 ## Key Design Decisions
 
-### In-Memory Store
-All data is held in `InMemoryCommunityCourtService`, a singleton registered in DI. A `lock (_syncRoot)` guards every read and write to make operations thread-safe. **Data does not persist between restarts.**
+### Persistence Strategy
+By default, the backend uses `EfCoreCourtService` with `DecidirDbContext` and PostgreSQL (via Npgsql). On startup, migrations are applied and development seed data is inserted when the database is empty.
+
+If no `ConnectionStrings:DefaultConnection` is configured, the app falls back to `InMemoryCommunityCourtService` for local/demo execution.
 
 ### Verdict Refresh
-Vote counts are not stored on the `ArgumentCase` record directly. Instead, `RefreshVerdict()` recomputes the tally from `_votes` each time a case is read. This keeps the case record immutable while ensuring the verdict is always current.
+Vote counts are not stored directly on `ArgumentCase`. `RefreshVerdict()` recomputes the tally from vote records each time a case is read, keeping the read model consistent with persisted votes.
+
+### Vote Change Rule
+Users can cast an initial vote on an `Open` case and then change that vote once. A second vote change attempt is rejected.
 
 ### Case Invitation Flow
 Cases are created in a `Pending` state. Only the creator's Side A claim is stored initially. The invited user (`InvitedUserId`) must navigate to the case and either:

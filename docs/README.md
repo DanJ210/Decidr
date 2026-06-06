@@ -11,7 +11,7 @@
 | State management | Pinia |
 | HTTP client | Axios |
 | API docs (dev) | Swagger / OpenAPI (Swashbuckle) |
-| Data store | In-memory (no database) |
+| Data store | PostgreSQL + EF Core (with in-memory fallback when no DB connection is configured) |
 
 ## Documentation Index
 
