@@ -253,7 +253,11 @@ public class EfCoreCourtService : ICommunityCourtService
             .AsEnumerable()
             .Select(r =>
             {
-                var badge = badgeByCode[r.BadgeCode];
+                if (!badgeByCode.TryGetValue(r.BadgeCode, out var badge))
+                {
+                    return new UserRewardView(r.BadgeCode, r.BadgeCode, "", "", r.Reason, r.AwardedAtUtc);
+                }
+
                 return new UserRewardView(r.BadgeCode, badge.Label, badge.IconKey, badge.Tier, r.Reason, r.AwardedAtUtc);
             })
             .ToList();
