@@ -46,12 +46,39 @@ public class EfCoreCourtService : ICommunityCourtService
 
     public IReadOnlyList<ArgumentCase> GetCases()
     {
-        var cases = _db.Cases
+        var caseEntities = _db.Cases
             .Where(c => c.Status != CaseStatus.Pending)
             .OrderByDescending(c => c.CreatedAtUtc)
             .ToList();
 
-        return cases.Select(c => RefreshVerdict(MapCase(c))).ToList();
+        if (caseEntities.Count == 0)
+        {
+            return [];
+        }
+
+        var caseIds = caseEntities.Select(c => c.Id).ToList();
+
+        var voteCounts = _db.CaseVotes
+            .Where(v => caseIds.Contains(v.CaseId))
+            .GroupBy(v => new { v.CaseId, v.Side })
+            .Select(g => new { g.Key.CaseId, g.Key.Side, Count = g.Count() })
+            .ToList();
+
+        var verdictByCaseId = voteCounts
+            .GroupBy(x => x.CaseId)
+            .ToDictionary(
+                g => g.Key,
+                g => new CommunityVerdict(
+                    g.Where(x => x.Side == CaseSide.A).Select(x => x.Count).FirstOrDefault(),
+                    g.Where(x => x.Side == CaseSide.B).Select(x => x.Count).FirstOrDefault()));
+
+        return caseEntities.Select(e =>
+        {
+            var mapped = MapCase(e);
+            return verdictByCaseId.TryGetValue(e.Id, out var verdict)
+                ? mapped with { Verdict = verdict }
+                : mapped;
+        }).ToList();
     }
 
     public ArgumentCase? GetCase(Guid caseId)
