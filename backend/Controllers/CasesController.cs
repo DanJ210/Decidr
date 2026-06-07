@@ -22,9 +22,9 @@ public class CasesController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    public ActionResult<ArgumentCase> GetCaseById(Guid id)
+    public ActionResult<ArgumentCase> GetCaseById(Guid id, [FromQuery] Guid? userId = null)
     {
-        var match = _courtService.GetCase(id);
+        var match = _courtService.GetCase(id, userId);
         return match is null ? NotFound() : Ok(match);
     }
 

@@ -23,8 +23,10 @@ export async function fetchCases(): Promise<ArgumentCase[]> {
   return data
 }
 
-export async function fetchCaseById(id: string): Promise<ArgumentCase> {
-  const { data } = await apiClient.get<ArgumentCase>(`/cases/${id}`)
+export async function fetchCaseById(id: string, userId?: string): Promise<ArgumentCase> {
+  const { data } = await apiClient.get<ArgumentCase>(`/cases/${id}`, {
+    params: userId ? { userId } : undefined,
+  })
   return data
 }
 

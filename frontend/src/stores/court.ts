@@ -31,12 +31,12 @@ export const useCourtStore = defineStore('court', {
         this.loading = false
       }
     },
-    async loadCase(id: string) {
+    async loadCase(id: string, userId?: string) {
       this.loading = true
       this.error = null
 
       try {
-        this.selectedCase = await fetchCaseById(id)
+        this.selectedCase = await fetchCaseById(id, userId)
       } catch {
         this.error = 'Unable to load this case right now.'
         this.selectedCase = null

@@ -4,6 +4,8 @@ namespace backend.Services;
 
 public class InMemoryCommunityCourtService : ICommunityCourtService
 {
+    private const int VoteChangeWindowMinutes = 60;
+
     private static readonly List<RewardBadge> BadgeCatalog =
     [
         new("VOTE_PARTICIPATION", "Community Juror", "jury", "Bronze", "Awarded for participating in community voting."),
@@ -98,12 +100,12 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         }
     }
 
-    public ArgumentCase? GetCase(Guid caseId)
+    public ArgumentCase? GetCase(Guid caseId, Guid? viewerUserId = null)
     {
         lock (_syncRoot)
         {
             var found = _cases.FirstOrDefault(c => c.Id == caseId);
-            return found is null ? null : RefreshVerdict(found);
+            return found is null ? null : MapCaseForViewer(found, viewerUserId);
         }
     }
 
@@ -125,7 +127,8 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                 new CommunityVerdict(0, 0),
                 CaseStatus.Pending,
                 WinnerSide: null,
-                createdAt);
+                createdAt,
+                CurrentUserVote: null);
 
             _cases.Add(created);
             AwardReward(sideAUser.Id, "POST_PARTICIPATION", "CaseCreate", created.Id, "Posted the Side A argument in a new case.");
@@ -167,9 +170,9 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                     return (false, "You already voted for this side.", null);
                 }
 
-                if (existingVote.ChangeCount >= 1)
+                if (DateTime.UtcNow >= existingVote.CreatedAtUtc.AddMinutes(VoteChangeWindowMinutes))
                 {
-                    return (false, "You can only change your vote once.", null);
+                    return (false, "Your vote is locked after 60 minutes and can no longer be changed.", null);
                 }
 
                 _votes[existingVoteIndex] = existingVote with
@@ -178,7 +181,7 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                     ChangeCount = existingVote.ChangeCount + 1
                 };
 
-                var updatedVerdict = RefreshVerdict(foundCase);
+                var updatedVerdict = MapCaseForViewer(foundCase, request.UserId);
                 ReplaceCase(updatedVerdict);
                 return (true, null, updatedVerdict);
             }
@@ -186,7 +189,7 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
             _votes.Add(new CaseVote(caseId, request.UserId, request.Side, DateTime.UtcNow, 0));
             AwardReward(request.UserId, "VOTE_PARTICIPATION", "CaseVote", caseId, "Thanks for participating in community judging.");
 
-            var refreshed = RefreshVerdict(foundCase);
+            var refreshed = MapCaseForViewer(foundCase, request.UserId);
             ReplaceCase(refreshed);
             return (true, null, refreshed);
         }
@@ -511,6 +514,36 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         return argumentCase with { Verdict = new CommunityVerdict(sideAVotes, sideBVotes) };
     }
 
+    private CurrentUserVote? BuildCurrentUserVote(Guid caseId, Guid viewerUserId)
+    {
+        var vote = _votes.FirstOrDefault(v => v.CaseId == caseId && v.UserId == viewerUserId);
+        if (vote is null)
+        {
+            return null;
+        }
+
+        var changeLockedAtUtc = vote.CreatedAtUtc.AddMinutes(VoteChangeWindowMinutes);
+        return new CurrentUserVote(
+            vote.Side,
+            vote.CreatedAtUtc,
+            changeLockedAtUtc,
+            DateTime.UtcNow < changeLockedAtUtc);
+    }
+
+    private ArgumentCase MapCaseForViewer(ArgumentCase argumentCase, Guid? viewerUserId)
+    {
+        var refreshed = RefreshVerdict(argumentCase);
+        if (!viewerUserId.HasValue)
+        {
+            return refreshed;
+        }
+
+        return refreshed with
+        {
+            CurrentUserVote = BuildCurrentUserVote(argumentCase.Id, viewerUserId.Value)
+        };
+    }
+
     private ArgumentCase ResolveWinner(ArgumentCase argumentCase)
     {
         var refreshed = RefreshVerdict(argumentCase);
@@ -573,7 +606,8 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
             new CommunityVerdict(0, 0),
             CaseStatus.Open,
             WinnerSide: null,
-            createdAt);
+            createdAt,
+            CurrentUserVote: null);
     }
 
     private void ReplaceCase(ArgumentCase updated)

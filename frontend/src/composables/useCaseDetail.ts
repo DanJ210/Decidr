@@ -1,4 +1,4 @@
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useCourtStore } from '../stores/court'
@@ -10,16 +10,42 @@ export function useCaseDetail() {
   const authStore = useAuthStore()
 
   const sideBClaim = ref('')
+  const nowTimestamp = ref(Date.now())
+  let clockHandle: ReturnType<typeof setInterval> | null = null
+
+  function isVoteChangeWindowOpen(changeLockedAtUtc: string) {
+    return nowTimestamp.value < new Date(changeLockedAtUtc).getTime()
+  }
+
+  async function loadCurrentCase() {
+    const id = route.params.id
+    if (typeof id !== 'string') return
+    await courtStore.loadCase(id, activeUser.value?.id)
+  }
 
   onMounted(() => {
-    const id = route.params.id
-    if (typeof id === 'string') {
-      void courtStore.loadCase(id)
+    clockHandle = setInterval(() => {
+      nowTimestamp.value = Date.now()
+    }, 30000)
+    void loadCurrentCase()
+  })
+
+  onUnmounted(() => {
+    if (clockHandle) {
+      clearInterval(clockHandle)
+      clockHandle = null
     }
   })
 
   const caseItem = computed(() => courtStore.selectedCase)
   const activeUser = computed(() => authStore.selectedUser)
+
+  watch(
+    [() => route.params.id, () => activeUser.value?.id],
+    () => {
+      void loadCurrentCase()
+    },
+  )
 
   const totalVotes = computed(() => {
     const selected = courtStore.selectedCase
@@ -56,6 +82,38 @@ export function useCaseDetail() {
     return !!selected && !!user && selected.status === 'Open' && !isParticipant.value
   })
 
+  const currentUserVote = computed(() => caseItem.value?.currentUserVote ?? null)
+
+  const canVoteSideA = computed(() => {
+    if (!canVote.value) return false
+
+    const vote = currentUserVote.value
+    if (!vote) return true
+    if (!isVoteChangeWindowOpen(vote.changeLockedAtUtc)) return false
+    return vote.side !== 'A'
+  })
+
+  const canVoteSideB = computed(() => {
+    if (!canVote.value) return false
+
+    const vote = currentUserVote.value
+    if (!vote) return true
+    if (!isVoteChangeWindowOpen(vote.changeLockedAtUtc)) return false
+    return vote.side !== 'B'
+  })
+
+  const voteStatusMessage = computed(() => {
+    const vote = currentUserVote.value
+    if (!vote) return ''
+
+    if (isVoteChangeWindowOpen(vote.changeLockedAtUtc)) {
+      const lockAt = new Date(vote.changeLockedAtUtc).toLocaleString()
+      return `You voted for Side ${vote.side}. You can switch sides until ${lockAt}.`
+    }
+
+    return `Your vote for Side ${vote.side} is locked and can no longer be changed.`
+  })
+
   const canCloseCase = computed(() => {
     const selected = caseItem.value
     const user = activeUser.value
@@ -81,10 +139,11 @@ export function useCaseDetail() {
     const selectedUser = authStore.selectedUser
     const selectedCase = caseItem.value
     if (!selectedUser || !selectedCase) return
+    if ((side === 'A' && !canVoteSideA.value) || (side === 'B' && !canVoteSideB.value)) return
 
     const success = await courtStore.vote(selectedCase.id, selectedUser.id, side)
     if (success) {
-      await courtStore.loadCase(selectedCase.id)
+      await courtStore.loadCase(selectedCase.id, selectedUser.id)
     }
   }
 
@@ -95,7 +154,7 @@ export function useCaseDetail() {
 
     const success = await courtStore.closeCase(selectedCase.id, user.id)
     if (success) {
-      await courtStore.loadCase(selectedCase.id)
+      await courtStore.loadCase(selectedCase.id, user.id)
     }
   }
 
@@ -106,7 +165,7 @@ export function useCaseDetail() {
 
     const success = await courtStore.acceptInvitation(selectedCase.id, user.id, sideBClaim.value.trim())
     if (success) {
-      await courtStore.loadCase(selectedCase.id)
+      await courtStore.loadCase(selectedCase.id, user.id)
       sideBClaim.value = ''
     }
   }
@@ -131,6 +190,10 @@ export function useCaseDetail() {
     inviterName,
     isParticipant,
     canVote,
+    canVoteSideA,
+    canVoteSideB,
+    currentUserVote,
+    voteStatusMessage,
     canCloseCase,
     closePermissionMessage,
     vote,

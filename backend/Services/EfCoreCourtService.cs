@@ -7,6 +7,8 @@ namespace backend.Services;
 
 public class EfCoreCourtService : ICommunityCourtService
 {
+    private const int VoteChangeWindowMinutes = 60;
+
     private static readonly List<RewardBadge> BadgeCatalog =
     [
         new("VOTE_PARTICIPATION", "Community Juror", "jury", "Bronze", "Awarded for participating in community voting."),
@@ -81,10 +83,10 @@ public class EfCoreCourtService : ICommunityCourtService
         }).ToList();
     }
 
-    public ArgumentCase? GetCase(Guid caseId)
+    public ArgumentCase? GetCase(Guid caseId, Guid? viewerUserId = null)
     {
         var entity = _db.Cases.Find(caseId);
-        return entity is null ? null : RefreshVerdict(MapCase(entity));
+        return entity is null ? null : MapCaseForViewer(entity, viewerUserId);
     }
 
     public ArgumentCase CreateCase(CreateCaseRequest request)
@@ -150,9 +152,9 @@ public class EfCoreCourtService : ICommunityCourtService
                 return (false, "You already voted for this side.", null);
             }
 
-            if (existingVote.ChangeCount >= 1)
+            if (DateTime.UtcNow >= existingVote.CreatedAtUtc.AddMinutes(VoteChangeWindowMinutes))
             {
-                return (false, "You can only change your vote once.", null);
+                return (false, "Your vote is locked after 60 minutes and can no longer be changed.", null);
             }
 
             existingVote.Side = request.Side;
@@ -173,7 +175,7 @@ public class EfCoreCourtService : ICommunityCourtService
 
         _db.SaveChanges();
 
-        var updated = RefreshVerdict(MapCase(caseEntity));
+        var updated = MapCaseForViewer(caseEntity, request.UserId);
         return (true, null, updated);
     }
 
@@ -533,6 +535,36 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
         return argumentCase with { Verdict = new CommunityVerdict(sideAVotes, sideBVotes) };
     }
 
+    private CurrentUserVote? BuildCurrentUserVote(Guid caseId, Guid viewerUserId)
+    {
+        var vote = _db.CaseVotes.Find(caseId, viewerUserId);
+        if (vote is null)
+        {
+            return null;
+        }
+
+        var changeLockedAtUtc = vote.CreatedAtUtc.AddMinutes(VoteChangeWindowMinutes);
+        return new CurrentUserVote(
+            vote.Side,
+            vote.CreatedAtUtc,
+            changeLockedAtUtc,
+            DateTime.UtcNow < changeLockedAtUtc);
+    }
+
+    private ArgumentCase MapCaseForViewer(CaseEntity entity, Guid? viewerUserId)
+    {
+        var refreshed = RefreshVerdict(MapCase(entity));
+        if (!viewerUserId.HasValue)
+        {
+            return refreshed;
+        }
+
+        return refreshed with
+        {
+            CurrentUserVote = BuildCurrentUserVote(entity.Id, viewerUserId.Value)
+        };
+    }
+
     private CaseSide? ResolveWinnerSide(Guid caseId)
     {
         var sideAVotes = _db.CaseVotes.Count(v => v.CaseId == caseId && v.Side == CaseSide.A);
@@ -591,7 +623,8 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
             new CommunityVerdict(0, 0), // votes are refreshed by caller if needed
             e.Status,
             e.WinnerSide,
-            e.CreatedAtUtc);
+            e.CreatedAtUtc,
+            CurrentUserVote: null);
     }
 
     private static FriendRequest MapFriendRequest(FriendRequestEntity e) =>

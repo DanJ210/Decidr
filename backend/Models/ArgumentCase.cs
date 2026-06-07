@@ -54,6 +54,13 @@ public record CaseVote(
     int ChangeCount
 );
 
+public record CurrentUserVote(
+    CaseSide Side,
+    DateTime CastAtUtc,
+    DateTime ChangeLockedAtUtc,
+    bool CanChange
+);
+
 public record RewardBadge(
     string Code,
     string Label,
@@ -82,7 +89,8 @@ public record ArgumentCase(
     CommunityVerdict Verdict,
     CaseStatus Status,
     CaseSide? WinnerSide,
-    DateTime CreatedAtUtc
+    DateTime CreatedAtUtc,
+    CurrentUserVote? CurrentUserVote
 );
 
 public record CreateCaseRequest(

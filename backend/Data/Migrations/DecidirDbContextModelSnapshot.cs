@@ -88,13 +88,11 @@ namespace backend.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("InvitedUserId");
-
-                    b.HasIndex("InvitedUserId", "Status");
-
                     b.HasIndex("SideAUserId");
 
                     b.HasIndex("SideBUserId");
+
+                    b.HasIndex("InvitedUserId", "Status");
 
                     b.HasIndex("Status", "CreatedAtUtc");
 
@@ -147,11 +145,7 @@ namespace backend.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FromUserId");
-
                     b.HasIndex("FromUserId", "Status");
-
-                    b.HasIndex("ToUserId");
 
                     b.HasIndex("ToUserId", "Status");
 

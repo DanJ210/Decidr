@@ -9,6 +9,10 @@ const {
   isInvited,
   inviterName,
   canVote,
+  canVoteSideA,
+  canVoteSideB,
+  currentUserVote,
+  voteStatusMessage,
   canCloseCase,
   closePermissionMessage,
   isParticipant,
@@ -122,7 +126,7 @@ const {
             <button
               type="button"
               class="action-btn"
-              :disabled="!canVote || courtStore.mutating"
+              :disabled="!canVoteSideA || courtStore.mutating"
               @click="vote('A')"
             >
               Vote Side A
@@ -130,7 +134,7 @@ const {
             <button
               type="button"
               class="action-btn"
-              :disabled="!canVote || courtStore.mutating"
+              :disabled="!canVoteSideB || courtStore.mutating"
               @click="vote('B')"
             >
               Vote Side B
@@ -147,6 +151,12 @@ const {
 
           <p v-if="caseItem.status === 'Open' && isParticipant" class="status-text">
             You are a participant in this case and cannot vote.
+          </p>
+          <p v-else-if="caseItem.status === 'Open' && !canVote" class="status-text">
+            Select an active user to vote on this case.
+          </p>
+          <p v-if="caseItem.status === 'Open' && currentUserVote" class="status-text">
+            {{ voteStatusMessage }}
           </p>
           <p v-if="closePermissionMessage" class="status-text">{{ closePermissionMessage }}</p>
         </section>

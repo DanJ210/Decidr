@@ -23,6 +23,13 @@ export interface CommunityVerdict {
   votesForSideB: number
 }
 
+export interface CurrentUserVote {
+  side: CaseSide
+  castAtUtc: string
+  changeLockedAtUtc: string
+  canChange: boolean
+}
+
 export interface ArgumentCase {
   id: string
   title: string
@@ -35,6 +42,7 @@ export interface ArgumentCase {
   status: CaseStatus
   winnerSide: CaseSide | null
   createdAtUtc: string
+  currentUserVote: CurrentUserVote | null
 }
 
 export interface FriendRequest {
