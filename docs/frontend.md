@@ -88,6 +88,9 @@ Used by `CaseDetailView`. Loads the case on mount from the URL param, then deriv
 |----------|------|-------------|
 | `courtStore` | `CourtStore` | Direct store reference (loading/mutating/error state) |
 | `sideBClaim` | `Ref<string>` | Two-way bound text for the Side B invitation response |
+| `commentMessage` | `Ref<string>` | Two-way bound text for posting a case-level comment |
+| `comments` | `Ref<CaseComment[]>` | Shared case comment pool (not side-specific) |
+| `canComment` | `ComputedRef<boolean>` | `true` when an active user is selected and the case is loaded |
 | `caseItem` | `ComputedRef` | The currently loaded case (`selectedCase`) |
 | `totalVotes` | `ComputedRef<number>` | Sum of votes for both sides |
 | `isInvited` | `ComputedRef<boolean>` | `true` when the active user is the invited Side B participant |
@@ -100,6 +103,7 @@ Used by `CaseDetailView`. Loads the case on mount from the URL param, then deriv
 | `closeCase()` | `function` | Closes the case and refreshes it |
 | `acceptInvitation()` | `function` | Submits the Side B claim and refreshes the case |
 | `declineInvitation()` | `function` | Declines the invitation and navigates back to `/` |
+| `submitComment()` | `function` | Posts a comment into the case's shared comment pool |
 
 ---
 
@@ -272,6 +276,8 @@ Defined in `services/api.ts`. All functions use a shared Axios instance with `ba
 | `createCase(request)` | `POST` | `/cases` | Create a new `Pending` case (friend connection required for invite) |
 | `castVote(caseId, request)` | `POST` | `/cases/{id}/vote` | Cast a vote |
 | `closeCase(caseId, request)` | `POST` | `/cases/{id}/close` | Close a case |
+| `fetchCaseComments(caseId)` | `GET` | `/cases/{id}/comments` | Get the shared case comment pool |
+| `postCaseComment(caseId, request)` | `POST` | `/cases/{id}/comments` | Add a case-level comment |
 | `acceptCaseInvitation(caseId, request)` | `POST` | `/cases/{id}/accept` | Accept invitation and provide Side B claim |
 | `declineCaseInvitation(caseId, userId)` | `POST` | `/cases/{id}/decline` | Decline an invitation |
 | `fetchUsers()` | `GET` | `/users` | Get all users |
@@ -290,4 +296,4 @@ Defined in `services/api.ts`. All functions use a shared Axios instance with `ba
 
 `types.ts` mirrors the backend C# models as TypeScript interfaces. See [Data Models](./data-models.md) for full field descriptions.
 
-Key types: `AppUser`, `ArgumentCase`, `ArgumentPost`, `CommunityVerdict`, `FriendRequest`, `FriendRequestStatus`, `UserRewardView`, `CreateCaseRequest`, `AcceptInvitationRequest`, `DeclineInvitationRequest`, `SendFriendRequestDto`, `RespondFriendRequestDto`, `CastVoteRequest`, `CloseCaseRequest`.
+Key types: `AppUser`, `ArgumentCase`, `ArgumentPost`, `CommunityVerdict`, `CaseComment`, `FriendRequest`, `FriendRequestStatus`, `UserRewardView`, `CreateCaseRequest`, `AcceptInvitationRequest`, `DeclineInvitationRequest`, `SendFriendRequestDto`, `RespondFriendRequestDto`, `CastVoteRequest`, `CloseCaseRequest`, `CreateCaseCommentRequest`.

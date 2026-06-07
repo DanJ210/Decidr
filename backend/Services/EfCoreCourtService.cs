@@ -89,6 +89,15 @@ public class EfCoreCourtService : ICommunityCourtService
         return entity is null ? null : MapCaseForViewer(entity, viewerUserId);
     }
 
+    public IReadOnlyList<CaseComment> GetCaseComments(Guid caseId)
+    {
+        return _db.CaseComments
+            .Where(c => c.CaseId == caseId)
+            .OrderBy(c => c.CreatedAtUtc)
+            .Select(c => new CaseComment(c.Id, c.CaseId, c.UserId, c.UserName, c.Message, c.CreatedAtUtc))
+            .ToList();
+    }
+
     public ArgumentCase CreateCase(CreateCaseRequest request)
     {
         var sideAUser = _db.Users.Find(request.SideAUserId)
@@ -115,6 +124,48 @@ public class EfCoreCourtService : ICommunityCourtService
         _db.SaveChanges();
 
         return MapCase(entity);
+    }
+
+    public (bool Success, string? Error, CaseComment? Comment) AddCaseComment(Guid caseId, CreateCaseCommentRequest request)
+    {
+        var caseEntity = _db.Cases.Find(caseId);
+        if (caseEntity is null)
+        {
+            return (false, "Case not found.", null);
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Message))
+        {
+            return (false, "Comment message is required.", null);
+        }
+
+        var trimmedMessage = request.Message.Trim();
+        if (trimmedMessage.Length > 1024)
+        {
+            return (false, "Comment message cannot exceed 1024 characters.", null);
+        }
+
+        var user = _db.Users.Find(request.UserId);
+        if (user is null)
+        {
+            return (false, "User not found.", null);
+        }
+
+        var createdAt = DateTime.UtcNow;
+        var entity = new CaseCommentEntity
+        {
+            Id = Guid.NewGuid(),
+            CaseId = caseId,
+            UserId = user.Id,
+            UserName = user.UserName,
+            Message = trimmedMessage,
+            CreatedAtUtc = createdAt
+        };
+
+        _db.CaseComments.Add(entity);
+        _db.SaveChanges();
+
+        return (true, null, new CaseComment(entity.Id, entity.CaseId, entity.UserId, entity.UserName, entity.Message, entity.CreatedAtUtc));
     }
 
     // -------------------------------------------------------------------------

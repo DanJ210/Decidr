@@ -3,9 +3,11 @@ import type {
   AcceptInvitationRequest,
   AppUser,
   ArgumentCase,
+  CaseComment,
   CastVoteRequest,
   CloseCaseRequest,
   CreateCaseRequest,
+  CreateCaseCommentRequest,
   FriendRequest,
   RemoveFriendDto,
   RespondFriendRequestDto,
@@ -42,6 +44,16 @@ export async function castVote(caseId: string, request: CastVoteRequest): Promis
 
 export async function closeCase(caseId: string, request: CloseCaseRequest): Promise<ArgumentCase> {
   const { data } = await apiClient.post<ArgumentCase>(`/cases/${caseId}/close`, request)
+  return data
+}
+
+export async function fetchCaseComments(caseId: string): Promise<CaseComment[]> {
+  const { data } = await apiClient.get<CaseComment[]>(`/cases/${caseId}/comments`)
+  return data
+}
+
+export async function postCaseComment(caseId: string, request: CreateCaseCommentRequest): Promise<CaseComment> {
+  const { data } = await apiClient.post<CaseComment>(`/cases/${caseId}/comments`, request)
   return data
 }
 

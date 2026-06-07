@@ -30,6 +30,15 @@ export interface CurrentUserVote {
   canChange: boolean
 }
 
+export interface CaseComment {
+  id: string
+  caseId: string
+  userId: string
+  userName: string
+  message: string
+  createdAtUtc: string
+}
+
 export interface ArgumentCase {
   id: string
   title: string
@@ -92,6 +101,11 @@ export interface CastVoteRequest {
 
 export interface CloseCaseRequest {
   actorUserId: string
+}
+
+export interface CreateCaseCommentRequest {
+  userId: string
+  message: string
 }
 
 export interface UserRewardView {

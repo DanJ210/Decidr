@@ -21,6 +21,7 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
     private readonly List<AppUser> _users;
     private readonly List<ArgumentCase> _cases;
     private readonly List<CaseVote> _votes;
+    private readonly List<CaseComment> _comments;
     private readonly List<UserReward> _rewards;
     private readonly List<FriendRequest> _friendRequests;
 
@@ -64,6 +65,12 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         ];
 
         _votes = [];
+        _comments =
+        [
+            new(Guid.NewGuid(), firstCaseId, casey.Id, casey.UserName, "Both sides have a point, but timing and communication matter most here.", DateTime.UtcNow.AddHours(-10)),
+            new(Guid.NewGuid(), firstCaseId, morgan.Id, morgan.UserName, "If it was truly urgent, a quick heads-up earlier would have helped.", DateTime.UtcNow.AddHours(-9)),
+            new(Guid.NewGuid(), secondCaseId, alex.Id, alex.UserName, "Smart plug data feels like fair evidence for a proportional split.", DateTime.UtcNow.AddHours(-20))
+        ];
 
         _rewards = [];
         AwardCasePostingRewards(_cases[0]);
@@ -109,6 +116,17 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         }
     }
 
+    public IReadOnlyList<CaseComment> GetCaseComments(Guid caseId)
+    {
+        lock (_syncRoot)
+        {
+            return _comments
+                .Where(c => c.CaseId == caseId)
+                .OrderBy(c => c.CreatedAtUtc)
+                .ToList();
+        }
+    }
+
     public ArgumentCase CreateCase(CreateCaseRequest request)
     {
         lock (_syncRoot)
@@ -133,6 +151,45 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
             _cases.Add(created);
             AwardReward(sideAUser.Id, "POST_PARTICIPATION", "CaseCreate", created.Id, "Posted the Side A argument in a new case.");
             return created;
+        }
+    }
+
+    public (bool Success, string? Error, CaseComment? Comment) AddCaseComment(Guid caseId, CreateCaseCommentRequest request)
+    {
+        lock (_syncRoot)
+        {
+            if (_cases.All(c => c.Id != caseId))
+            {
+                return (false, "Case not found.", null);
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Message))
+            {
+                return (false, "Comment message is required.", null);
+            }
+
+            var trimmedMessage = request.Message.Trim();
+            if (trimmedMessage.Length > 1024)
+            {
+                return (false, "Comment message cannot exceed 1024 characters.", null);
+            }
+
+            var user = _users.FirstOrDefault(u => u.Id == request.UserId);
+            if (user is null)
+            {
+                return (false, "User not found.", null);
+            }
+
+            var created = new CaseComment(
+                Guid.NewGuid(),
+                caseId,
+                user.Id,
+                user.UserName,
+                trimmedMessage,
+                DateTime.UtcNow);
+
+            _comments.Add(created);
+            return (true, null, created);
         }
     }
 

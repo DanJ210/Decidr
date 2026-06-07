@@ -4,11 +4,17 @@ import { useCaseDetail } from '../composables/useCaseDetail'
 const {
   courtStore,
   sideBClaim,
+  commentMessage,
+  comments,
+  commentsLoading,
+  commentsSubmitting,
+  commentsError,
   caseItem,
   totalVotes,
   isInvited,
   inviterName,
   canVote,
+  canComment,
   canVoteSideA,
   canVoteSideB,
   currentUserVote,
@@ -20,6 +26,7 @@ const {
   closeCase,
   acceptInvitation,
   declineInvitation,
+  submitComment,
 } = useCaseDetail()
 </script>
 
@@ -162,8 +169,44 @@ const {
         </section>
       </template>
 
+      <section class="verdict">
+        <h2>Case Comments</h2>
+        <p class="status-text">One shared comment pool for everyone, regardless of which side they voted for.</p>
+
+        <p v-if="commentsLoading" class="notice">Loading comments...</p>
+        <p v-else-if="commentsError" class="notice error">{{ commentsError }}</p>
+        <p v-else-if="comments.length === 0" class="status-text">Be the first to comment on this case.</p>
+        <ul v-else>
+          <li v-for="comment in comments" :key="comment.id">
+            <strong>@{{ comment.userName }}</strong> · {{ new Date(comment.createdAtUtc).toLocaleString() }}
+            <p>{{ comment.message }}</p>
+          </li>
+        </ul>
+
+        <label>
+          Add a Comment
+          <textarea
+            v-model="commentMessage"
+            rows="3"
+            placeholder="Share your thoughts on this case..."
+            maxlength="1024"
+            :disabled="!canComment || commentsSubmitting"
+          />
+        </label>
+        <p v-if="!canComment" class="status-text">Select an active user to join the discussion.</p>
+        <div class="action-bar">
+          <button
+            type="button"
+            class="action-btn"
+            :disabled="!canComment || !commentMessage.trim() || commentsSubmitting"
+            @click="submitComment"
+          >
+            Post Comment
+          </button>
+        </div>
+      </section>
+
       <RouterLink to="/" class="case-link">Back to Cases</RouterLink>
     </article>
   </section>
 </template>
-

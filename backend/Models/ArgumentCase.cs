@@ -61,6 +61,15 @@ public record CurrentUserVote(
     bool CanChange
 );
 
+public record CaseComment(
+    Guid Id,
+    Guid CaseId,
+    Guid UserId,
+    string UserName,
+    string Message,
+    DateTime CreatedAtUtc
+);
+
 public record RewardBadge(
     string Code,
     string Label,
@@ -140,6 +149,11 @@ public record CastVoteRequest(
 
 public record CloseCaseRequest(
     Guid ActorUserId
+);
+
+public record CreateCaseCommentRequest(
+    Guid UserId,
+    string Message
 );
 
 public record UserRewardView(
