@@ -66,13 +66,18 @@ public class CasesController : ControllerBase
     [HttpGet("{id:guid}/comments")]
     public ActionResult<IEnumerable<CaseComment>> GetCaseComments(Guid id)
     {
+        var comments = _courtService.GetCaseComments(id);
+        if (comments.Count > 0)
+        {
+            return Ok(comments);
+        }
+
         if (_courtService.GetCase(id) is null)
         {
             return NotFound();
         }
 
-        return Ok(_courtService.GetCaseComments(id));
-    }
+        return Ok(comments);
 
     [HttpPost("{id:guid}/comments")]
     public ActionResult<CaseComment> AddCaseComment(Guid id, [FromBody] CreateCaseCommentRequest request)
