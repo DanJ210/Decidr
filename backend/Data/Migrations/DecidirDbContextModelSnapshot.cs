@@ -99,6 +99,40 @@ namespace backend.Data.Migrations
                     b.ToTable("Cases");
                 });
 
+            modelBuilder.Entity("backend.Data.Entities.CaseCommentEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseId", "CreatedAtUtc");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("CaseComments");
+                });
+
             modelBuilder.Entity("backend.Data.Entities.CaseVoteEntity", b =>
                 {
                     b.Property<Guid>("CaseId")
@@ -301,6 +335,21 @@ namespace backend.Data.Migrations
                         .WithMany()
                         .HasForeignKey("SideBUserId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("backend.Data.Entities.CaseCommentEntity", b =>
+                {
+                    b.HasOne("backend.Data.Entities.CaseEntity", null)
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("backend.Data.Entities.UserEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("backend.Data.Entities.CaseVoteEntity", b =>
