@@ -11,6 +11,7 @@ public class DecidirDbContext : DbContext
     public DbSet<UserEntity> Users => Set<UserEntity>();
     public DbSet<CaseEntity> Cases => Set<CaseEntity>();
     public DbSet<CaseVoteEntity> CaseVotes => Set<CaseVoteEntity>();
+    public DbSet<CaseCommentEntity> CaseComments => Set<CaseCommentEntity>();
     public DbSet<UserRewardEntity> UserRewards => Set<UserRewardEntity>();
     public DbSet<FriendRequestEntity> FriendRequests => Set<FriendRequestEntity>();
     public DbSet<RewardBadgeEntity> RewardBadges => Set<RewardBadgeEntity>();
@@ -71,6 +72,24 @@ public class DecidirDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(v => v.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CaseCommentEntity>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.Property(c => c.UserName).IsRequired().HasMaxLength(64);
+            e.Property(c => c.Message).IsRequired().HasMaxLength(1024);
+
+            e.HasOne<CaseEntity>()
+                .WithMany()
+                .HasForeignKey(c => c.CaseId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<UserEntity>()
+                .WithMany()
+                .HasForeignKey(c => c.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasIndex(c => new { c.CaseId, c.CreatedAtUtc });
         });
 
         modelBuilder.Entity<UserRewardEntity>(e =>

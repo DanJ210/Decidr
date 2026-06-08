@@ -63,6 +63,12 @@ public static class DataSeeder
 
         db.Cases.AddRange(case1, case2);
 
+        db.CaseComments.AddRange(
+            new CaseCommentEntity { Id = Guid.NewGuid(), CaseId = case1.Id, UserId = casey.Id, UserName = casey.UserName, Message = "Both sides have a point, but timing and communication matter most here.", CreatedAtUtc = now.AddHours(-10) },
+            new CaseCommentEntity { Id = Guid.NewGuid(), CaseId = case1.Id, UserId = morgan.Id, UserName = morgan.UserName, Message = "If it was truly urgent, a quick heads-up earlier would have helped.", CreatedAtUtc = now.AddHours(-9) },
+            new CaseCommentEntity { Id = Guid.NewGuid(), CaseId = case2.Id, UserId = alex.Id, UserName = alex.UserName, Message = "Smart plug data feels like fair evidence for a proportional split.", CreatedAtUtc = now.AddHours(-20) }
+        );
+
         db.UserRewards.AddRange(
             new UserRewardEntity { Id = Guid.NewGuid(), UserId = alex.Id,   BadgeCode = "POST_PARTICIPATION", SourceType = "CaseCreate", SourceId = case1.Id, Reason = "Posted the Side A argument in a new case.", AwardedAtUtc = now },
             new UserRewardEntity { Id = Guid.NewGuid(), UserId = jordan.Id, BadgeCode = "POST_PARTICIPATION", SourceType = "CaseCreate", SourceId = case1.Id, Reason = "Posted the Side B argument in a new case.", AwardedAtUtc = now },

@@ -63,6 +63,43 @@ public class CasesController : ControllerBase
         return CreatedAtAction(nameof(GetCaseById), new { id = created.Id }, created);
     }
 
+    [HttpGet("{id:guid}/comments")]
+    public ActionResult<IEnumerable<CaseComment>> GetCaseComments(Guid id)
+    {
+        var comments = _courtService.GetCaseComments(id);
+        if (comments.Count > 0)
+        {
+            return Ok(comments);
+        }
+
+        if (_courtService.GetCase(id) is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(comments);
+
+    [HttpPost("{id:guid}/comments")]
+    public ActionResult<CaseComment> AddCaseComment(Guid id, [FromBody] CreateCaseCommentRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Message))
+        {
+            return BadRequest("Comment message is required.");
+        }
+        if (request.Message.Trim().Length > 1024)
+        {
+            return BadRequest("Comment message cannot exceed 1024 characters.");
+        }
+
+        var result = _courtService.AddCaseComment(id, request);
+        if (!result.Success)
+        {
+            return BadRequest(result.Error);
+        }
+
+        return Ok(result.Comment);
+    }
+
     [HttpPost("{id:guid}/vote")]
     public ActionResult<ArgumentCase> CastVote(Guid id, [FromBody] CastVoteRequest request)
     {

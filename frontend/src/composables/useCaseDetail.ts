@@ -1,7 +1,9 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { fetchCaseComments, postCaseComment } from '../services/api'
 import { useAuthStore } from '../stores/auth'
 import { useCourtStore } from '../stores/court'
+import type { CaseComment } from '../types'
 
 export function useCaseDetail() {
   const route = useRoute()
@@ -10,6 +12,11 @@ export function useCaseDetail() {
   const authStore = useAuthStore()
 
   const sideBClaim = ref('')
+  const commentMessage = ref('')
+  const comments = ref<CaseComment[]>([])
+  const commentsLoading = ref(false)
+  const commentsSubmitting = ref(false)
+  const commentsError = ref<string | null>(null)
   const nowTimestamp = ref(Date.now())
   let clockHandle: ReturnType<typeof setInterval> | null = null
 
@@ -21,6 +28,22 @@ export function useCaseDetail() {
     const id = route.params.id
     if (typeof id !== 'string') return
     await courtStore.loadCase(id, activeUser.value?.id)
+    if (courtStore.selectedCase?.id !== id) return
+    await loadComments(id)
+  }
+
+  async function loadComments(caseId: string) {
+    commentsLoading.value = true
+    commentsError.value = null
+
+    try {
+      comments.value = await fetchCaseComments(caseId)
+    } catch {
+      commentsError.value = 'Unable to load comments right now.'
+      comments.value = []
+    } finally {
+      commentsLoading.value = false
+    }
   }
 
   onMounted(() => {
@@ -83,6 +106,7 @@ export function useCaseDetail() {
   })
 
   const currentUserVote = computed(() => caseItem.value?.currentUserVote ?? null)
+  const canComment = computed(() => !!caseItem.value && !!activeUser.value)
 
   const canVoteSideA = computed(() => {
     if (!canVote.value) return false
@@ -181,15 +205,43 @@ export function useCaseDetail() {
     }
   }
 
+  async function submitComment() {
+    const selectedCase = caseItem.value
+    const user = activeUser.value
+    const trimmedMessage = commentMessage.value.trim()
+    if (!selectedCase || !user || !trimmedMessage) return
+
+    commentsSubmitting.value = true
+    commentsError.value = null
+    try {
+      const created = await postCaseComment(selectedCase.id, {
+        userId: user.id,
+        message: trimmedMessage,
+      })
+      comments.value = [...comments.value, created]
+      commentMessage.value = ''
+    } catch {
+      commentsError.value = 'Unable to post this comment right now.'
+    } finally {
+      commentsSubmitting.value = false
+    }
+  }
+
   return {
     courtStore,
     sideBClaim,
+    commentMessage,
+    comments,
+    commentsLoading,
+    commentsSubmitting,
+    commentsError,
     caseItem,
     totalVotes,
     isInvited,
     inviterName,
     isParticipant,
     canVote,
+    canComment,
     canVoteSideA,
     canVoteSideB,
     currentUserVote,
@@ -200,5 +252,6 @@ export function useCaseDetail() {
     closeCase,
     acceptInvitation,
     declineInvitation,
+    submitComment,
   }
 }

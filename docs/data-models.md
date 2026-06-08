@@ -71,6 +71,20 @@ Live vote tally for a case. Recomputed on every read.
 
 ---
 
+### `CaseComment`
+A public comment posted to a case discussion. Comments are shared at the case level (not tied to Side A or Side B).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Id` | `Guid` | Unique identifier |
+| `CaseId` | `Guid` | Case this comment belongs to |
+| `UserId` | `Guid` | Comment author's ID |
+| `UserName` | `string` | Comment author's handle |
+| `Message` | `string` | Comment text (max 1024 chars) |
+| `CreatedAtUtc` | `DateTime` | When the comment was posted |
+
+---
+
 ### `ArgumentCase`
 The central entity representing a debate case.
 
@@ -226,3 +240,9 @@ Used to remove an accepted friend connection.
 | Field | Type |
 |-------|------|
 | `ActorUserId` | `Guid` |
+
+### `CreateCaseCommentRequest`
+| Field | Type | Description |
+|-------|------|-------------|
+| `UserId` | `Guid` | Author posting the comment |
+| `Message` | `string` | Comment text |
