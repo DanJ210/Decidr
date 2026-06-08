@@ -28,6 +28,7 @@ export function useCaseDetail() {
     const id = route.params.id
     if (typeof id !== 'string') return
     await courtStore.loadCase(id, activeUser.value?.id)
+    if (courtStore.selectedCase?.id !== id) return
     await loadComments(id)
   }
 
