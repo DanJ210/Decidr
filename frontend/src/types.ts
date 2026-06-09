@@ -23,6 +23,10 @@ export interface CommunityVerdict {
   votesForSideB: number
 }
 
+export interface CaseVoteStatus {
+  hasVoted: boolean
+}
+
 export interface ArgumentCase {
   id: string
   title: string

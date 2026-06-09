@@ -8,6 +8,7 @@ public interface ICommunityCourtService
     AppUser? GetUser(Guid userId);
     IReadOnlyList<ArgumentCase> GetCases();
     ArgumentCase? GetCase(Guid caseId);
+    bool HasUserVoted(Guid caseId, Guid userId);
     ArgumentCase CreateCase(CreateCaseRequest request);
     (bool Success, string? Error, ArgumentCase? UpdatedCase) CastVote(Guid caseId, CastVoteRequest request);
     (bool Success, string? Error, ArgumentCase? UpdatedCase) CloseCase(Guid caseId, Guid actorUserId);

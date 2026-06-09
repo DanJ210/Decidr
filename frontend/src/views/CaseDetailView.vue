@@ -9,9 +9,9 @@ const {
   isInvited,
   inviterName,
   canVote,
+  votePermissionMessage,
   canCloseCase,
   closePermissionMessage,
-  isParticipant,
   vote,
   closeCase,
   acceptInvitation,
@@ -145,9 +145,7 @@ const {
             </button>
           </div>
 
-          <p v-if="caseItem.status === 'Open' && isParticipant" class="status-text">
-            You are a participant in this case and cannot vote.
-          </p>
+          <p v-if="votePermissionMessage" class="status-text">{{ votePermissionMessage }}</p>
           <p v-if="closePermissionMessage" class="status-text">{{ closePermissionMessage }}</p>
         </section>
       </template>
@@ -156,4 +154,3 @@ const {
     </article>
   </section>
 </template>
-

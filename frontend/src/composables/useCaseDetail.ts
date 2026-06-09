@@ -1,5 +1,6 @@
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { fetchCaseVoteStatus } from '../services/api'
 import { useAuthStore } from '../stores/auth'
 import { useCourtStore } from '../stores/court'
 
@@ -10,16 +11,99 @@ export function useCaseDetail() {
   const authStore = useAuthStore()
 
   const sideBClaim = ref('')
-
-  onMounted(() => {
-    const id = route.params.id
-    if (typeof id === 'string') {
-      void courtStore.loadCase(id)
-    }
-  })
+  const hasVoted = ref(false)
+  const checkingVoteStatus = ref(false)
+  let caseStateRequestId = 0
+  let voteStatusRequestId = 0
 
   const caseItem = computed(() => courtStore.selectedCase)
   const activeUser = computed(() => authStore.selectedUser)
+
+  function isViewingCase(caseId: string) {
+    return route.params.id === caseId
+  }
+
+  function isCurrentCaseStateRequest(requestId: number, caseId: string) {
+    return requestId === caseStateRequestId && isViewingCase(caseId)
+  }
+
+  function isCurrentVoteStatusRequest(requestId: number, caseId: string, userId: string) {
+    return requestId === voteStatusRequestId && caseItem.value?.id === caseId && activeUser.value?.id === userId
+  }
+
+  async function refreshVoteStatus() {
+    const requestId = ++voteStatusRequestId
+    const selected = caseItem.value
+    const user = activeUser.value
+
+    hasVoted.value = false
+
+    if (!selected || !user || selected.status !== 'Open') {
+      checkingVoteStatus.value = false
+      return
+    }
+
+    if (selected.sideA.userId === user.id || selected.sideB?.userId === user.id) {
+      checkingVoteStatus.value = false
+      return
+    }
+
+    checkingVoteStatus.value = true
+
+    try {
+      const status = await fetchCaseVoteStatus(selected.id, user.id)
+      if (isCurrentVoteStatusRequest(requestId, selected.id, user.id)) {
+        hasVoted.value = status.hasVoted
+      }
+    } catch {
+      if (isCurrentVoteStatusRequest(requestId, selected.id, user.id)) {
+        hasVoted.value = false
+      }
+    } finally {
+      if (requestId === voteStatusRequestId) {
+        checkingVoteStatus.value = false
+      }
+    }
+  }
+
+  async function loadCaseState(id: string, preserveCurrentCaseOnFailure = false) {
+    const requestId = ++caseStateRequestId
+    const loaded = await courtStore.loadCase(id, {
+      clearSelectedCaseOnFailure: !preserveCurrentCaseOnFailure,
+    })
+    if (!isCurrentCaseStateRequest(requestId, id)) {
+      return
+    }
+
+    if (!loaded || loaded.id !== id) {
+      if (!preserveCurrentCaseOnFailure) {
+        hasVoted.value = false
+      }
+      checkingVoteStatus.value = false
+      return
+    }
+
+    await refreshVoteStatus()
+  }
+
+  watch(
+    () => route.params.id,
+    (id) => {
+      hasVoted.value = false
+      checkingVoteStatus.value = false
+      if (typeof id === 'string') {
+        void loadCaseState(id)
+      }
+    },
+    { immediate: true }
+  )
+
+  watch(
+    () => authStore.selectedUser?.id,
+    () => {
+      void refreshVoteStatus()
+    }
+  )
 
   const totalVotes = computed(() => {
     const selected = courtStore.selectedCase
@@ -53,7 +137,17 @@ export function useCaseDetail() {
   const canVote = computed(() => {
     const selected = caseItem.value
     const user = activeUser.value
-    return !!selected && !!user && selected.status === 'Open' && !isParticipant.value
+    return !!selected && !!user && selected.status === 'Open' && !isParticipant.value && !hasVoted.value && !checkingVoteStatus.value
+  })
+
+  const votePermissionMessage = computed(() => {
+    const selected = caseItem.value
+    const user = activeUser.value
+    if (!selected || selected.status !== 'Open') return ''
+    if (!user) return 'Select an active user to vote on this case.'
+    if (isParticipant.value) return 'You are a participant in this case and cannot vote.'
+    if (hasVoted.value) return 'You have already voted on this case.'
+    return ''
   })
 
   const canCloseCase = computed(() => {
@@ -82,9 +176,26 @@ export function useCaseDetail() {
     const selectedCase = caseItem.value
     if (!selectedUser || !selectedCase) return
 
-    const success = await courtStore.vote(selectedCase.id, selectedUser.id, side)
-    if (success) {
-      await courtStore.loadCase(selectedCase.id)
+    const result = await courtStore.vote(selectedCase.id, selectedUser.id, side)
+    if (result.success) {
+      if (isViewingCase(selectedCase.id)) {
+        if (result.updatedCase) {
+          courtStore.selectedCase = result.updatedCase
+        }
+        hasVoted.value = true
+        await loadCaseState(selectedCase.id, true)
+      }
+    } else {
+      if (!isViewingCase(selectedCase.id)) {
+        return
+      }
+
+      courtStore.error = result.error ?? 'Vote could not be submitted.'
+      await refreshVoteStatus()
+      if (hasVoted.value) {
+        await loadCaseState(selectedCase.id, true)
+        courtStore.error = null
+      }
     }
   }
 
@@ -93,9 +204,18 @@ export function useCaseDetail() {
     const user = activeUser.value
     if (!selectedCase || !user || !canCloseCase.value) return
 
-    const success = await courtStore.closeCase(selectedCase.id, user.id)
-    if (success) {
-      await courtStore.loadCase(selectedCase.id)
+    const result = await courtStore.closeCase(selectedCase.id, user.id)
+    if (!isViewingCase(selectedCase.id)) {
+      return
+    }
+
+    if (result.success) {
+      if (result.updatedCase) {
+        courtStore.selectedCase = result.updatedCase
+      }
+      await loadCaseState(selectedCase.id, true)
+    } else {
+      courtStore.error = result.error ?? 'Unable to close this case.'
     }
   }
 
@@ -104,10 +224,19 @@ export function useCaseDetail() {
     const user = activeUser.value
     if (!selectedCase || !user || !sideBClaim.value.trim()) return
 
-    const success = await courtStore.acceptInvitation(selectedCase.id, user.id, sideBClaim.value.trim())
-    if (success) {
-      await courtStore.loadCase(selectedCase.id)
+    const result = await courtStore.acceptInvitation(selectedCase.id, user.id, sideBClaim.value.trim())
+    if (!isViewingCase(selectedCase.id)) {
+      return
+    }
+
+    if (result.success) {
+      if (result.updatedCase) {
+        courtStore.selectedCase = result.updatedCase
+      }
+      await loadCaseState(selectedCase.id, true)
       sideBClaim.value = ''
+    } else {
+      courtStore.error = result.error ?? 'Unable to accept the invitation right now.'
     }
   }
 
@@ -131,8 +260,10 @@ export function useCaseDetail() {
     inviterName,
     isParticipant,
     canVote,
+    hasVoted,
     canCloseCase,
     closePermissionMessage,
+    votePermissionMessage,
     vote,
     closeCase,
     acceptInvitation,

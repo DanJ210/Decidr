@@ -28,6 +28,22 @@ public class CasesController : ControllerBase
         return match is null ? NotFound() : Ok(match);
     }
 
+    [HttpGet("{id:guid}/vote-status")]
+    public ActionResult<CaseVoteStatus> GetVoteStatus(Guid id, [FromQuery] Guid userId)
+    {
+        if (_courtService.GetCase(id) is null)
+        {
+            return NotFound();
+        }
+
+        if (_courtService.GetUser(userId) is null)
+        {
+            return BadRequest("User not found.");
+        }
+
+        return Ok(new CaseVoteStatus(_courtService.HasUserVoted(id, userId)));
+    }
+
     [HttpPost]
     public ActionResult<ArgumentCase> CreateCase([FromBody] CreateCaseRequest request)
     {

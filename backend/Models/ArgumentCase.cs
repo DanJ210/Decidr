@@ -50,8 +50,11 @@ public record CaseVote(
     Guid CaseId,
     Guid UserId,
     CaseSide Side,
-    DateTime CreatedAtUtc,
-    int ChangeCount
+    DateTime CreatedAtUtc
+);
+
+public record CaseVoteStatus(
+    bool HasVoted
 );
 
 public record RewardBadge(

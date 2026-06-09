@@ -104,6 +104,14 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         }
     }
 
+    public bool HasUserVoted(Guid caseId, Guid userId)
+    {
+        lock (_syncRoot)
+        {
+            return _votes.Any(v => v.CaseId == caseId && v.UserId == userId);
+        }
+    }
+
     public ArgumentCase CreateCase(CreateCaseRequest request)
     {
         lock (_syncRoot)
@@ -158,29 +166,10 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
             var existingVoteIndex = _votes.FindIndex(v => v.CaseId == caseId && v.UserId == request.UserId);
             if (existingVoteIndex >= 0)
             {
-                var existingVote = _votes[existingVoteIndex];
-                if (existingVote.Side == request.Side)
-                {
-                    return (false, "You already voted for this side.", null);
-                }
-
-                if (existingVote.ChangeCount >= 1)
-                {
-                    return (false, "You can only change your vote once.", null);
-                }
-
-                _votes[existingVoteIndex] = existingVote with
-                {
-                    Side = request.Side,
-                    ChangeCount = existingVote.ChangeCount + 1
-                };
-
-                var updatedVerdict = RefreshVerdict(foundCase);
-                ReplaceCase(updatedVerdict);
-                return (true, null, updatedVerdict);
+                return (false, "You have already voted on this case.", null);
             }
 
-            _votes.Add(new CaseVote(caseId, request.UserId, request.Side, DateTime.UtcNow, 0));
+            _votes.Add(new CaseVote(caseId, request.UserId, request.Side, DateTime.UtcNow));
             AwardReward(request.UserId, "VOTE_PARTICIPATION", "CaseVote", caseId, "Thanks for participating in community judging.");
 
             var refreshed = RefreshVerdict(foundCase);

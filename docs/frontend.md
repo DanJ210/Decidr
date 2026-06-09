@@ -93,10 +93,12 @@ Used by `CaseDetailView`. Loads the case on mount from the URL param, then deriv
 | `isInvited` | `ComputedRef<boolean>` | `true` when the active user is the invited Side B participant |
 | `inviterName` | `ComputedRef<string>` | Username of the Side A participant |
 | `isParticipant` | `ComputedRef<boolean>` | `true` when the active user is Side A or Side B |
-| `canVote` | `ComputedRef<boolean>` | `true` when the case is Open and the user is not a participant |
+| `hasVoted` | `Ref<boolean>` | `true` when the backend reports that the active user has already voted on this case |
+| `canVote` | `ComputedRef<boolean>` | `true` when the case is Open, the user is not a participant, and they have not voted yet |
 | `canCloseCase` | `ComputedRef<boolean>` | `true` when the user is a participant or moderator |
 | `closePermissionMessage` | `ComputedRef<string>` | Contextual hint shown below the Close button |
-| `vote(side)` | `function` | Casts a vote and refreshes the case |
+| `votePermissionMessage` | `ComputedRef<string>` | Contextual hint shown below the vote buttons |
+| `vote(side)` | `function` | Casts a vote once, then refreshes the case and server-backed vote status |
 | `closeCase()` | `function` | Closes the case and refreshes it |
 | `acceptInvitation()` | `function` | Submits the Side B claim and refreshes the case |
 | `declineInvitation()` | `function` | Declines the invitation and navigates back to `/` |
