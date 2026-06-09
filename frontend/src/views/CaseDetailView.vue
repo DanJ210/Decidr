@@ -13,15 +13,12 @@ const {
   totalVotes,
   isInvited,
   inviterName,
-  canVote,
+  votePermissionMessage,
   canComment,
   canVoteSideA,
   canVoteSideB,
-  currentUserVote,
-  voteStatusMessage,
   canCloseCase,
   closePermissionMessage,
-  isParticipant,
   vote,
   closeCase,
   acceptInvitation,
@@ -156,15 +153,7 @@ const {
             </button>
           </div>
 
-          <p v-if="caseItem.status === 'Open' && isParticipant" class="status-text">
-            You are a participant in this case and cannot vote.
-          </p>
-          <p v-else-if="caseItem.status === 'Open' && !canVote" class="status-text">
-            Select an active user to vote on this case.
-          </p>
-          <p v-if="caseItem.status === 'Open' && currentUserVote" class="status-text">
-            {{ voteStatusMessage }}
-          </p>
+          <p v-if="votePermissionMessage" class="status-text">{{ votePermissionMessage }}</p>
           <p v-if="closePermissionMessage" class="status-text">{{ closePermissionMessage }}</p>
         </section>
       </template>

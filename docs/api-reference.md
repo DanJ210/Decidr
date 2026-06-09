@@ -23,6 +23,24 @@ Returns a single case by GUID (any status, including `Pending`).
 
 ---
 
+### `GET /api/cases/{id}/vote-status?userId={guid}`
+Returns whether a specific user has already voted on a case.
+
+**Validation**
+- Case must exist.
+- User must exist.
+
+**Response `200 OK`**
+```json
+{
+  "hasVoted": true
+}
+```
+**Response `400 Bad Request`** — user does not exist  
+**Response `404 Not Found`** — case does not exist
+
+---
+
 ### `POST /api/cases`
 Creates a new debate case in `Pending` status. Side B is not set yet — the invited user must accept to add their claim and make the case `Open`.
 
@@ -104,9 +122,7 @@ Casts a community vote on a case.
 - Case must exist and be `Open`.
 - User must exist.
 - User must not be a participant in the case (Side A or Side B poster).
-- First vote creates the vote record.
-- A voter may switch sides once after their initial vote.
-- Additional changes after that are rejected.
+- User may only vote once per case; changing an existing vote is not supported.
 
 **Response `200 OK`** — updated `ArgumentCase`  
 **Response `400 Bad Request`** — error message

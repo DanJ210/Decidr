@@ -8,6 +8,13 @@ interface CourtState {
   loading: boolean
   mutating: boolean
   error: string | null
+  selectedCaseRequestId: number
+}
+
+interface CaseMutationResult {
+  success: boolean
+  updatedCase?: ArgumentCase
+  error?: string
 }
 
 export const useCourtStore = defineStore('court', {
@@ -17,6 +24,7 @@ export const useCourtStore = defineStore('court', {
     loading: false,
     mutating: false,
     error: null,
+    selectedCaseRequestId: 0,
   }),
   actions: {
     async loadCases() {
@@ -31,17 +39,39 @@ export const useCourtStore = defineStore('court', {
         this.loading = false
       }
     },
-    async loadCase(id: string, userId?: string) {
+    async loadCase(id: string, options?: { userId?: string; clearSelectedCaseOnFailure?: boolean }) {
+      const requestId = this.selectedCaseRequestId + 1
+      this.selectedCaseRequestId = requestId
       this.loading = true
       this.error = null
+      const clearSelectedCaseOnFailure = options?.clearSelectedCaseOnFailure ?? true
 
       try {
-        this.selectedCase = await fetchCaseById(id, userId)
+        const loaded = await fetchCaseById(id, options?.userId)
+        if (this.selectedCaseRequestId !== requestId) {
+          return null
+        }
+
+        this.selectedCase = loaded
+        return loaded
       } catch {
-        this.error = 'Unable to load this case right now.'
-        this.selectedCase = null
+        if (this.selectedCaseRequestId !== requestId) {
+          return null
+        }
+
+        if (clearSelectedCaseOnFailure) {
+          this.error = 'Unable to load this case right now.'
+          this.selectedCase = null
+        }
+        else
+        {
+          this.error = null
+        }
+        return null
       } finally {
-        this.loading = false
+        if (this.selectedCaseRequestId === requestId) {
+          this.loading = false
+        }
       }
     },
     async createCase(request: CreateCaseRequest) {
@@ -67,11 +97,12 @@ export const useCourtStore = defineStore('court', {
       try {
         const updated = await castVote(caseId, { userId, side })
         this.replaceCase(updated)
-        this.selectedCase = updated
-        return true
+        return { success: true, updatedCase: updated } satisfies CaseMutationResult
       } catch {
-        this.error = 'Vote could not be submitted. You may have already voted or the case is closed.'
-        return false
+        return {
+          success: false,
+          error: 'Vote could not be submitted. You may have already voted or the case is closed.',
+        } satisfies CaseMutationResult
       } finally {
         this.mutating = false
       }
@@ -83,11 +114,12 @@ export const useCourtStore = defineStore('court', {
       try {
         const updated = await closeCase(caseId, { actorUserId })
         this.replaceCase(updated)
-        this.selectedCase = updated
-        return true
+        return { success: true, updatedCase: updated } satisfies CaseMutationResult
       } catch {
-        this.error = 'Unable to close this case. Only participants or moderators can close it.'
-        return false
+        return {
+          success: false,
+          error: 'Unable to close this case. Only participants or moderators can close it.',
+        } satisfies CaseMutationResult
       } finally {
         this.mutating = false
       }
@@ -99,11 +131,12 @@ export const useCourtStore = defineStore('court', {
       try {
         const updated = await acceptCaseInvitation(caseId, { userId, claim })
         this.replaceCase(updated)
-        this.selectedCase = updated
-        return true
+        return { success: true, updatedCase: updated } satisfies CaseMutationResult
       } catch {
-        this.error = 'Unable to accept the invitation right now.'
-        return false
+        return {
+          success: false,
+          error: 'Unable to accept the invitation right now.',
+        } satisfies CaseMutationResult
       } finally {
         this.mutating = false
       }

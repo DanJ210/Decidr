@@ -7,8 +7,6 @@ namespace backend.Services;
 
 public class EfCoreCourtService : ICommunityCourtService
 {
-    private const int VoteChangeWindowMinutes = 60;
-
     private static readonly List<RewardBadge> BadgeCatalog =
     [
         new("VOTE_PARTICIPATION", "Community Juror", "jury", "Bronze", "Awarded for participating in community voting."),
@@ -96,6 +94,11 @@ public class EfCoreCourtService : ICommunityCourtService
             .OrderBy(c => c.CreatedAtUtc)
             .Select(c => new CaseComment(c.Id, c.CaseId, c.UserId, c.UserName, c.Message, c.CreatedAtUtc))
             .ToList();
+    }
+
+    public bool HasUserVoted(Guid caseId, Guid userId)
+    {
+        return _db.CaseVotes.AsNoTracking().Any(v => v.CaseId == caseId && v.UserId == userId);
     }
 
     public ArgumentCase CreateCase(CreateCaseRequest request)
@@ -198,18 +201,7 @@ public class EfCoreCourtService : ICommunityCourtService
         var existingVote = _db.CaseVotes.Find(caseId, request.UserId);
         if (existingVote is not null)
         {
-            if (existingVote.Side == request.Side)
-            {
-                return (false, "You already voted for this side.", null);
-            }
-
-            if (DateTime.UtcNow >= existingVote.CreatedAtUtc.AddMinutes(VoteChangeWindowMinutes))
-            {
-                return (false, "Your vote is locked after 60 minutes and can no longer be changed.", null);
-            }
-
-            existingVote.Side = request.Side;
-            existingVote.ChangeCount += 1;
+            return (false, "You have already voted on this case.", null);
         }
         else
         {
@@ -594,12 +586,11 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
             return null;
         }
 
-        var changeLockedAtUtc = vote.CreatedAtUtc.AddMinutes(VoteChangeWindowMinutes);
         return new CurrentUserVote(
             vote.Side,
             vote.CreatedAtUtc,
-            changeLockedAtUtc,
-            DateTime.UtcNow < changeLockedAtUtc);
+            vote.CreatedAtUtc,
+            false);
     }
 
     private ArgumentCase MapCaseForViewer(CaseEntity entity, Guid? viewerUserId)

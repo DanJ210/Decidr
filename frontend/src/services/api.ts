@@ -3,6 +3,7 @@ import type {
   AcceptInvitationRequest,
   AppUser,
   ArgumentCase,
+  CaseVoteStatus,
   CaseComment,
   CastVoteRequest,
   CloseCaseRequest,
@@ -28,6 +29,13 @@ export async function fetchCases(): Promise<ArgumentCase[]> {
 export async function fetchCaseById(id: string, userId?: string): Promise<ArgumentCase> {
   const { data } = await apiClient.get<ArgumentCase>(`/cases/${id}`, {
     params: userId ? { userId } : undefined,
+  })
+  return data
+}
+
+export async function fetchCaseVoteStatus(caseId: string, userId: string): Promise<CaseVoteStatus> {
+  const { data } = await apiClient.get<CaseVoteStatus>(`/cases/${caseId}/vote-status`, {
+    params: { userId },
   })
   return data
 }

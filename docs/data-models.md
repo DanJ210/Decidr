@@ -130,6 +130,15 @@ An individual community vote (internal, not exposed via API).
 
 ---
 
+### `CaseVoteStatus`
+API-facing vote status for a specific user and case.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `hasVoted` | `bool` | `true` when the requested user has already cast a vote on the case |
+
+---
+
 ### `RewardBadge`
 Definition of an available badge (static catalog).
 
