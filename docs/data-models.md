@@ -120,7 +120,7 @@ API-facing vote status for a specific user and case.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `HasVoted` | `bool` | `true` when the requested user has already cast a vote on the case |
+| `hasVoted` | `bool` | `true` when the requested user has already cast a vote on the case |
 
 ---
 

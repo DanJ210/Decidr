@@ -36,8 +36,6 @@ export function useCaseDetail() {
     const selected = caseItem.value
     const user = activeUser.value
 
-    hasVoted.value = false
-
     if (!selected || !user || selected.status !== 'Open') {
       checkingVoteStatus.value = false
       return
@@ -55,11 +53,7 @@ export function useCaseDetail() {
       if (isCurrentVoteStatusRequest(requestId, selected.id, user.id)) {
         hasVoted.value = status.hasVoted
       }
-    } catch {
-      if (isCurrentVoteStatusRequest(requestId, selected.id, user.id)) {
-        hasVoted.value = false
-      }
-    } finally {
+    } catch {} finally {
       if (requestId === voteStatusRequestId) {
         checkingVoteStatus.value = false
       }
@@ -101,6 +95,8 @@ export function useCaseDetail() {
   watch(
     () => authStore.selectedUser?.id,
     () => {
+      hasVoted.value = false
+      checkingVoteStatus.value = false
       void refreshVoteStatus()
     }
   )
