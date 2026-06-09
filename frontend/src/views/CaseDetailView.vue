@@ -154,7 +154,6 @@ const {
           </div>
 
           <p v-if="votePermissionMessage" class="status-text">{{ votePermissionMessage }}</p>
-          <p v-if="votePermissionMessage" class="status-text">{{ votePermissionMessage }}</p>
           <p v-if="closePermissionMessage" class="status-text">{{ closePermissionMessage }}</p>
         </section>
       </template>
