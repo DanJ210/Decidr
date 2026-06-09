@@ -4,9 +4,11 @@ import type {
   AppUser,
   ArgumentCase,
   CaseVoteStatus,
+  CaseComment,
   CastVoteRequest,
   CloseCaseRequest,
   CreateCaseRequest,
+  CreateCaseCommentRequest,
   FriendRequest,
   RemoveFriendDto,
   RespondFriendRequestDto,
@@ -24,8 +26,10 @@ export async function fetchCases(): Promise<ArgumentCase[]> {
   return data
 }
 
-export async function fetchCaseById(id: string): Promise<ArgumentCase> {
-  const { data } = await apiClient.get<ArgumentCase>(`/cases/${id}`)
+export async function fetchCaseById(id: string, userId?: string): Promise<ArgumentCase> {
+  const { data } = await apiClient.get<ArgumentCase>(`/cases/${id}`, {
+    params: userId ? { userId } : undefined,
+  })
   return data
 }
 
@@ -48,6 +52,16 @@ export async function castVote(caseId: string, request: CastVoteRequest): Promis
 
 export async function closeCase(caseId: string, request: CloseCaseRequest): Promise<ArgumentCase> {
   const { data } = await apiClient.post<ArgumentCase>(`/cases/${caseId}/close`, request)
+  return data
+}
+
+export async function fetchCaseComments(caseId: string): Promise<CaseComment[]> {
+  const { data } = await apiClient.get<CaseComment[]>(`/cases/${caseId}/comments`)
+  return data
+}
+
+export async function postCaseComment(caseId: string, request: CreateCaseCommentRequest): Promise<CaseComment> {
+  const { data } = await apiClient.post<CaseComment>(`/cases/${caseId}/comments`, request)
   return data
 }
 

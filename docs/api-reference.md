@@ -150,6 +150,35 @@ Closes a case and determines the winner.
 
 ---
 
+### `GET /api/cases/{id}/comments`
+Returns all comments for a case in chronological order. Comments are case-level (one shared pool), not side-specific.
+
+**Response `200 OK`** — `CaseComment[]`  
+**Response `404 Not Found`** — case does not exist
+
+---
+
+### `POST /api/cases/{id}/comments`
+Adds a new case-level comment to the shared comment pool.
+
+**Request body**
+```json
+{
+  "userId": "guid",
+  "message": "string"
+}
+```
+
+**Validation**
+- Case must exist.
+- `userId` must exist.
+- `message` must be non-empty and at most 1024 characters.
+
+**Response `200 OK`** — created `CaseComment`  
+**Response `400 Bad Request`** — error message
+
+---
+
 ### `GET /api/cases/{id}/result`
 Returns a summary of the case outcome.
 

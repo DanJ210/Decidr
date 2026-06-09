@@ -27,6 +27,22 @@ export interface CaseVoteStatus {
   hasVoted: boolean
 }
 
+export interface CurrentUserVote {
+  side: CaseSide
+  castAtUtc: string
+  changeLockedAtUtc: string
+  canChange: boolean
+}
+
+export interface CaseComment {
+  id: string
+  caseId: string
+  userId: string
+  userName: string
+  message: string
+  createdAtUtc: string
+}
+
 export interface ArgumentCase {
   id: string
   title: string
@@ -39,6 +55,7 @@ export interface ArgumentCase {
   status: CaseStatus
   winnerSide: CaseSide | null
   createdAtUtc: string
+  currentUserVote: CurrentUserVote | null
 }
 
 export interface FriendRequest {
@@ -88,6 +105,11 @@ export interface CastVoteRequest {
 
 export interface CloseCaseRequest {
   actorUserId: string
+}
+
+export interface CreateCaseCommentRequest {
+  userId: string
+  message: string
 }
 
 export interface UserRewardView {

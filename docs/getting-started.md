@@ -4,6 +4,18 @@
 
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 - [Node.js 18+](https://nodejs.org/) and npm
+- PostgreSQL (or run with in-memory fallback)
+
+## Backend Configuration
+
+The backend reads connection settings from:
+
+1. `backend/appsettings.json`
+2. `backend/appsettings.Development.json`
+3. `backend/appsettings.Development.local.json` (optional, ignored by git)
+
+If `ConnectionStrings:DefaultConnection` is set, the app uses PostgreSQL with EF Core.
+If it is empty, the app falls back to in-memory storage.
 
 ## Running the Backend
 
@@ -41,7 +53,9 @@ The app is then fully accessible at the backend URL.
 
 ## Seed Data
 
-The backend starts with two pre-seeded debate cases and five users (four Members, one Moderator). No database setup is required — all data lives in memory and resets on each restart.
+On first run against an empty database, EF Core migrations are applied and the app seeds two debate cases and five users (four Members, one Moderator).
+
+In in-memory fallback mode, the same seed-style development dataset is loaded at startup and resets on each restart.
 
 ### Seeded Users
 

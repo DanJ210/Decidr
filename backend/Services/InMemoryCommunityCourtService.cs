@@ -4,6 +4,8 @@ namespace backend.Services;
 
 public class InMemoryCommunityCourtService : ICommunityCourtService
 {
+    private const int VoteChangeWindowMinutes = 60;
+
     private static readonly List<RewardBadge> BadgeCatalog =
     [
         new("VOTE_PARTICIPATION", "Community Juror", "jury", "Bronze", "Awarded for participating in community voting."),
@@ -12,10 +14,14 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         new("CASE_VICTOR", "Court Victor", "crown", "Gold", "Awarded to the winning side poster when a case is closed.")
     ];
 
+    private static readonly IReadOnlyDictionary<string, RewardBadge> BadgeCatalogByCode =
+        BadgeCatalog.ToDictionary(badge => badge.Code);
+
     private readonly object _syncRoot = new();
     private readonly List<AppUser> _users;
     private readonly List<ArgumentCase> _cases;
     private readonly List<CaseVote> _votes;
+    private readonly List<CaseComment> _comments;
     private readonly List<UserReward> _rewards;
     private readonly List<FriendRequest> _friendRequests;
 
@@ -59,6 +65,12 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         ];
 
         _votes = [];
+        _comments =
+        [
+            new(Guid.NewGuid(), firstCaseId, casey.Id, casey.UserName, "Both sides have a point, but timing and communication matter most here.", DateTime.UtcNow.AddHours(-10)),
+            new(Guid.NewGuid(), firstCaseId, morgan.Id, morgan.UserName, "If it was truly urgent, a quick heads-up earlier would have helped.", DateTime.UtcNow.AddHours(-9)),
+            new(Guid.NewGuid(), secondCaseId, alex.Id, alex.UserName, "Smart plug data feels like fair evidence for a proportional split.", DateTime.UtcNow.AddHours(-20))
+        ];
 
         _rewards = [];
         AwardCasePostingRewards(_cases[0]);
@@ -95,12 +107,23 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         }
     }
 
-    public ArgumentCase? GetCase(Guid caseId)
+    public ArgumentCase? GetCase(Guid caseId, Guid? viewerUserId = null)
     {
         lock (_syncRoot)
         {
             var found = _cases.FirstOrDefault(c => c.Id == caseId);
-            return found is null ? null : RefreshVerdict(found);
+            return found is null ? null : MapCaseForViewer(found, viewerUserId);
+        }
+    }
+
+    public IReadOnlyList<CaseComment> GetCaseComments(Guid caseId)
+    {
+        lock (_syncRoot)
+        {
+            return _comments
+                .Where(c => c.CaseId == caseId)
+                .OrderBy(c => c.CreatedAtUtc)
+                .ToList();
         }
     }
 
@@ -130,11 +153,51 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                 new CommunityVerdict(0, 0),
                 CaseStatus.Pending,
                 WinnerSide: null,
-                createdAt);
+                createdAt,
+                CurrentUserVote: null);
 
             _cases.Add(created);
             AwardReward(sideAUser.Id, "POST_PARTICIPATION", "CaseCreate", created.Id, "Posted the Side A argument in a new case.");
             return created;
+        }
+    }
+
+    public (bool Success, string? Error, CaseComment? Comment) AddCaseComment(Guid caseId, CreateCaseCommentRequest request)
+    {
+        lock (_syncRoot)
+        {
+            if (_cases.All(c => c.Id != caseId))
+            {
+                return (false, "Case not found.", null);
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Message))
+            {
+                return (false, "Comment message is required.", null);
+            }
+
+            var trimmedMessage = request.Message.Trim();
+            if (trimmedMessage.Length > 1024)
+            {
+                return (false, "Comment message cannot exceed 1024 characters.", null);
+            }
+
+            var user = _users.FirstOrDefault(u => u.Id == request.UserId);
+            if (user is null)
+            {
+                return (false, "User not found.", null);
+            }
+
+            var created = new CaseComment(
+                Guid.NewGuid(),
+                caseId,
+                user.Id,
+                user.UserName,
+                trimmedMessage,
+                DateTime.UtcNow);
+
+            _comments.Add(created);
+            return (true, null, created);
         }
     }
 
@@ -172,7 +235,7 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
             _votes.Add(new CaseVote(caseId, request.UserId, request.Side, DateTime.UtcNow));
             AwardReward(request.UserId, "VOTE_PARTICIPATION", "CaseVote", caseId, "Thanks for participating in community judging.");
 
-            var refreshed = RefreshVerdict(foundCase);
+            var refreshed = MapCaseForViewer(foundCase, request.UserId);
             ReplaceCase(refreshed);
             return (true, null, refreshed);
         }
@@ -241,14 +304,12 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
     {
         lock (_syncRoot)
         {
-            var badgeByCode = BadgeCatalog.ToDictionary(b => b.Code, b => b);
-
             return _rewards
                 .Where(r => r.UserId == userId)
                 .OrderByDescending(r => r.AwardedAtUtc)
                 .Select(r =>
                 {
-                    var badge = badgeByCode[r.BadgeCode];
+                    var badge = BadgeCatalogByCode[r.BadgeCode];
                     return new UserRewardView(r.BadgeCode, badge.Label, badge.IconKey, badge.Tier, r.Reason, r.AwardedAtUtc);
                 })
                 .ToList();
@@ -499,6 +560,36 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         return argumentCase with { Verdict = new CommunityVerdict(sideAVotes, sideBVotes) };
     }
 
+    private CurrentUserVote? BuildCurrentUserVote(Guid caseId, Guid viewerUserId)
+    {
+        var vote = _votes.FirstOrDefault(v => v.CaseId == caseId && v.UserId == viewerUserId);
+        if (vote is null)
+        {
+            return null;
+        }
+
+        var changeLockedAtUtc = vote.CreatedAtUtc.AddMinutes(VoteChangeWindowMinutes);
+        return new CurrentUserVote(
+            vote.Side,
+            vote.CreatedAtUtc,
+            changeLockedAtUtc,
+            DateTime.UtcNow < changeLockedAtUtc);
+    }
+
+    private ArgumentCase MapCaseForViewer(ArgumentCase argumentCase, Guid? viewerUserId)
+    {
+        var refreshed = RefreshVerdict(argumentCase);
+        if (!viewerUserId.HasValue)
+        {
+            return refreshed;
+        }
+
+        return refreshed with
+        {
+            CurrentUserVote = BuildCurrentUserVote(argumentCase.Id, viewerUserId.Value)
+        };
+    }
+
     private ArgumentCase ResolveWinner(ArgumentCase argumentCase)
     {
         var refreshed = RefreshVerdict(argumentCase);
@@ -561,7 +652,8 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
             new CommunityVerdict(0, 0),
             CaseStatus.Open,
             WinnerSide: null,
-            createdAt);
+            createdAt,
+            CurrentUserVote: null);
     }
 
     private void ReplaceCase(ArgumentCase updated)
