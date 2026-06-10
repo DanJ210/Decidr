@@ -88,7 +88,7 @@ npm install
 cd frontend
 npm run build
 ```
-- **Output**: Compiled files in `frontend/dist/`
+- **Output**: Compiled files written directly to `backend/wwwroot/`
 - **Time**: ~30 seconds
 - **Precondition**: `npm install` must be completed first
 - **Postcondition**: Vue TypeScript compilation via `vue-tsc`, followed by Vite bundling
@@ -97,7 +97,7 @@ npm run build
 #### Typecheck Frontend
 ```bash
 cd frontend
-vue-tsc -b
+npx vue-tsc -b
 ```
 - **Time**: ~10 seconds
 - **Validates**: TypeScript types across all `.vue` and `.ts` files
@@ -110,8 +110,8 @@ vue-tsc -b
 cd backend
 dotnet run
 ```
-- **URL**: `https://localhost:5001`
-- **Swagger UI**: Available at `https://localhost:5001/swagger` (development only)
+- **URL**: `http://localhost:5066` (default `http` profile) or `https://localhost:7277` (HTTPS profile)
+- **Swagger UI**: Available at `http://localhost:5066/swagger` (development only)
 - **Time to Start**: ~5 seconds
 - **Precondition**: .NET 8 SDK installed, `dotnet restore` run
 - **Notes**: On first run, EF Core migrations are applied automatically. If `ConnectionStrings:DefaultConnection` is empty, in-memory storage is used with seeded test data.
@@ -124,7 +124,7 @@ npm run dev
 - **URL**: Typically `http://localhost:5173`
 - **Features**: Hot module replacement (HMR), automatic browser refresh on changes
 - **Time to Start**: ~5 seconds
-- **Proxy**: `/api/*` requests are proxied to backend at `https://localhost:5001`
+- **Proxy**: `/api/*` requests are proxied to backend at `http://localhost:5066`
 - **Precondition**: `npm install` completed, backend running
 - **Notes**: Always verify the terminal output for the actual URL
 
@@ -132,19 +132,16 @@ npm run dev
 ```bash
 cd frontend
 npm run build
-# Move dist contents to backend/wwwroot (or let build process handle it)
 cd ../backend
 dotnet run
 ```
-- **Single URL**: Backend serves entire app at `https://localhost:5001`
+- **Single URL**: Backend serves entire app at `http://localhost:5066`
 - **Frontend served**: As static files from `wwwroot/`
 - **Client-side routing**: Backend fallback to `index.html` enables Vue Router navigation
 
 ### Test Commands
 
-**Currently**: No test suite configured. If tests are added, they will use:
-- **Backend**: xUnit or MSTest (typical for .NET Core)
-- **Frontend**: Vitest or Jest (typical for Vue 3)
+**Currently**: No test suite is configured.
 
 Document test commands here when they are added.
 
@@ -206,13 +203,16 @@ cd backend
 dotnet ef database update
 ```
 - **Applies**: Pending EF Core migrations to PostgreSQL
-- **Precondition**: `ConnectionStrings:DefaultConnection` is configured (see Bootstrap) and PostgreSQL is running
+- **Precondition**: `dotnet-ef` tool installed (`dotnet tool install --global dotnet-ef`), `ConnectionStrings:DefaultConnection` is configured (see Bootstrap) and PostgreSQL is running
 - **Automatic**: Migrations run automatically on app startup if not already applied
 - **Notes**: Safe to run multiple times (idempotent)
 
 #### Database Fallback (In-Memory)
 If Docker is not available or you prefer in-memory storage:
-- Leave `ConnectionStrings:DefaultConnection` empty in `appsettings.Development.json`
+- Create `backend/appsettings.Development.local.json` with an empty `DefaultConnection` to override the tracked config:
+  ```json
+  { "ConnectionStrings": { "DefaultConnection": "" } }
+  ```
 - Backend automatically switches to `InMemoryCommunityCourtService`
 - Data is reset on app restart; this is by design for development
 - Seeded with 5 users and 2 test cases on startup
@@ -241,21 +241,21 @@ dotnet dev-certs https --trust
 - **macOS/Linux**: Follow on-screen instructions
 
 #### Port Already in Use
-If port 5001 is already bound:
-- Change port in `backend/Properties/launchSettings.json` (look for `"https"` section)
+If port 5066 is already bound:
+- Change port in `backend/Properties/launchSettings.json` (look for `"http"` profile)
 - Restart backend with new port
 
 #### Vite Proxy Issues
 If frontend cannot reach backend API:
 - Ensure backend is running on the port specified in `vite.config.ts`
-- Check that `https://localhost:5001/api/*` is accessible directly in a browser
+- Check that `http://localhost:5066/api/` is accessible directly in a browser
 - Clear Vite cache: `rm -rf frontend/node_modules/.vite`
 
 #### Database Connection Fallback
 If PostgreSQL is unavailable or not configured:
 - Backend automatically switches to `InMemoryCommunityCourtService`
 - Data is reset on app restart; this is by design for development
-- No errors are shown; check `appsettings.Development.json` to confirm `ConnectionStrings:DefaultConnection` is empty
+- No errors are shown; check `appsettings.Development.local.json` to confirm `ConnectionStrings:DefaultConnection` is overridden to empty
 
 ---
 
@@ -309,9 +309,9 @@ If PostgreSQL is unavailable or not configured:
 | File | Purpose |
 |------|---------|
 | `backend/backend.csproj` | NuGet dependencies: EF Core, Npgsql, Swashbuckle |
-| `backend/Program.cs` | Middleware registration, CORS, compression, static file serving |
+| `backend/Program.cs` | Middleware registration, response compression, static file serving |
 | `frontend/package.json` | npm dependencies: Vue, Pinia, Axios, Vite |
-| `frontend/vite.config.ts` | Proxy rules, dev server config (`https://localhost:5001/api`) |
+| `frontend/vite.config.ts` | Proxy rules, dev server config (`http://localhost:5066/api`) |
 | `docker-compose.yml` | PostgreSQL 16 configuration (port 5433) |
 
 ### Validation & CI Checks
@@ -338,10 +338,10 @@ npm run build
 
 # Frontend: TypeScript check
 cd frontend
-vue-tsc --noEmit -b
+npx vue-tsc --noEmit
 
 # Optional: Run a request to backend health endpoint
-curl -X GET https://localhost:5001/api/cases --insecure
+curl -X GET http://localhost:5066/api/cases
 ```
 
 ---
@@ -353,7 +353,7 @@ curl -X GET https://localhost:5001/api/cases --insecure
 **Controllers** expose REST endpoints:
 - `CasesController` → `GET /api/cases`, `POST /api/cases`, etc.
 - `UsersController` → `GET /api/users/{id}`, etc.
-- `FriendsController` → `POST /api/friends/requests`, etc.
+- `FriendsController` → `POST /api/friends/request`, `POST /api/friends/{requestId}/accept`, `POST /api/friends/{requestId}/decline`, `POST /api/friends/remove`
 
 **Services** contain business logic:
 - `ICommunityCourtService` interface defines operations
@@ -383,7 +383,7 @@ curl -X GET https://localhost:5001/api/cases --insecure
 
 **HTTP Client** (Axios):
 - All API calls prefixed with `/api/`
-- Development: Proxied by Vite to `https://localhost:5001`
+- Development: Proxied by Vite to `http://localhost:5066`
 - Production: Backend serves static files and handles API directly
 
 ---
@@ -412,11 +412,11 @@ curl -X GET https://localhost:5001/api/cases --insecure
 
 ## Critical Design Notes
 
-1. **No Authentication Layer**: The frontend stores `selectedUserId` in `localStorage`. All backend requests include `userId` in the body. The backend validates user existence.
+1. **No Authentication Layer**: The frontend stores `selectedUserId` in `localStorage`. Backend requests include `userId` in the body (POST/PUT) or as a query parameter (GET). The backend validates user existence.
 
 2. **Verdict Computation**: Vote counts are recalculated on each case read (not stored). This ensures consistency.
 
-3. **Vote Change Rule**: Users can vote once, then change once. A second change is rejected.
+3. **Voting Rule**: Users can vote once per case. Subsequent vote attempts are rejected with "You have already voted on this case."
 
 4. **Case Invitation Flow**: Cases start in `Pending` state. The invited user must accept or decline to move to `Open` or `Closed`.
 
