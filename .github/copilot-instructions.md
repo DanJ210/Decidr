@@ -338,7 +338,7 @@ npm run build
 
 # Frontend: TypeScript check
 cd frontend
-npx vue-tsc --noEmit
+npx vue-tsc -b
 
 # Optional: Run a request to backend health endpoint
 curl -X GET http://localhost:5066/api/cases
@@ -353,7 +353,11 @@ curl -X GET http://localhost:5066/api/cases
 **Controllers** expose REST endpoints:
 - `CasesController` → `GET /api/cases`, `POST /api/cases`, etc.
 - `UsersController` → `GET /api/users/{id}`, etc.
-- `FriendsController` → `POST /api/friends/request`, `POST /api/friends/{requestId}/accept`, `POST /api/friends/{requestId}/decline`, `POST /api/friends/remove`
+- `FriendsController` routes:
+  - `POST /api/friends/request`
+  - `POST /api/friends/{requestId}/accept`
+  - `POST /api/friends/{requestId}/decline`
+  - `POST /api/friends/remove`
 
 **Services** contain business logic:
 - `ICommunityCourtService` interface defines operations
