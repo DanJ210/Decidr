@@ -22,9 +22,46 @@
 Always verify these are installed before running any commands:
 - **.NET 8 SDK**: Required for backend compilation and running
 - **Node.js 18+**: Required for frontend build and npm package management
-- **PostgreSQL 16** (optional): Only needed if using persistent database; app falls back to in-memory storage
+- **Docker & Docker Compose** (optional but recommended): Simplest way to spin up PostgreSQL 16 without manual installation
+- **PostgreSQL 16** (optional alternative): Only needed if NOT using Docker; in-memory fallback also available
 
 ### Bootstrap & Setup
+
+#### Database Bootstrap (PostgreSQL via Docker Compose)
+**Recommended approach** — Set up PostgreSQL without manual installation:
+
+1. Create a `.env` file in the repository root with the required password:
+```bash
+echo "POSTGRES_PASSWORD=your_secure_password_here" > .env
+```
+
+2. Start the PostgreSQL container:
+```bash
+docker-compose up -d
+```
+- **Service**: PostgreSQL 16 runs on `localhost:5433` (container port 5432 mapped to 5433)
+- **Database**: `decidr_dev`
+- **User**: `decidr`
+- **Time to Start**: ~10 seconds
+- **Precondition**: Docker and Docker Compose installed, `.env` file with `POSTGRES_PASSWORD` set
+- **Postcondition**: PostgreSQL container is running; verify with `docker ps`
+
+3. Configure backend connection string in `backend/appsettings.Development.local.json`:
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=localhost;Port=5433;Database=decidr_dev;Username=decidr;Password=your_secure_password_here"
+  }
+}
+```
+- **Notes**: Create this file locally (git-ignored); it overrides `appsettings.Development.json`
+
+4. Stop PostgreSQL when finished:
+```bash
+docker-compose down
+```
+
+**Alternative**: Skip PostgreSQL entirely and let the backend use in-memory storage (see "Database Fallback" below).
 
 #### Backend Bootstrap
 ```bash
@@ -113,14 +150,55 @@ Document test commands here when they are added.
 
 ### Database & Persistence
 
-#### With Docker Compose (PostgreSQL)
-```bash
-docker-compose up -d
+#### PostgreSQL Setup with docker-compose.yml
+
+The `docker-compose.yml` file at the repository root provides a complete PostgreSQL 16 setup. This is the **recommended way** to get a persistent database running locally without manual installation.
+
+**docker-compose.yml Configuration:**
+```yaml
+services:
+  db:
+    image: postgres:16-alpine           # PostgreSQL 16 lightweight image
+    ports:
+      - "5433:5432"                    # Maps container 5432 → localhost 5433
+    environment:
+      POSTGRES_DB: decidr_dev          # Database name
+      POSTGRES_USER: decidr            # Username
+      POSTGRES_PASSWORD: (from .env)   # Password (required via environment)
+    volumes:
+      - db_data:/var/lib/postgresql/data  # Persistent volume
+    healthcheck:                         # Ensures DB is ready
+      test: ["CMD-SHELL", "pg_isready -U decidr -d decidr_dev"]
 ```
-- **Service**: PostgreSQL 16 on port 5433 (mapped from container's 5432)
-- **Credentials**: User `decidr`, DB `decidr_dev` (configure `POSTGRES_PASSWORD` env var first)
-- **Connection String**: `Host=localhost;Port=5433;Database=decidr_dev;Username=decidr;Password=...`
-- **Precondition**: Docker and Docker Compose installed
+
+**Quick Start:**
+```bash
+# Step 1: Set password in .env
+echo "POSTGRES_PASSWORD=your_password" > .env
+
+# Step 2: Start PostgreSQL
+docker-compose up -d
+
+# Step 3: Verify it's running
+docker ps
+
+# Step 4: Configure backend connection string (see Bootstrap section above)
+
+# Step 5: Start backend (migrations run automatically)
+cd backend
+dotnet run
+
+# Step 6: View logs (optional)
+docker-compose logs -f db
+
+# Step 7: Stop when done
+docker-compose down
+```
+
+**Verification:**
+- Confirm container is running: `docker ps` (should show postgres:16-alpine)
+- Connect directly: `psql -h localhost -p 5433 -U decidr -d decidr_dev`
+- Health status: `docker-compose ps` (Status should show "Up")
 
 #### Database Migrations (EF Core)
 ```bash
@@ -128,13 +206,29 @@ cd backend
 dotnet ef database update
 ```
 - **Applies**: Pending EF Core migrations to PostgreSQL
-- **Precondition**: `ConnectionStrings:DefaultConnection` is configured and database is running
-- **Notes**: Migrations run automatically on app startup if not already applied
+- **Precondition**: `ConnectionStrings:DefaultConnection` is configured (see Bootstrap) and PostgreSQL is running
+- **Automatic**: Migrations run automatically on app startup if not already applied
+- **Notes**: Safe to run multiple times (idempotent)
+
+#### Database Fallback (In-Memory)
+If Docker is not available or you prefer in-memory storage:
+- Leave `ConnectionStrings:DefaultConnection` empty in `appsettings.Development.json`
+- Backend automatically switches to `InMemoryCommunityCourtService`
+- Data is reset on app restart; this is by design for development
+- Seeded with 5 users and 2 test cases on startup
 
 #### Seed Data
-- **In-memory mode**: Seeded automatically at startup with 5 users and 2 test cases
 - **PostgreSQL mode**: Seeded only if database is empty (first migration)
+- **In-memory mode**: Seeded automatically at startup with same test data
 - **Seeded Users**: Alex, Jordan, Casey, Morgan (Members), Sam (Moderator)
+- **Seeded Cases**: Two debate examples for testing
+
+**Reset Database (PostgreSQL):**
+```bash
+docker-compose down -v          # Remove volume to reset database
+docker-compose up -d            # Start fresh
+cd backend && dotnet run        # Migrations and seed data run automatically
+```
 
 ### Common Workarounds & Issues
 
