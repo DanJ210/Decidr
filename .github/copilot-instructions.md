@@ -114,7 +114,7 @@ dotnet run
 - **Swagger UI**: Available at `http://localhost:5066/swagger` (development only)
 - **Time to Start**: ~5 seconds
 - **Precondition**: .NET 8 SDK installed, `dotnet restore` run
-- **Notes**: On first run, EF Core migrations are applied automatically. If `ConnectionStrings:DefaultConnection` is empty, in-memory storage is used with seeded test data.
+- **Notes**: On first run, EF Core migrations are applied automatically. If `ConnectionStrings:DefaultConnection` is empty or whitespace, in-memory storage is used with seeded test data. If it is non-empty and PostgreSQL is not running, startup will fail — either start PostgreSQL or override the connection string to empty in `appsettings.Development.local.json`.
 
 #### Run Frontend (Development)
 ```bash
@@ -252,10 +252,9 @@ If frontend cannot reach backend API:
 - Clear Vite cache: `rm -rf frontend/node_modules/.vite`
 
 #### Database Connection Fallback
-If PostgreSQL is unavailable or not configured:
-- Backend automatically switches to `InMemoryCommunityCourtService`
+The backend uses `InMemoryCommunityCourtService` **only when `ConnectionStrings:DefaultConnection` is empty or whitespace**. If the connection string is set and PostgreSQL is not running, the app will throw an exception at startup (EF Core runs `db.Database.Migrate()` in Development). To use in-memory storage:
+- Override `ConnectionStrings:DefaultConnection` to empty in `backend/appsettings.Development.local.json` (see Bootstrap section)
 - Data is reset on app restart; this is by design for development
-- No errors are shown; check `appsettings.Development.local.json` to confirm `ConnectionStrings:DefaultConnection` is overridden to empty
 
 ---
 
@@ -340,7 +339,7 @@ npm run build
 cd frontend
 npx vue-tsc -b
 
-# Optional: Run a request to backend health endpoint
+# Optional: Verify the backend is running (list cases endpoint)
 curl -X GET http://localhost:5066/api/cases
 ```
 
@@ -352,7 +351,7 @@ curl -X GET http://localhost:5066/api/cases
 
 **Controllers** expose REST endpoints:
 - `CasesController` → `GET /api/cases`, `POST /api/cases`, etc.
-- `UsersController` → `GET /api/users/{id}`, etc.
+- `UsersController` → `GET /api/users` (list all), `GET /api/users/{id}/rewards`, `GET /api/users/{id}/friends`, `GET /api/users/{id}/friend-requests`, `GET /api/users/{id}/sent-requests`, `GET /api/users/{id}/invitations`
 - `FriendsController` routes:
   - `POST /api/friends/request`
   - `POST /api/friends/{requestId}/accept`
