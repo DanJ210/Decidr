@@ -346,6 +346,9 @@ export function useCaseDetail() {
   function setEvidenceFile(side: CaseSide, event: Event) {
     const target = event.target as HTMLInputElement | null
     evidenceDrafts[side].file = target?.files?.[0] ?? null
+    if (target) {
+      target.value = ''
+    }
   }
 
   function buildDefaultEvidenceTitle(fileName: string) {

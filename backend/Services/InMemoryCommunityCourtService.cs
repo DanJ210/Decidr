@@ -4,7 +4,6 @@ namespace backend.Services;
 
 public class InMemoryCommunityCourtService : ICommunityCourtService
 {
-    private const int VoteChangeWindowMinutes = 60;
     private const int MaxEvidenceItemsPerSide = 20;
     private const int MaxEvidenceTitleLength = 160;
     private const int MaxEvidenceResourceUrlLength = 2048;
@@ -731,12 +730,11 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
             return null;
         }
 
-        var changeLockedAtUtc = vote.CreatedAtUtc.AddMinutes(VoteChangeWindowMinutes);
         return new CurrentUserVote(
             vote.Side,
             vote.CreatedAtUtc,
-            changeLockedAtUtc,
-            DateTime.UtcNow < changeLockedAtUtc);
+            vote.CreatedAtUtc,
+            false);
     }
 
     private ArgumentCase MapCaseForViewer(ArgumentCase argumentCase, Guid? viewerUserId)

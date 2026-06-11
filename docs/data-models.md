@@ -161,6 +161,7 @@ An individual community vote (internal, not exposed via API).
 | `CaseId` | `Guid` | The case being voted on |
 | `UserId` | `Guid` | The voter |
 | `Side` | `CaseSide` | Which side they voted for |
+| `ChangeCount` | `int` | Deprecated legacy field; currently always `0` |
 | `CreatedAtUtc` | `DateTime` | When the vote was cast |
 
 ---

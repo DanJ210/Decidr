@@ -9,6 +9,8 @@ namespace backend.Controllers;
 public class CasesController : ControllerBase
 {
     private const long MaxEvidenceFileSizeBytes = 10 * 1024 * 1024;
+    private const int MaxEvidenceItemsPerSide = 20;
+    private const int MaxEvidenceTitleLength = 160;
     private static readonly IReadOnlySet<string> AllowedImageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         ".jpg",
@@ -197,6 +199,25 @@ public class CasesController : ControllerBase
             return BadRequest("Unsupported file type. Allowed types are jpg, jpeg, png, webp, gif, pdf, txt, doc, and docx.");
         }
 
+        var evidenceTitle = string.IsNullOrWhiteSpace(request.Title)
+            ? Path.GetFileNameWithoutExtension(request.File.FileName)
+            : request.Title.Trim();
+        if (evidenceTitle.Length == 0)
+        {
+            return BadRequest("Evidence title is required.");
+        }
+
+        if (evidenceTitle.Length > MaxEvidenceTitleLength)
+        {
+            return BadRequest($"Evidence title cannot exceed {MaxEvidenceTitleLength} characters.");
+        }
+
+        var validationError = ValidateEvidenceUploadRequest(id, request.UserId, request.Side);
+        if (validationError is not null)
+        {
+            return BadRequest(validationError);
+        }
+
         var extension = Path.GetExtension(request.File.FileName).ToLowerInvariant();
         var safeFileName = $"{Guid.NewGuid():N}{extension}";
         var caseDirectory = Path.Combine(GetEvidenceUploadRootPath(), id.ToString("N"));
@@ -208,9 +229,6 @@ public class CasesController : ControllerBase
             await request.File.CopyToAsync(stream);
         }
 
-        var evidenceTitle = string.IsNullOrWhiteSpace(request.Title)
-            ? Path.GetFileNameWithoutExtension(request.File.FileName)
-            : request.Title.Trim();
         var publicResourceUrl = $"/uploads/case-evidence/{id:N}/{safeFileName}";
 
         var result = _courtService.AddCaseEvidenceFile(
@@ -331,6 +349,45 @@ public class CasesController : ControllerBase
 
         evidenceType = default;
         return false;
+    }
+
+    private string? ValidateEvidenceUploadRequest(Guid caseId, Guid userId, CaseSide side)
+    {
+        var foundCase = _courtService.GetCase(caseId);
+        if (foundCase is null)
+        {
+            return "Case not found.";
+        }
+
+        if (foundCase.Status != CaseStatus.Open)
+        {
+            return "Evidence can only be added while a case is open.";
+        }
+
+        if (_courtService.GetUser(userId) is null)
+        {
+            return "User not found.";
+        }
+
+        var sideOwnerUserId = side == CaseSide.A ? foundCase.SideA.UserId : foundCase.SideB?.UserId;
+        if (!sideOwnerUserId.HasValue)
+        {
+            return "The selected side is not active on this case.";
+        }
+
+        if (sideOwnerUserId.Value != userId)
+        {
+            return "Only the owner of this side can add evidence for it.";
+        }
+
+        var caseEvidence = _courtService.GetCaseEvidence(caseId);
+        var evidenceCountForSide = side == CaseSide.A ? caseEvidence.SideA.Count : caseEvidence.SideB.Count;
+        if (evidenceCountForSide >= MaxEvidenceItemsPerSide)
+        {
+            return $"Side {side} already has the maximum of {MaxEvidenceItemsPerSide} evidence items.";
+        }
+
+        return null;
     }
 
     public sealed class AddCaseEvidenceUploadForm
