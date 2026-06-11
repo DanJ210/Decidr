@@ -22,6 +22,40 @@ namespace backend.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("backend.Data.Entities.CaseCommentEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("CaseId", "CreatedAtUtc");
+
+                    b.ToTable("CaseComments");
+                });
+
             modelBuilder.Entity("backend.Data.Entities.CaseEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -99,11 +133,19 @@ namespace backend.Data.Migrations
                     b.ToTable("Cases");
                 });
 
-            modelBuilder.Entity("backend.Data.Entities.CaseCommentEntity", b =>
+            modelBuilder.Entity("backend.Data.Entities.CaseEvidenceEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<Guid>("AddedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AddedByUserName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<Guid>("CaseId")
                         .HasColumnType("uuid");
@@ -111,26 +153,39 @@ namespace backend.Data.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Message")
+                    b.Property<string>("MimeType")
                         .IsRequired()
-                        .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)");
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("UserName")
+                    b.Property<string>("ResourceUrl")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<string>("Side")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CaseId", "CreatedAtUtc");
+                    b.HasIndex("AddedByUserId");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("CaseId", "Side", "CreatedAtUtc");
 
-                    b.ToTable("CaseComments");
+                    b.ToTable("CaseEvidence");
                 });
 
             modelBuilder.Entity("backend.Data.Entities.CaseVoteEntity", b =>
@@ -318,6 +373,21 @@ namespace backend.Data.Migrations
                     b.ToTable("UserRewards");
                 });
 
+            modelBuilder.Entity("backend.Data.Entities.CaseCommentEntity", b =>
+                {
+                    b.HasOne("backend.Data.Entities.CaseEntity", null)
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("backend.Data.Entities.UserEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("backend.Data.Entities.CaseEntity", b =>
                 {
                     b.HasOne("backend.Data.Entities.UserEntity", null)
@@ -337,18 +407,18 @@ namespace backend.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
-            modelBuilder.Entity("backend.Data.Entities.CaseCommentEntity", b =>
+            modelBuilder.Entity("backend.Data.Entities.CaseEvidenceEntity", b =>
                 {
+                    b.HasOne("backend.Data.Entities.UserEntity", null)
+                        .WithMany()
+                        .HasForeignKey("AddedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("backend.Data.Entities.CaseEntity", null)
                         .WithMany()
                         .HasForeignKey("CaseId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("backend.Data.Entities.UserEntity", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

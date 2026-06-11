@@ -19,6 +19,13 @@ Models are defined in `backend/Models/ArgumentCase.cs` and mirrored in `frontend
 | `Open` | Both sides posted; accepting community votes |
 | `Closed` | Voting ended; winner resolved (or invitation declined) |
 
+### `CaseEvidenceType`
+| Value | Description |
+|-------|-------------|
+| `Link` | External URL evidence |
+| `Image` | Uploaded image evidence |
+| `Document` | Uploaded document evidence |
+
 ### `UserRole`
 | Value | Description |
 |-------|-------------|
@@ -85,6 +92,35 @@ A public comment posted to a case discussion. Comments are shared at the case le
 
 ---
 
+### `CaseEvidenceItem`
+A side-scoped supporting item attached to a case.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Id` | `Guid` | Unique identifier |
+| `CaseId` | `Guid` | Case this evidence belongs to |
+| `Side` | `CaseSide` | Side A or Side B |
+| `AddedByUserId` | `Guid` | User who added the evidence |
+| `AddedByUserName` | `string` | Evidence author's handle |
+| `Type` | `CaseEvidenceType` | `Link`, `Image`, or `Document` |
+| `Title` | `string` | Display title (max 160 chars) |
+| `ResourceUrl` | `string` | External URL or uploaded file URL |
+| `MimeType` | `string?` | MIME type for uploaded files; `null` for links |
+| `SizeBytes` | `long?` | File size for uploads; `null` for links |
+| `CreatedAtUtc` | `DateTime` | When evidence was added |
+
+---
+
+### `CaseEvidenceCollection`
+Public API shape returned by `GET /api/cases/{id}/evidence`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `SideA` | `CaseEvidenceItem[]` | Evidence items for Side A |
+| `SideB` | `CaseEvidenceItem[]` | Evidence items for Side B |
+
+---
+
 ### `ArgumentCase`
 The central entity representing a debate case.
 
@@ -126,7 +162,6 @@ An individual community vote (internal, not exposed via API).
 | `UserId` | `Guid` | The voter |
 | `Side` | `CaseSide` | Which side they voted for |
 | `CreatedAtUtc` | `DateTime` | When the vote was cast |
-| `ChangeCount` | `int` | Number of times the voter switched sides after the initial vote (max 1) |
 
 ---
 
@@ -255,3 +290,26 @@ Used to remove an accepted friend connection.
 |-------|------|-------------|
 | `UserId` | `Guid` | Author posting the comment |
 | `Message` | `string` | Comment text |
+
+### `AddCaseEvidenceLinkRequest`
+Used by side owners to add external links as evidence.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `UserId` | `Guid` | Must match the owner of the selected side |
+| `Side` | `CaseSide` | Side to attach evidence to |
+| `Title` | `string` | Evidence label (non-empty, max 160 chars) |
+| `Url` | `string` | Must be a valid `http`/`https` URL |
+
+### `AddCaseEvidenceFileRequest`
+Internal service contract used after upload handling.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `UserId` | `Guid` | Must match the owner of the selected side |
+| `Side` | `CaseSide` | Side to attach evidence to |
+| `Type` | `CaseEvidenceType` | `Image` or `Document` |
+| `Title` | `string` | Evidence label (non-empty, max 160 chars) |
+| `ResourceUrl` | `string` | Public URL of the stored uploaded file |
+| `MimeType` | `string` | Uploaded file MIME type |
+| `SizeBytes` | `long` | Uploaded file size |

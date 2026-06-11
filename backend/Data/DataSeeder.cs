@@ -69,6 +69,51 @@ public static class DataSeeder
             new CaseCommentEntity { Id = Guid.NewGuid(), CaseId = case2.Id, UserId = alex.Id, UserName = alex.UserName, Message = "Smart plug data feels like fair evidence for a proportional split.", CreatedAtUtc = now.AddHours(-20) }
         );
 
+        db.CaseEvidence.AddRange(
+            new CaseEvidenceEntity
+            {
+                Id = Guid.NewGuid(),
+                CaseId = case1.Id,
+                Side = CaseSide.A,
+                AddedByUserId = alex.Id,
+                AddedByUserName = alex.UserName,
+                Type = CaseEvidenceType.Link,
+                Title = "Incident postmortem timeline",
+                ResourceUrl = "https://example.com/postmortem-timeline",
+                MimeType = "",
+                SizeBytes = 0,
+                CreatedAtUtc = now.AddHours(-14)
+            },
+            new CaseEvidenceEntity
+            {
+                Id = Guid.NewGuid(),
+                CaseId = case1.Id,
+                Side = CaseSide.B,
+                AddedByUserId = jordan.Id,
+                AddedByUserName = jordan.UserName,
+                Type = CaseEvidenceType.Link,
+                Title = "Dinner prep receipts and timeline",
+                ResourceUrl = "https://example.com/dinner-receipts",
+                MimeType = "",
+                SizeBytes = 0,
+                CreatedAtUtc = now.AddHours(-13)
+            },
+            new CaseEvidenceEntity
+            {
+                Id = Guid.NewGuid(),
+                CaseId = case2.Id,
+                Side = CaseSide.A,
+                AddedByUserId = casey.Id,
+                AddedByUserName = casey.UserName,
+                Type = CaseEvidenceType.Link,
+                Title = "Smart plug usage report",
+                ResourceUrl = "https://example.com/smart-plug-report",
+                MimeType = "",
+                SizeBytes = 0,
+                CreatedAtUtc = now.AddHours(-27)
+            }
+        );
+
         db.UserRewards.AddRange(
             new UserRewardEntity { Id = Guid.NewGuid(), UserId = alex.Id,   BadgeCode = "POST_PARTICIPATION", SourceType = "CaseCreate", SourceId = case1.Id, Reason = "Posted the Side A argument in a new case.", AwardedAtUtc = now },
             new UserRewardEntity { Id = Guid.NewGuid(), UserId = jordan.Id, BadgeCode = "POST_PARTICIPATION", SourceType = "CaseCreate", SourceId = case1.Id, Reason = "Posted the Side B argument in a new case.", AwardedAtUtc = now },

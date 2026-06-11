@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace backend.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class BaselineReset : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -143,6 +143,67 @@ namespace backend.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "CaseComments",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    CaseId = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserName = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    Message = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: false),
+                    CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CaseComments", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CaseComments_Cases_CaseId",
+                        column: x => x.CaseId,
+                        principalTable: "Cases",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_CaseComments_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CaseEvidence",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    CaseId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Side = table.Column<string>(type: "text", nullable: false),
+                    AddedByUserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    AddedByUserName = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    Type = table.Column<string>(type: "text", nullable: false),
+                    Title = table.Column<string>(type: "character varying(160)", maxLength: 160, nullable: false),
+                    ResourceUrl = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: false),
+                    MimeType = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
+                    SizeBytes = table.Column<long>(type: "bigint", nullable: false),
+                    CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CaseEvidence", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CaseEvidence_Cases_CaseId",
+                        column: x => x.CaseId,
+                        principalTable: "Cases",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_CaseEvidence_Users_AddedByUserId",
+                        column: x => x.AddedByUserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "CaseVotes",
                 columns: table => new
                 {
@@ -179,6 +240,26 @@ namespace backend.Data.Migrations
                     { "VOTE_PARTICIPATION", "Awarded for participating in community voting.", "jury", "Community Juror", "Bronze" },
                     { "VOTE_WINNER_MATCH", "Awarded when your vote matches the winning side.", "target", "Sharp Eye", "Silver" }
                 });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CaseComments_CaseId_CreatedAtUtc",
+                table: "CaseComments",
+                columns: new[] { "CaseId", "CreatedAtUtc" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CaseComments_UserId",
+                table: "CaseComments",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CaseEvidence_AddedByUserId",
+                table: "CaseEvidence",
+                column: "AddedByUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CaseEvidence_CaseId_Side_CreatedAtUtc",
+                table: "CaseEvidence",
+                columns: new[] { "CaseId", "Side", "CreatedAtUtc" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Cases_InvitedUserId_Status",
@@ -236,6 +317,12 @@ namespace backend.Data.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropTable(
+                name: "CaseComments");
+
+            migrationBuilder.DropTable(
+                name: "CaseEvidence");
+
             migrationBuilder.DropTable(
                 name: "CaseVotes");
 

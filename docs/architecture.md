@@ -60,7 +60,15 @@ If no `ConnectionStrings:DefaultConnection` is configured, the app falls back to
 Vote counts are not stored directly on `ArgumentCase`. `RefreshVerdict()` recomputes the tally from vote records each time a case is read, keeping the read model consistent with persisted votes.
 
 ### Vote Change Rule
-Users can cast an initial vote on an `Open` case and then change that vote once. A second vote change attempt is rejected.
+Users can cast one vote on an `Open` case if they are not one of the case-side participants. Vote changes are not supported.
+
+### Side Evidence Attachments
+Each side on an open case can attach supporting evidence as links or uploaded files. Evidence is modeled as side-scoped items and exposed through dedicated evidence endpoints:
+- `GET /api/cases/{id}/evidence`
+- `POST /api/cases/{id}/evidence/link`
+- `POST /api/cases/{id}/evidence/upload`
+
+Uploaded files are stored under `wwwroot/uploads/case-evidence/...` and served as static assets by the ASP.NET Core host. The frontend renders both sides' evidence collections in the case detail view so voters can review materials before voting.
 
 ### Case Invitation Flow
 Cases are created in a `Pending` state. Only the creator's Side A claim is stored initially. The invited user (`InvitedUserId`) must navigate to the case and either:

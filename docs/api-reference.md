@@ -179,6 +179,75 @@ Adds a new case-level comment to the shared comment pool.
 
 ---
 
+### `GET /api/cases/{id}/evidence`
+Returns side-scoped supporting materials for a case.
+
+**Response `200 OK`**
+```json
+{
+  "sideA": [],
+  "sideB": []
+}
+```
+Each list contains `CaseEvidenceItem` entries.
+
+**Response `404 Not Found`** — case does not exist
+
+---
+
+### `POST /api/cases/{id}/evidence/link`
+Adds a new link evidence item to one side of an open case.
+
+**Request body**
+```json
+{
+  "userId": "guid",
+  "side": "A" | "B",
+  "title": "string",
+  "url": "https://example.com/source"
+}
+```
+
+**Validation**
+- Case must exist and be `Open`.
+- `userId` must exist.
+- `userId` must match the owner of the targeted side.
+- `title` is required (max 160 chars).
+- `url` must be a valid `http` or `https` URL.
+- Targeted side can hold at most 20 evidence items.
+
+**Response `200 OK`** — created `CaseEvidenceItem`  
+**Response `400 Bad Request`** — validation or permission error
+
+---
+
+### `POST /api/cases/{id}/evidence/upload`
+Uploads a document/image evidence item and attaches it to one side of an open case.
+
+**Request content type**
+- `multipart/form-data`
+
+**Form fields**
+- `userId` (`guid`)
+- `side` (`A` or `B`)
+- `title` (`string`, optional; defaults to filename without extension)
+- `file` (`binary`, required)
+
+**Validation**
+- Case must exist and be `Open`.
+- `userId` must exist and own the targeted side.
+- File is required and must be non-empty.
+- Max file size: 10 MB.
+- Allowed extensions/types:
+  - Images: `jpg`, `jpeg`, `png`, `webp`, `gif`
+  - Documents: `pdf`, `txt`, `doc`, `docx`
+- Targeted side can hold at most 20 evidence items.
+
+**Response `200 OK`** — created `CaseEvidenceItem`  
+**Response `400 Bad Request`** — validation or permission error
+
+---
+
 ### `GET /api/cases/{id}/result`
 Returns a summary of the case outcome.
 

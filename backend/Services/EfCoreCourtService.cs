@@ -7,6 +7,12 @@ namespace backend.Services;
 
 public class EfCoreCourtService : ICommunityCourtService
 {
+    private const int MaxEvidenceItemsPerSide = 20;
+    private const int MaxEvidenceTitleLength = 160;
+    private const int MaxEvidenceResourceUrlLength = 2048;
+    private const int MaxEvidenceMimeTypeLength = 128;
+    private const long MaxEvidenceFileSizeBytes = 10 * 1024 * 1024;
+
     private static readonly List<RewardBadge> BadgeCatalog =
     [
         new("VOTE_PARTICIPATION", "Community Juror", "jury", "Bronze", "Awarded for participating in community voting."),
@@ -96,6 +102,21 @@ public class EfCoreCourtService : ICommunityCourtService
             .ToList();
     }
 
+    public CaseEvidenceCollection GetCaseEvidence(Guid caseId)
+    {
+        var evidence = _db.CaseEvidence
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ToList()
+            .Select(MapCaseEvidence)
+            .ToList();
+
+        return new CaseEvidenceCollection(
+            evidence.Where(item => item.Side == CaseSide.A).ToList(),
+            evidence.Where(item => item.Side == CaseSide.B).ToList());
+    }
+
     public bool HasUserVoted(Guid caseId, Guid userId)
     {
         return _db.CaseVotes.AsNoTracking().Any(v => v.CaseId == caseId && v.UserId == userId);
@@ -169,6 +190,118 @@ public class EfCoreCourtService : ICommunityCourtService
         _db.SaveChanges();
 
         return (true, null, new CaseComment(entity.Id, entity.CaseId, entity.UserId, entity.UserName, entity.Message, entity.CreatedAtUtc));
+    }
+
+    public (bool Success, string? Error, CaseEvidenceItem? Evidence) AddCaseEvidenceLink(Guid caseId, AddCaseEvidenceLinkRequest request)
+    {
+        var validation = ValidateEvidenceWrite(caseId, request.UserId, request.Side);
+        if (!validation.Success)
+        {
+            return (false, validation.Error, null);
+        }
+
+        var title = request.Title.Trim();
+        if (title.Length == 0)
+        {
+            return (false, "Evidence title is required.", null);
+        }
+        if (title.Length > MaxEvidenceTitleLength)
+        {
+            return (false, $"Evidence title cannot exceed {MaxEvidenceTitleLength} characters.", null);
+        }
+
+        if (!Uri.TryCreate(request.Url, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            return (false, "Evidence URL must be a valid http or https link.", null);
+        }
+
+        var resourceUrl = uri.AbsoluteUri;
+        if (resourceUrl.Length > MaxEvidenceResourceUrlLength)
+        {
+            return (false, $"Evidence URL cannot exceed {MaxEvidenceResourceUrlLength} characters.", null);
+        }
+
+        var entity = new CaseEvidenceEntity
+        {
+            Id = Guid.NewGuid(),
+            CaseId = caseId,
+            Side = request.Side,
+            AddedByUserId = validation.User!.Id,
+            AddedByUserName = validation.User.UserName,
+            Type = CaseEvidenceType.Link,
+            Title = title,
+            ResourceUrl = resourceUrl,
+            MimeType = "",
+            SizeBytes = 0,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        _db.CaseEvidence.Add(entity);
+        _db.SaveChanges();
+
+        return (true, null, MapCaseEvidence(entity));
+    }
+
+    public (bool Success, string? Error, CaseEvidenceItem? Evidence) AddCaseEvidenceFile(Guid caseId, AddCaseEvidenceFileRequest request)
+    {
+        var validation = ValidateEvidenceWrite(caseId, request.UserId, request.Side);
+        if (!validation.Success)
+        {
+            return (false, validation.Error, null);
+        }
+
+        if (request.Type == CaseEvidenceType.Link)
+        {
+            return (false, "Uploaded evidence must be an image or document type.", null);
+        }
+
+        var title = request.Title.Trim();
+        if (title.Length == 0)
+        {
+            return (false, "Evidence title is required.", null);
+        }
+        if (title.Length > MaxEvidenceTitleLength)
+        {
+            return (false, $"Evidence title cannot exceed {MaxEvidenceTitleLength} characters.", null);
+        }
+
+        var resourceUrl = request.ResourceUrl.Trim();
+        if (resourceUrl.Length == 0 || resourceUrl.Length > MaxEvidenceResourceUrlLength)
+        {
+            return (false, $"Evidence resource URL must be between 1 and {MaxEvidenceResourceUrlLength} characters.", null);
+        }
+
+        var mimeType = request.MimeType.Trim();
+        if (mimeType.Length == 0 || mimeType.Length > MaxEvidenceMimeTypeLength)
+        {
+            return (false, $"Evidence MIME type must be between 1 and {MaxEvidenceMimeTypeLength} characters.", null);
+        }
+
+        if (request.SizeBytes <= 0 || request.SizeBytes > MaxEvidenceFileSizeBytes)
+        {
+            return (false, $"Evidence file size must be between 1 byte and {MaxEvidenceFileSizeBytes} bytes.", null);
+        }
+
+        var entity = new CaseEvidenceEntity
+        {
+            Id = Guid.NewGuid(),
+            CaseId = caseId,
+            Side = request.Side,
+            AddedByUserId = validation.User!.Id,
+            AddedByUserName = validation.User.UserName,
+            Type = request.Type,
+            Title = title,
+            ResourceUrl = resourceUrl,
+            MimeType = mimeType,
+            SizeBytes = request.SizeBytes,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        _db.CaseEvidence.Add(entity);
+        _db.SaveChanges();
+
+        return (true, null, MapCaseEvidence(entity));
     }
 
     // -------------------------------------------------------------------------
@@ -607,6 +740,45 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
         };
     }
 
+    private (bool Success, string? Error, UserEntity? User) ValidateEvidenceWrite(Guid caseId, Guid userId, CaseSide side)
+    {
+        var caseEntity = _db.Cases.Find(caseId);
+        if (caseEntity is null)
+        {
+            return (false, "Case not found.", null);
+        }
+
+        if (caseEntity.Status != CaseStatus.Open)
+        {
+            return (false, "Evidence can only be added while a case is open.", null);
+        }
+
+        var user = _db.Users.Find(userId);
+        if (user is null)
+        {
+            return (false, "User not found.", null);
+        }
+
+        Guid? sideOwnerUserId = side == CaseSide.A ? caseEntity.SideAUserId : caseEntity.SideBUserId;
+        if (!sideOwnerUserId.HasValue)
+        {
+            return (false, "The selected side is not active on this case.", null);
+        }
+
+        if (sideOwnerUserId.Value != userId)
+        {
+            return (false, "Only the owner of this side can add evidence for it.", null);
+        }
+
+        var currentEvidenceCountForSide = _db.CaseEvidence.Count(item => item.CaseId == caseId && item.Side == side);
+        if (currentEvidenceCountForSide >= MaxEvidenceItemsPerSide)
+        {
+            return (false, $"Side {side} already has the maximum of {MaxEvidenceItemsPerSide} evidence items.", null);
+        }
+
+        return (true, null, user);
+    }
+
     private CaseSide? ResolveWinnerSide(Guid caseId)
     {
         var sideAVotes = _db.CaseVotes.Count(v => v.CaseId == caseId && v.Side == CaseSide.A);
@@ -671,4 +843,20 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
 
     private static FriendRequest MapFriendRequest(FriendRequestEntity e) =>
         new(e.Id, e.FromUserId, e.ToUserId, e.Status, e.CreatedAtUtc);
+
+    private static CaseEvidenceItem MapCaseEvidence(CaseEvidenceEntity entity)
+    {
+        return new CaseEvidenceItem(
+            entity.Id,
+            entity.CaseId,
+            entity.Side,
+            entity.AddedByUserId,
+            entity.AddedByUserName,
+            entity.Type,
+            entity.Title,
+            entity.ResourceUrl,
+            entity.MimeType.Length == 0 ? null : entity.MimeType,
+            entity.Type == CaseEvidenceType.Link ? null : entity.SizeBytes,
+            entity.CreatedAtUtc);
+    }
 }

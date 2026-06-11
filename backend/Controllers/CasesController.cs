@@ -8,11 +8,44 @@ namespace backend.Controllers;
 [Route("api/[controller]")]
 public class CasesController : ControllerBase
 {
-    private readonly ICommunityCourtService _courtService;
+    private const long MaxEvidenceFileSizeBytes = 10 * 1024 * 1024;
+    private static readonly IReadOnlySet<string> AllowedImageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp",
+        ".gif"
+    };
+    private static readonly IReadOnlySet<string> AllowedDocumentExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ".pdf",
+        ".txt",
+        ".doc",
+        ".docx"
+    };
+    private static readonly IReadOnlySet<string> AllowedImageMimeTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif"
+    };
+    private static readonly IReadOnlySet<string> AllowedDocumentMimeTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "application/pdf",
+        "text/plain",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    };
 
-    public CasesController(ICommunityCourtService courtService)
+    private readonly ICommunityCourtService _courtService;
+    private readonly IWebHostEnvironment _webHostEnvironment;
+
+    public CasesController(ICommunityCourtService courtService, IWebHostEnvironment webHostEnvironment)
     {
         _courtService = courtService;
+        _webHostEnvironment = webHostEnvironment;
     }
 
     [HttpGet]
@@ -42,6 +75,17 @@ public class CasesController : ControllerBase
         }
 
         return Ok(new CaseVoteStatus(_courtService.HasUserVoted(id, userId)));
+    }
+
+    [HttpGet("{id:guid}/evidence")]
+    public ActionResult<CaseEvidenceCollection> GetCaseEvidence(Guid id)
+    {
+        if (_courtService.GetCase(id) is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(_courtService.GetCaseEvidence(id));
     }
 
     [HttpPost]
@@ -117,6 +161,82 @@ public class CasesController : ControllerBase
         return Ok(result.Comment);
     }
 
+    [HttpPost("{id:guid}/evidence/link")]
+    public ActionResult<CaseEvidenceItem> AddCaseEvidenceLink(Guid id, [FromBody] AddCaseEvidenceLinkRequest request)
+    {
+        var result = _courtService.AddCaseEvidenceLink(id, request);
+        if (!result.Success)
+        {
+            return BadRequest(result.Error);
+        }
+
+        return Ok(result.Evidence);
+    }
+
+    [HttpPost("{id:guid}/evidence/upload")]
+    [RequestSizeLimit(MaxEvidenceFileSizeBytes + (1024 * 1024))]
+    public async Task<ActionResult<CaseEvidenceItem>> AddCaseEvidenceUpload(Guid id, [FromForm] AddCaseEvidenceUploadForm request)
+    {
+        if (request.File is null)
+        {
+            return BadRequest("A file is required.");
+        }
+
+        if (request.File.Length == 0)
+        {
+            return BadRequest("Uploaded file cannot be empty.");
+        }
+
+        if (request.File.Length > MaxEvidenceFileSizeBytes)
+        {
+            return BadRequest($"Uploaded file cannot exceed {MaxEvidenceFileSizeBytes} bytes.");
+        }
+
+        if (!TryGetEvidenceType(request.File.FileName, request.File.ContentType, out var evidenceType))
+        {
+            return BadRequest("Unsupported file type. Allowed types are jpg, jpeg, png, webp, gif, pdf, txt, doc, and docx.");
+        }
+
+        var extension = Path.GetExtension(request.File.FileName).ToLowerInvariant();
+        var safeFileName = $"{Guid.NewGuid():N}{extension}";
+        var caseDirectory = Path.Combine(GetEvidenceUploadRootPath(), id.ToString("N"));
+        Directory.CreateDirectory(caseDirectory);
+
+        var fullPath = Path.Combine(caseDirectory, safeFileName);
+        await using (var stream = System.IO.File.Create(fullPath))
+        {
+            await request.File.CopyToAsync(stream);
+        }
+
+        var evidenceTitle = string.IsNullOrWhiteSpace(request.Title)
+            ? Path.GetFileNameWithoutExtension(request.File.FileName)
+            : request.Title.Trim();
+        var publicResourceUrl = $"/uploads/case-evidence/{id:N}/{safeFileName}";
+
+        var result = _courtService.AddCaseEvidenceFile(
+            id,
+            new AddCaseEvidenceFileRequest(
+                request.UserId,
+                request.Side,
+                evidenceType,
+                evidenceTitle,
+                publicResourceUrl,
+                request.File.ContentType,
+                request.File.Length));
+
+        if (!result.Success)
+        {
+            if (System.IO.File.Exists(fullPath))
+            {
+                System.IO.File.Delete(fullPath);
+            }
+
+            return BadRequest(result.Error);
+        }
+
+        return Ok(result.Evidence);
+    }
+
     [HttpPost("{id:guid}/vote")]
     public ActionResult<ArgumentCase> CastVote(Guid id, [FromBody] CastVoteRequest request)
     {
@@ -181,5 +301,43 @@ public class CasesController : ControllerBase
             found.WinnerSide,
             found.Verdict
         });
+    }
+
+    private string GetEvidenceUploadRootPath()
+    {
+        var webRootPath = _webHostEnvironment.WebRootPath;
+        if (string.IsNullOrWhiteSpace(webRootPath))
+        {
+            webRootPath = Path.Combine(_webHostEnvironment.ContentRootPath, "wwwroot");
+        }
+
+        return Path.Combine(webRootPath, "uploads", "case-evidence");
+    }
+
+    private static bool TryGetEvidenceType(string fileName, string contentType, out CaseEvidenceType evidenceType)
+    {
+        var extension = Path.GetExtension(fileName);
+        if (AllowedImageExtensions.Contains(extension) && AllowedImageMimeTypes.Contains(contentType))
+        {
+            evidenceType = CaseEvidenceType.Image;
+            return true;
+        }
+
+        if (AllowedDocumentExtensions.Contains(extension) && AllowedDocumentMimeTypes.Contains(contentType))
+        {
+            evidenceType = CaseEvidenceType.Document;
+            return true;
+        }
+
+        evidenceType = default;
+        return false;
+    }
+
+    public sealed class AddCaseEvidenceUploadForm
+    {
+        public Guid UserId { get; set; }
+        public CaseSide Side { get; set; }
+        public string? Title { get; set; }
+        public IFormFile? File { get; set; }
     }
 }
