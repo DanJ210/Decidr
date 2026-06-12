@@ -20,14 +20,14 @@ frontend/src/
 │   ├── friends.ts       # Friends, friend requests, and invitations (Pinia store)
 │   └── rewards.ts       # User reward badges (Pinia store)
 ├── composables/
-│   ├── useCaseDetail.ts  # Reactive logic for CaseDetailView (computed permissions, actions)
+│   ├── useCaseDetail.ts  # Reactive logic for CaseDetailView (permissions, voting, comments, side evidence)
 │   ├── useCreateCase.ts  # Form state + submit logic for CreateCaseView
 │   ├── useFriends.ts     # User search, friend filtering, and friend-management actions
 │   ├── useGroupedRewards.ts # Rewards loading + tier-grouped computed for RewardsView
 │   └── useHottestCases.ts   # Sorted case list + invitations loading for HomeView
 ├── views/
 │   ├── HomeView.vue      # Case listing page + My Invitations section
-│   ├── CaseDetailView.vue# Single case view — handles Pending/Open/Closed states
+│   ├── CaseDetailView.vue# Single case view — handles Pending/Open/Closed states + side evidence review/add flows
 │   ├── CreateCaseView.vue# Form to start a new case and invite a connected Side B friend
 │   ├── FriendsView.vue   # Friend search, incoming requests, add/remove friend
 │   └── RewardsView.vue   # Badge/reward display for the current user
@@ -90,6 +90,9 @@ Used by `CaseDetailView`. Loads the case on mount from the URL param, then deriv
 | `sideBClaim` | `Ref<string>` | Two-way bound text for the Side B invitation response |
 | `commentMessage` | `Ref<string>` | Two-way bound text for posting a case-level comment |
 | `comments` | `Ref<CaseComment[]>` | Shared case comment pool (not side-specific) |
+| `sideAEvidence` | `ComputedRef<CaseEvidenceItem[]>` | Side A supporting materials shown before voting |
+| `sideBEvidence` | `ComputedRef<CaseEvidenceItem[]>` | Side B supporting materials shown before voting |
+| `evidenceDrafts` | `Reactive<Record<CaseSide, SideEvidenceDraft>>` | Per-side draft state for link + file inputs |
 | `canComment` | `ComputedRef<boolean>` | `true` when an active user is selected and the case is loaded |
 | `caseItem` | `ComputedRef` | The currently loaded case (`selectedCase`) |
 | `totalVotes` | `ComputedRef<number>` | Sum of votes for both sides |
@@ -99,9 +102,14 @@ Used by `CaseDetailView`. Loads the case on mount from the URL param, then deriv
 | `hasVoted` | `Ref<boolean>` | `true` when the backend reports that the active user has already voted on this case |
 | `canVote` | `ComputedRef<boolean>` | `true` when the case is Open, the user is not a participant, and they have not voted yet |
 | `canCloseCase` | `ComputedRef<boolean>` | `true` when the user is a participant or moderator |
+| `canAddEvidenceSideA` | `ComputedRef<boolean>` | `true` when the active user owns Side A on an open case and side cap is not reached |
+| `canAddEvidenceSideB` | `ComputedRef<boolean>` | `true` when the active user owns Side B on an open case and side cap is not reached |
 | `closePermissionMessage` | `ComputedRef<string>` | Contextual hint shown below the Close button |
 | `votePermissionMessage` | `ComputedRef<string>` | Contextual hint shown below the vote buttons |
+| `evidenceError` | `Ref<string \| null>` | Evidence load/mutation error message |
 | `vote(side)` | `function` | Casts a vote once, then refreshes the case and server-backed vote status |
+| `submitEvidenceLink(side)` | `function` | Adds link evidence to a side |
+| `submitEvidenceFile(side)` | `function` | Uploads file evidence to a side |
 | `closeCase()` | `function` | Closes the case and refreshes it |
 | `acceptInvitation()` | `function` | Submits the Side B claim and refreshes the case |
 | `declineInvitation()` | `function` | Declines the invitation and navigates back to `/` |
@@ -275,11 +283,14 @@ Defined in `services/api.ts`. All functions use a shared Axios instance with `ba
 |----------|--------|----------|-------------|
 | `fetchCases()` | `GET` | `/cases` | Get all public cases |
 | `fetchCaseById(id)` | `GET` | `/cases/{id}` | Get one case (any status) |
+| `fetchCaseEvidence(caseId)` | `GET` | `/cases/{id}/evidence` | Get side-grouped evidence collections |
 | `createCase(request)` | `POST` | `/cases` | Create a new `Pending` case (friend connection required for invite) |
 | `castVote(caseId, request)` | `POST` | `/cases/{id}/vote` | Cast a vote |
 | `closeCase(caseId, request)` | `POST` | `/cases/{id}/close` | Close a case |
 | `fetchCaseComments(caseId)` | `GET` | `/cases/{id}/comments` | Get the shared case comment pool |
 | `postCaseComment(caseId, request)` | `POST` | `/cases/{id}/comments` | Add a case-level comment |
+| `postCaseEvidenceLink(caseId, request)` | `POST` | `/cases/{id}/evidence/link` | Add link evidence to one side |
+| `uploadCaseEvidenceFile(caseId, request)` | `POST` | `/cases/{id}/evidence/upload` | Upload document/image evidence to one side |
 | `acceptCaseInvitation(caseId, request)` | `POST` | `/cases/{id}/accept` | Accept invitation and provide Side B claim |
 | `declineCaseInvitation(caseId, userId)` | `POST` | `/cases/{id}/decline` | Decline an invitation |
 | `fetchUsers()` | `GET` | `/users` | Get all users |
@@ -298,4 +309,4 @@ Defined in `services/api.ts`. All functions use a shared Axios instance with `ba
 
 `types.ts` mirrors the backend C# models as TypeScript interfaces. See [Data Models](./data-models.md) for full field descriptions.
 
-Key types: `AppUser`, `ArgumentCase`, `ArgumentPost`, `CommunityVerdict`, `CaseComment`, `FriendRequest`, `FriendRequestStatus`, `UserRewardView`, `CreateCaseRequest`, `AcceptInvitationRequest`, `DeclineInvitationRequest`, `SendFriendRequestDto`, `RespondFriendRequestDto`, `CastVoteRequest`, `CloseCaseRequest`, `CreateCaseCommentRequest`.
+Key types: `AppUser`, `ArgumentCase`, `ArgumentPost`, `CommunityVerdict`, `CaseComment`, `CaseEvidenceItem`, `CaseEvidenceCollection`, `CaseEvidenceType`, `FriendRequest`, `FriendRequestStatus`, `UserRewardView`, `CreateCaseRequest`, `AcceptInvitationRequest`, `DeclineInvitationRequest`, `AddCaseEvidenceLinkRequest`, `SendFriendRequestDto`, `RespondFriendRequestDto`, `CastVoteRequest`, `CloseCaseRequest`, `CreateCaseCommentRequest`.

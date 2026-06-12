@@ -4,7 +4,11 @@ namespace backend.Services;
 
 public class InMemoryCommunityCourtService : ICommunityCourtService
 {
-    private const int VoteChangeWindowMinutes = 60;
+    private const int MaxEvidenceItemsPerSide = 20;
+    private const int MaxEvidenceTitleLength = 160;
+    private const int MaxEvidenceResourceUrlLength = 2048;
+    private const int MaxEvidenceMimeTypeLength = 128;
+    private const long MaxEvidenceFileSizeBytes = 10 * 1024 * 1024;
 
     private static readonly List<RewardBadge> BadgeCatalog =
     [
@@ -22,6 +26,7 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
     private readonly List<ArgumentCase> _cases;
     private readonly List<CaseVote> _votes;
     private readonly List<CaseComment> _comments;
+    private readonly List<CaseEvidenceItem> _caseEvidence;
     private readonly List<UserReward> _rewards;
     private readonly List<FriendRequest> _friendRequests;
 
@@ -70,6 +75,45 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
             new(Guid.NewGuid(), firstCaseId, casey.Id, casey.UserName, "Both sides have a point, but timing and communication matter most here.", DateTime.UtcNow.AddHours(-10)),
             new(Guid.NewGuid(), firstCaseId, morgan.Id, morgan.UserName, "If it was truly urgent, a quick heads-up earlier would have helped.", DateTime.UtcNow.AddHours(-9)),
             new(Guid.NewGuid(), secondCaseId, alex.Id, alex.UserName, "Smart plug data feels like fair evidence for a proportional split.", DateTime.UtcNow.AddHours(-20))
+        ];
+        _caseEvidence =
+        [
+            new(
+                Guid.NewGuid(),
+                firstCaseId,
+                CaseSide.A,
+                alex.Id,
+                alex.UserName,
+                CaseEvidenceType.Link,
+                "Incident postmortem timeline",
+                "https://example.com/postmortem-timeline",
+                null,
+                null,
+                DateTime.UtcNow.AddHours(-14)),
+            new(
+                Guid.NewGuid(),
+                firstCaseId,
+                CaseSide.B,
+                jordan.Id,
+                jordan.UserName,
+                CaseEvidenceType.Link,
+                "Dinner prep receipts and timeline",
+                "https://example.com/dinner-receipts",
+                null,
+                null,
+                DateTime.UtcNow.AddHours(-13)),
+            new(
+                Guid.NewGuid(),
+                secondCaseId,
+                CaseSide.A,
+                casey.Id,
+                casey.UserName,
+                CaseEvidenceType.Link,
+                "Smart plug usage report",
+                "https://example.com/smart-plug-report",
+                null,
+                null,
+                DateTime.UtcNow.AddHours(-27))
         ];
 
         _rewards = [];
@@ -124,6 +168,14 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                 .Where(c => c.CaseId == caseId)
                 .OrderBy(c => c.CreatedAtUtc)
                 .ToList();
+        }
+    }
+
+    public CaseEvidenceCollection GetCaseEvidence(Guid caseId)
+    {
+        lock (_syncRoot)
+        {
+            return BuildCaseEvidenceCollection(caseId);
         }
     }
 
@@ -197,6 +249,116 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                 DateTime.UtcNow);
 
             _comments.Add(created);
+            return (true, null, created);
+        }
+    }
+
+    public (bool Success, string? Error, CaseEvidenceItem? Evidence) AddCaseEvidenceLink(Guid caseId, AddCaseEvidenceLinkRequest request)
+    {
+        lock (_syncRoot)
+        {
+            var validation = ValidateEvidenceWrite(caseId, request.UserId, request.Side);
+            if (!validation.Success)
+            {
+                return (false, validation.Error, null);
+            }
+
+            var title = request.Title.Trim();
+            if (title.Length == 0)
+            {
+                return (false, "Evidence title is required.", null);
+            }
+            if (title.Length > MaxEvidenceTitleLength)
+            {
+                return (false, $"Evidence title cannot exceed {MaxEvidenceTitleLength} characters.", null);
+            }
+
+            if (!Uri.TryCreate(request.Url, UriKind.Absolute, out var uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            {
+                return (false, "Evidence URL must be a valid http or https link.", null);
+            }
+
+            var resourceUrl = uri.AbsoluteUri;
+            if (resourceUrl.Length > MaxEvidenceResourceUrlLength)
+            {
+                return (false, $"Evidence URL cannot exceed {MaxEvidenceResourceUrlLength} characters.", null);
+            }
+
+            var created = new CaseEvidenceItem(
+                Guid.NewGuid(),
+                caseId,
+                request.Side,
+                validation.User!.Id,
+                validation.User.UserName,
+                CaseEvidenceType.Link,
+                title,
+                resourceUrl,
+                null,
+                null,
+                DateTime.UtcNow);
+
+            _caseEvidence.Add(created);
+            return (true, null, created);
+        }
+    }
+
+    public (bool Success, string? Error, CaseEvidenceItem? Evidence) AddCaseEvidenceFile(Guid caseId, AddCaseEvidenceFileRequest request)
+    {
+        lock (_syncRoot)
+        {
+            var validation = ValidateEvidenceWrite(caseId, request.UserId, request.Side);
+            if (!validation.Success)
+            {
+                return (false, validation.Error, null);
+            }
+
+            if (request.Type == CaseEvidenceType.Link)
+            {
+                return (false, "Uploaded evidence must be an image or document type.", null);
+            }
+
+            var title = request.Title.Trim();
+            if (title.Length == 0)
+            {
+                return (false, "Evidence title is required.", null);
+            }
+            if (title.Length > MaxEvidenceTitleLength)
+            {
+                return (false, $"Evidence title cannot exceed {MaxEvidenceTitleLength} characters.", null);
+            }
+
+            var resourceUrl = request.ResourceUrl.Trim();
+            if (resourceUrl.Length == 0 || resourceUrl.Length > MaxEvidenceResourceUrlLength)
+            {
+                return (false, $"Evidence resource URL must be between 1 and {MaxEvidenceResourceUrlLength} characters.", null);
+            }
+
+            var mimeType = request.MimeType.Trim();
+            if (mimeType.Length == 0 || mimeType.Length > MaxEvidenceMimeTypeLength)
+            {
+                return (false, $"Evidence MIME type must be between 1 and {MaxEvidenceMimeTypeLength} characters.", null);
+            }
+
+            if (request.SizeBytes <= 0 || request.SizeBytes > MaxEvidenceFileSizeBytes)
+            {
+                return (false, $"Evidence file size must be between 1 byte and {MaxEvidenceFileSizeBytes} bytes.", null);
+            }
+
+            var created = new CaseEvidenceItem(
+                Guid.NewGuid(),
+                caseId,
+                request.Side,
+                validation.User!.Id,
+                validation.User.UserName,
+                request.Type,
+                title,
+                resourceUrl,
+                mimeType,
+                request.SizeBytes,
+                DateTime.UtcNow);
+
+            _caseEvidence.Add(created);
             return (true, null, created);
         }
     }
@@ -568,12 +730,11 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
             return null;
         }
 
-        var changeLockedAtUtc = vote.CreatedAtUtc.AddMinutes(VoteChangeWindowMinutes);
         return new CurrentUserVote(
             vote.Side,
             vote.CreatedAtUtc,
-            changeLockedAtUtc,
-            DateTime.UtcNow < changeLockedAtUtc);
+            vote.CreatedAtUtc,
+            false);
     }
 
     private ArgumentCase MapCaseForViewer(ArgumentCase argumentCase, Guid? viewerUserId)
@@ -588,6 +749,59 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         {
             CurrentUserVote = BuildCurrentUserVote(argumentCase.Id, viewerUserId.Value)
         };
+    }
+
+    private CaseEvidenceCollection BuildCaseEvidenceCollection(Guid caseId)
+    {
+        var sideA = _caseEvidence
+            .Where(item => item.CaseId == caseId && item.Side == CaseSide.A)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ToList();
+        var sideB = _caseEvidence
+            .Where(item => item.CaseId == caseId && item.Side == CaseSide.B)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ToList();
+
+        return new CaseEvidenceCollection(sideA, sideB);
+    }
+
+    private (bool Success, string? Error, AppUser? User) ValidateEvidenceWrite(Guid caseId, Guid userId, CaseSide side)
+    {
+        var foundCase = _cases.FirstOrDefault(c => c.Id == caseId);
+        if (foundCase is null)
+        {
+            return (false, "Case not found.", null);
+        }
+
+        if (foundCase.Status != CaseStatus.Open)
+        {
+            return (false, "Evidence can only be added while a case is open.", null);
+        }
+
+        var user = _users.FirstOrDefault(u => u.Id == userId);
+        if (user is null)
+        {
+            return (false, "User not found.", null);
+        }
+
+        var sideOwnerUserId = side == CaseSide.A ? foundCase.SideA.UserId : foundCase.SideB?.UserId;
+        if (!sideOwnerUserId.HasValue)
+        {
+            return (false, "The selected side is not active on this case.", null);
+        }
+
+        if (sideOwnerUserId.Value != userId)
+        {
+            return (false, "Only the owner of this side can add evidence for it.", null);
+        }
+
+        var currentEvidenceCountForSide = _caseEvidence.Count(item => item.CaseId == caseId && item.Side == side);
+        if (currentEvidenceCountForSide >= MaxEvidenceItemsPerSide)
+        {
+            return (false, $"Side {side} already has the maximum of {MaxEvidenceItemsPerSide} evidence items.", null);
+        }
+
+        return (true, null, user);
     }
 
     private ArgumentCase ResolveWinner(ArgumentCase argumentCase)

@@ -12,6 +12,7 @@ public class DecidirDbContext : DbContext
     public DbSet<CaseEntity> Cases => Set<CaseEntity>();
     public DbSet<CaseVoteEntity> CaseVotes => Set<CaseVoteEntity>();
     public DbSet<CaseCommentEntity> CaseComments => Set<CaseCommentEntity>();
+    public DbSet<CaseEvidenceEntity> CaseEvidence => Set<CaseEvidenceEntity>();
     public DbSet<UserRewardEntity> UserRewards => Set<UserRewardEntity>();
     public DbSet<FriendRequestEntity> FriendRequests => Set<FriendRequestEntity>();
     public DbSet<RewardBadgeEntity> RewardBadges => Set<RewardBadgeEntity>();
@@ -90,6 +91,28 @@ public class DecidirDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
 
             e.HasIndex(c => new { c.CaseId, c.CreatedAtUtc });
+        });
+
+        modelBuilder.Entity<CaseEvidenceEntity>(e =>
+        {
+            e.HasKey(item => item.Id);
+            e.Property(item => item.Side).HasConversion<string>();
+            e.Property(item => item.AddedByUserName).IsRequired().HasMaxLength(64);
+            e.Property(item => item.Type).HasConversion<string>();
+            e.Property(item => item.Title).IsRequired().HasMaxLength(160);
+            e.Property(item => item.ResourceUrl).IsRequired().HasMaxLength(2048);
+            e.Property(item => item.MimeType).IsRequired().HasMaxLength(128);
+
+            e.HasOne<CaseEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.CaseId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<UserEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.AddedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasIndex(item => new { item.CaseId, item.Side, item.CreatedAtUtc });
         });
 
         modelBuilder.Entity<UserRewardEntity>(e =>

@@ -19,12 +19,41 @@ const {
   canVoteSideB,
   canCloseCase,
   closePermissionMessage,
+  evidenceLoading,
+  evidenceError,
+  evidenceDrafts,
+  sideAEvidence,
+  sideBEvidence,
+  canAddEvidenceSideA,
+  canAddEvidenceSideB,
+  sideAEvidenceAtLimit,
+  sideBEvidenceAtLimit,
+  isEvidenceLinkSubmitting,
+  isEvidenceFileSubmitting,
+  setEvidenceFile,
+  submitEvidenceLink,
+  submitEvidenceFile,
+  evidenceFileAccept,
+  maxEvidenceItemsPerSide,
   vote,
   closeCase,
   acceptInvitation,
   declineInvitation,
   submitComment,
 } = useCaseDetail()
+
+function formatEvidenceSize(sizeBytes: number | null) {
+  if (!sizeBytes) {
+    return ''
+  }
+  if (sizeBytes >= 1024 * 1024) {
+    return `${(sizeBytes / (1024 * 1024)).toFixed(2)} MB`
+  }
+  if (sizeBytes >= 1024) {
+    return `${(sizeBytes / 1024).toFixed(1)} KB`
+  }
+  return `${sizeBytes} B`
+}
 </script>
 
 <template>
@@ -112,6 +141,170 @@ const {
             <p>{{ caseItem.sideB?.claim }}</p>
           </section>
         </div>
+
+        <section class="verdict evidence-section">
+          <h2>Review Side Evidence</h2>
+          <p class="status-text">Review each side's supporting materials before you cast a vote.</p>
+
+          <p v-if="evidenceLoading" class="notice">Loading side evidence...</p>
+          <p v-else-if="evidenceError" class="notice error">{{ evidenceError }}</p>
+
+          <div v-else class="evidence-grid">
+            <section class="evidence-column">
+              <h3>
+                Side A · {{ caseItem.sideA.userName }}
+                <span class="pill evidence-count">{{ sideAEvidence.length }}</span>
+              </h3>
+
+              <p v-if="sideAEvidence.length === 0" class="status-text">No evidence has been added for Side A yet.</p>
+              <ul v-else class="evidence-list">
+                <li v-for="item in sideAEvidence" :key="item.id" class="evidence-item">
+                  <div class="evidence-item-top">
+                    <strong>{{ item.title }}</strong>
+                    <span class="status-pill" :class="item.type === 'Link' ? 'status-open' : 'status-closed'">
+                      {{ item.type }}
+                    </span>
+                  </div>
+                  <p class="status-text">
+                    Added by @{{ item.addedByUserName }} · {{ new Date(item.createdAtUtc).toLocaleString() }}
+                    <span v-if="item.sizeBytes"> · {{ formatEvidenceSize(item.sizeBytes) }}</span>
+                  </p>
+                  <img
+                    v-if="item.type === 'Image'"
+                    :src="item.resourceUrl"
+                    :alt="item.title"
+                    class="evidence-image"
+                    loading="lazy"
+                  />
+                  <a :href="item.resourceUrl" target="_blank" rel="noopener noreferrer" class="case-link">
+                    {{ item.type === 'Link' ? 'Open source link' : item.type === 'Image' ? 'Open image' : 'Open document' }}
+                  </a>
+                </li>
+              </ul>
+
+              <p v-if="sideAEvidenceAtLimit" class="status-text">
+                Side A reached the maximum of {{ maxEvidenceItemsPerSide }} evidence items.
+              </p>
+              <div v-if="canAddEvidenceSideA" class="evidence-add-panel">
+                <h4>Add Evidence to Side A</h4>
+                <label>
+                  Link Title
+                  <input v-model="evidenceDrafts.A.linkTitle" placeholder="Source title" />
+                </label>
+                <label>
+                  Link URL
+                  <input v-model="evidenceDrafts.A.linkUrl" placeholder="https://example.com/source" />
+                </label>
+                <div class="action-bar">
+                  <button
+                    type="button"
+                    class="action-btn"
+                    :disabled="isEvidenceLinkSubmitting('A') || !evidenceDrafts.A.linkTitle.trim() || !evidenceDrafts.A.linkUrl.trim()"
+                    @click="submitEvidenceLink('A')"
+                  >
+                    Add Link
+                  </button>
+                </div>
+
+                <label>
+                  File Title (optional)
+                  <input v-model="evidenceDrafts.A.fileTitle" placeholder="Defaults to filename" />
+                </label>
+                <label>
+                  Upload File
+                  <input :accept="evidenceFileAccept" type="file" @change="setEvidenceFile('A', $event)" />
+                </label>
+                <div class="action-bar">
+                  <button
+                    type="button"
+                    class="action-btn"
+                    :disabled="isEvidenceFileSubmitting('A') || !evidenceDrafts.A.file"
+                    @click="submitEvidenceFile('A')"
+                  >
+                    Upload File
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section class="evidence-column">
+              <h3>
+                Side B · {{ caseItem.sideB?.userName ?? 'Pending Side B' }}
+                <span class="pill evidence-count">{{ sideBEvidence.length }}</span>
+              </h3>
+
+              <p v-if="sideBEvidence.length === 0" class="status-text">No evidence has been added for Side B yet.</p>
+              <ul v-else class="evidence-list">
+                <li v-for="item in sideBEvidence" :key="item.id" class="evidence-item">
+                  <div class="evidence-item-top">
+                    <strong>{{ item.title }}</strong>
+                    <span class="status-pill" :class="item.type === 'Link' ? 'status-open' : 'status-closed'">
+                      {{ item.type }}
+                    </span>
+                  </div>
+                  <p class="status-text">
+                    Added by @{{ item.addedByUserName }} · {{ new Date(item.createdAtUtc).toLocaleString() }}
+                    <span v-if="item.sizeBytes"> · {{ formatEvidenceSize(item.sizeBytes) }}</span>
+                  </p>
+                  <img
+                    v-if="item.type === 'Image'"
+                    :src="item.resourceUrl"
+                    :alt="item.title"
+                    class="evidence-image"
+                    loading="lazy"
+                  />
+                  <a :href="item.resourceUrl" target="_blank" rel="noopener noreferrer" class="case-link">
+                    {{ item.type === 'Link' ? 'Open source link' : item.type === 'Image' ? 'Open image' : 'Open document' }}
+                  </a>
+                </li>
+              </ul>
+
+              <p v-if="sideBEvidenceAtLimit" class="status-text">
+                Side B reached the maximum of {{ maxEvidenceItemsPerSide }} evidence items.
+              </p>
+              <div v-if="canAddEvidenceSideB" class="evidence-add-panel">
+                <h4>Add Evidence to Side B</h4>
+                <label>
+                  Link Title
+                  <input v-model="evidenceDrafts.B.linkTitle" placeholder="Source title" />
+                </label>
+                <label>
+                  Link URL
+                  <input v-model="evidenceDrafts.B.linkUrl" placeholder="https://example.com/source" />
+                </label>
+                <div class="action-bar">
+                  <button
+                    type="button"
+                    class="action-btn"
+                    :disabled="isEvidenceLinkSubmitting('B') || !evidenceDrafts.B.linkTitle.trim() || !evidenceDrafts.B.linkUrl.trim()"
+                    @click="submitEvidenceLink('B')"
+                  >
+                    Add Link
+                  </button>
+                </div>
+
+                <label>
+                  File Title (optional)
+                  <input v-model="evidenceDrafts.B.fileTitle" placeholder="Defaults to filename" />
+                </label>
+                <label>
+                  Upload File
+                  <input :accept="evidenceFileAccept" type="file" @change="setEvidenceFile('B', $event)" />
+                </label>
+                <div class="action-bar">
+                  <button
+                    type="button"
+                    class="action-btn"
+                    :disabled="isEvidenceFileSubmitting('B') || !evidenceDrafts.B.file"
+                    @click="submitEvidenceFile('B')"
+                  >
+                    Upload File
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
 
         <section class="verdict">
           <h2>Community Verdict</h2>

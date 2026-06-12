@@ -13,6 +13,13 @@ public enum CaseStatus
     Closed
 }
 
+public enum CaseEvidenceType
+{
+    Link,
+    Image,
+    Document
+}
+
 public enum UserRole
 {
     Member,
@@ -71,6 +78,25 @@ public record CaseComment(
     string UserName,
     string Message,
     DateTime CreatedAtUtc
+);
+
+public record CaseEvidenceItem(
+    Guid Id,
+    Guid CaseId,
+    CaseSide Side,
+    Guid AddedByUserId,
+    string AddedByUserName,
+    CaseEvidenceType Type,
+    string Title,
+    string ResourceUrl,
+    string? MimeType,
+    long? SizeBytes,
+    DateTime CreatedAtUtc
+);
+
+public record CaseEvidenceCollection(
+    IReadOnlyList<CaseEvidenceItem> SideA,
+    IReadOnlyList<CaseEvidenceItem> SideB
 );
 
 public record RewardBadge(
@@ -157,6 +183,23 @@ public record CloseCaseRequest(
 public record CreateCaseCommentRequest(
     Guid UserId,
     string Message
+);
+
+public record AddCaseEvidenceLinkRequest(
+    Guid UserId,
+    CaseSide Side,
+    string Title,
+    string Url
+);
+
+public record AddCaseEvidenceFileRequest(
+    Guid UserId,
+    CaseSide Side,
+    CaseEvidenceType Type,
+    string Title,
+    string ResourceUrl,
+    string MimeType,
+    long SizeBytes
 );
 
 public record UserRewardView(

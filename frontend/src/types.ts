@@ -43,6 +43,27 @@ export interface CaseComment {
   createdAtUtc: string
 }
 
+export type CaseEvidenceType = 'Link' | 'Image' | 'Document'
+
+export interface CaseEvidenceItem {
+  id: string
+  caseId: string
+  side: CaseSide
+  addedByUserId: string
+  addedByUserName: string
+  type: CaseEvidenceType
+  title: string
+  resourceUrl: string
+  mimeType: string | null
+  sizeBytes: number | null
+  createdAtUtc: string
+}
+
+export interface CaseEvidenceCollection {
+  sideA: CaseEvidenceItem[]
+  sideB: CaseEvidenceItem[]
+}
+
 export interface ArgumentCase {
   id: string
   title: string
@@ -110,6 +131,13 @@ export interface CloseCaseRequest {
 export interface CreateCaseCommentRequest {
   userId: string
   message: string
+}
+
+export interface AddCaseEvidenceLinkRequest {
+  userId: string
+  side: CaseSide
+  title: string
+  url: string
 }
 
 export interface UserRewardView {

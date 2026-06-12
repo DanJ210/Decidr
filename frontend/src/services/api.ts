@@ -1,8 +1,12 @@
 import axios from 'axios'
 import type {
   AcceptInvitationRequest,
+  AddCaseEvidenceLinkRequest,
   AppUser,
   ArgumentCase,
+  CaseEvidenceCollection,
+  CaseEvidenceItem,
+  CaseSide,
   CaseVoteStatus,
   CaseComment,
   CastVoteRequest,
@@ -62,6 +66,30 @@ export async function fetchCaseComments(caseId: string): Promise<CaseComment[]> 
 
 export async function postCaseComment(caseId: string, request: CreateCaseCommentRequest): Promise<CaseComment> {
   const { data } = await apiClient.post<CaseComment>(`/cases/${caseId}/comments`, request)
+  return data
+}
+
+export async function fetchCaseEvidence(caseId: string): Promise<CaseEvidenceCollection> {
+  const { data } = await apiClient.get<CaseEvidenceCollection>(`/cases/${caseId}/evidence`)
+  return data
+}
+
+export async function postCaseEvidenceLink(caseId: string, request: AddCaseEvidenceLinkRequest): Promise<CaseEvidenceItem> {
+  const { data } = await apiClient.post<CaseEvidenceItem>(`/cases/${caseId}/evidence/link`, request)
+  return data
+}
+
+export async function uploadCaseEvidenceFile(
+  caseId: string,
+  request: { userId: string; side: CaseSide; title: string; file: File }
+): Promise<CaseEvidenceItem> {
+  const formData = new FormData()
+  formData.append('userId', request.userId)
+  formData.append('side', request.side)
+  formData.append('title', request.title)
+  formData.append('file', request.file)
+
+  const { data } = await apiClient.post<CaseEvidenceItem>(`/cases/${caseId}/evidence/upload`, formData)
   return data
 }
 
