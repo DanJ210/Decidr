@@ -1,9 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import CaseDetailView from '../views/CaseDetailView.vue'
-import CreateCaseView from '../views/CreateCaseView.vue'
-import FriendsView from '../views/FriendsView.vue'
 import HomeView from '../views/HomeView.vue'
-import RewardsView from '../views/RewardsView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -16,23 +12,23 @@ const router = createRouter({
     {
       path: '/cases/:id',
       name: 'case-detail',
-      component: CaseDetailView,
+      component: () => import('../views/CaseDetailView.vue'),
       props: true,
     },
     {
       path: '/cases/new',
       name: 'case-create',
-      component: CreateCaseView,
+      component: () => import('../views/CreateCaseView.vue'),
     },
     {
       path: '/rewards',
       name: 'rewards',
-      component: RewardsView,
+      component: () => import('../views/RewardsView.vue'),
     },
     {
       path: '/friends',
       name: 'friends',
-      component: FriendsView,
+      component: () => import('../views/FriendsView.vue'),
     },
   ],
 })
