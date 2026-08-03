@@ -15,9 +15,7 @@ function handleUserChange(event: Event) {
 }
 
 onMounted(() => {
-  if (!authStore.users.length) {
-    void authStore.loadUsers()
-  }
+  void authStore.loadUsers()
 })
 </script>
 
@@ -37,7 +35,7 @@ onMounted(() => {
           <RouterLink to="/rewards" class="top-nav-link">Rewards</RouterLink>
         </nav>
 
-        <label class="user-switcher" for="active-user-select">
+        <label v-if="!authStore.configured" class="user-switcher" for="active-user-select">
           <span class="user-avatar" aria-hidden="true">{{ selectedUserInitial }}</span>
           <span class="user-switcher-copy">
             <span class="user-switcher-label">Active profile</span>
@@ -57,6 +55,22 @@ onMounted(() => {
           </option>
         </select>
         </label>
+
+        <button v-else-if="!authStore.isAuthenticated" class="user-switcher" type="button" :disabled="authStore.loading" @click="authStore.login">
+          <span class="user-avatar" aria-hidden="true">?</span>
+          <span class="user-switcher-copy">
+            <span class="user-switcher-label">Account</span>
+            <span class="user-switcher-name">Sign in</span>
+          </span>
+        </button>
+
+        <button v-else class="user-switcher" type="button" @click="authStore.logout">
+          <span class="user-avatar" aria-hidden="true">{{ selectedUserInitial }}</span>
+          <span class="user-switcher-copy">
+            <span class="user-switcher-label">Signed in</span>
+            <span class="user-switcher-name">{{ authStore.selectedUser?.displayName }}</span>
+          </span>
+        </button>
       </header>
     </div>
 

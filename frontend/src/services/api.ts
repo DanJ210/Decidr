@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getAccessToken } from '../authConfig'
 import type {
   AcceptInvitationRequest,
   AddCaseEvidenceLinkRequest,
@@ -24,6 +25,19 @@ const apiClient = axios.create({
   baseURL: '/api',
   timeout: 10000,
 })
+
+apiClient.interceptors.request.use(async (config) => {
+  const accessToken = await getAccessToken()
+  if (accessToken) {
+    config.headers.Authorization = `Bearer ${accessToken}`
+  }
+  return config
+})
+
+export async function fetchCurrentUser(): Promise<AppUser> {
+  const { data } = await apiClient.get<AppUser>('/auth/me')
+  return data
+}
 
 export async function fetchCases(): Promise<ArgumentCase[]> {
   const { data } = await apiClient.get<ArgumentCase[]>('/cases')

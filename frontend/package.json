@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@azure/msal-browser": "^5.17.3",
     "@fontsource/instrument-sans": "^5.3.0",
     "@fontsource/newsreader": "^5.3.0",
     "@lucide/vue": "^1.28.0",

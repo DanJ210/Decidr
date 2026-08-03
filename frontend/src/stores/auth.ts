@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { fetchUsers } from '../services/api'
+import { entraConfigured, getActiveAccount, signIn, signOut } from '../authConfig'
+import { fetchCurrentUser, fetchUsers } from '../services/api'
 import type { AppUser } from '../types'
 
 const selectedUserStorageKey = 'decidr-selected-user-id'
@@ -9,6 +10,8 @@ interface AuthState {
   selectedUserId: string | null
   loading: boolean
   error: string | null
+  isAuthenticated: boolean
+  configured: boolean
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -17,6 +20,8 @@ export const useAuthStore = defineStore('auth', {
     selectedUserId: null,
     loading: false,
     error: null,
+    isAuthenticated: false,
+    configured: entraConfigured,
   }),
   getters: {
     selectedUser(state): AppUser | null {
@@ -29,6 +34,21 @@ export const useAuthStore = defineStore('auth', {
       this.error = null
 
       try {
+        if (this.configured) {
+          if (!getActiveAccount()) {
+            this.users = []
+            this.selectedUserId = null
+            this.isAuthenticated = false
+            return
+          }
+
+          const currentUser = await fetchCurrentUser()
+          this.users = [currentUser]
+          this.selectedUserId = currentUser.id
+          this.isAuthenticated = true
+          return
+        }
+
         this.users = await fetchUsers()
         const cachedUserId = localStorage.getItem(selectedUserStorageKey)
         const cachedUserExists = this.users.some((user) => user.id === cachedUserId)
@@ -46,6 +66,24 @@ export const useAuthStore = defineStore('auth', {
       } finally {
         this.loading = false
       }
+    },
+    async login() {
+      this.loading = true
+      this.error = null
+      try {
+        await signIn()
+        await this.loadUsers()
+      } catch {
+        this.error = 'Unable to sign in right now.'
+      } finally {
+        this.loading = false
+      }
+    },
+    async logout() {
+      await signOut()
+      this.users = []
+      this.selectedUserId = null
+      this.isAuthenticated = false
     },
     setSelectedUser(userId: string) {
       this.selectedUserId = userId

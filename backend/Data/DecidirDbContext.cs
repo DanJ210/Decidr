@@ -24,10 +24,16 @@ public class DecidirDbContext : DbContext
         modelBuilder.Entity<UserEntity>(e =>
         {
             e.HasKey(u => u.Id);
+            e.Property(u => u.IdentitySubject).HasMaxLength(256);
+            e.Property(u => u.IdentityIssuer).HasMaxLength(512);
+            e.Property(u => u.Email).HasMaxLength(320);
             e.Property(u => u.UserName).IsRequired().HasMaxLength(64);
             e.Property(u => u.DisplayName).IsRequired().HasMaxLength(128);
             e.Property(u => u.Role).HasConversion<string>();
             e.HasIndex(u => u.UserName).IsUnique();
+            e.HasIndex(u => new { u.IdentityIssuer, u.IdentitySubject })
+                .IsUnique()
+                .HasFilter("[IdentityIssuer] IS NOT NULL AND [IdentitySubject] IS NOT NULL");
         });
 
         modelBuilder.Entity<CaseEntity>(e =>
