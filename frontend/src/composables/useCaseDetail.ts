@@ -376,7 +376,6 @@ export function useCaseDetail() {
 
     try {
       const created = await postCaseEvidenceLink(selectedCase.id, {
-        userId: user.id,
         side,
         title,
         url,
@@ -419,7 +418,6 @@ export function useCaseDetail() {
 
     try {
       const created = await uploadCaseEvidenceFile(selectedCase.id, {
-        userId: user.id,
         side,
         title,
         file: draft.file,
@@ -448,7 +446,7 @@ export function useCaseDetail() {
     const selectedCase = caseItem.value
     if (!selectedUser || !selectedCase) return
 
-    const result = await courtStore.vote(selectedCase.id, selectedUser.id, side)
+    const result = await courtStore.vote(selectedCase.id, side)
     if (result.success) {
       if (isViewingCase(selectedCase.id)) {
         if (result.updatedCase) {
@@ -533,7 +531,6 @@ export function useCaseDetail() {
     commentsError.value = null
     try {
       const created = await postCaseComment(selectedCase.id, {
-        userId: user.id,
         message: trimmedMessage,
       })
       comments.value = [...comments.value, created]

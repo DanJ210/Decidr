@@ -91,7 +91,6 @@ export interface CreateCaseRequest {
   title: string
   category: string
   summary: string
-  sideAUserId: string
   sideAClaim: string
   invitedUserId: string
 }
@@ -120,7 +119,6 @@ export interface RemoveFriendDto {
 }
 
 export interface CastVoteRequest {
-  userId: string
   side: CaseSide
 }
 
@@ -129,12 +127,10 @@ export interface CloseCaseRequest {
 }
 
 export interface CreateCaseCommentRequest {
-  userId: string
   message: string
 }
 
 export interface AddCaseEvidenceLinkRequest {
-  userId: string
   side: CaseSide
   title: string
   url: string

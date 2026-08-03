@@ -95,10 +95,9 @@ export async function postCaseEvidenceLink(caseId: string, request: AddCaseEvide
 
 export async function uploadCaseEvidenceFile(
   caseId: string,
-  request: { userId: string; side: CaseSide; title: string; file: File }
+  request: { side: CaseSide; title: string; file: File }
 ): Promise<CaseEvidenceItem> {
   const formData = new FormData()
-  formData.append('userId', request.userId)
   formData.append('side', request.side)
   formData.append('title', request.title)
   formData.append('file', request.file)

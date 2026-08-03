@@ -53,14 +53,12 @@ export function useCreateCase() {
   })
 
   async function submit() {
-    const userId = authStore.selectedUser?.id
-    if (!userId || !form.invitedUserId) return
+    if (!authStore.selectedUser?.id || !form.invitedUserId) return
 
     const created = await courtStore.createCase({
       title: form.title,
       category: form.category,
       summary: form.summary,
-      sideAUserId: userId,
       sideAClaim: form.sideAClaim,
       invitedUserId: form.invitedUserId,
     })

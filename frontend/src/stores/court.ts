@@ -90,12 +90,12 @@ export const useCourtStore = defineStore('court', {
         this.mutating = false
       }
     },
-    async vote(caseId: string, userId: string, side: CaseSide) {
+    async vote(caseId: string, side: CaseSide) {
       this.mutating = true
       this.error = null
 
       try {
-        const updated = await castVote(caseId, { userId, side })
+        const updated = await castVote(caseId, { side })
         this.replaceCase(updated)
         return { success: true, updatedCase: updated } satisfies CaseMutationResult
       } catch {

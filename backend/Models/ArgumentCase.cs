@@ -135,7 +135,6 @@ public record CreateCaseRequest(
     string Title,
     string Category,
     string Summary,
-    Guid SideAUserId,
     string SideAClaim,
     Guid InvitedUserId
 );
@@ -172,7 +171,6 @@ public record FriendRequest(
 );
 
 public record CastVoteRequest(
-    Guid UserId,
     CaseSide Side
 );
 
@@ -181,19 +179,16 @@ public record CloseCaseRequest(
 );
 
 public record CreateCaseCommentRequest(
-    Guid UserId,
     string Message
 );
 
 public record AddCaseEvidenceLinkRequest(
-    Guid UserId,
     CaseSide Side,
     string Title,
     string Url
 );
 
 public record AddCaseEvidenceFileRequest(
-    Guid UserId,
     CaseSide Side,
     CaseEvidenceType Type,
     string Title,
