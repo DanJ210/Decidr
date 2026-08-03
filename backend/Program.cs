@@ -43,7 +43,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
     builder.Services.AddDbContext<DecidirDbContext>(options =>
-        options.UseNpgsql(connectionString));
+        options.UseSqlServer(connectionString));
     builder.Services.AddScoped<ICommunityCourtService, EfCoreCourtService>();
 }
 else
