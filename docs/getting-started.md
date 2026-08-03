@@ -29,7 +29,7 @@ Start SQL Server with `docker compose up -d`, then create the ignored
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Server=localhost,1433;Database=decidr_dev;User Id=sa;******;Encrypt=True;TrustServerCertificate=True"
+    "DefaultConnection": "Server=localhost,1433;Database=decidr_dev;User Id=sa;Password=<strong-local-password>;Encrypt=True;TrustServerCertificate=True"
   }
 }
 ```
