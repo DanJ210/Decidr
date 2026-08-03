@@ -480,11 +480,11 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
 
     // --- Friend system ---
 
-    public (bool Success, string? Error) SendFriendRequest(SendFriendRequestDto dto)
+    public (bool Success, string? Error) SendFriendRequest(Guid actorUserId, SendFriendRequestDto dto)
     {
         lock (_syncRoot)
         {
-            if (_users.All(u => u.Id != dto.FromUserId))
+            if (_users.All(u => u.Id != actorUserId))
             {
                 return (false, "Requesting user not found.");
             }
@@ -494,15 +494,15 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                 return (false, "Target user not found.");
             }
 
-            if (dto.FromUserId == dto.ToUserId)
+            if (actorUserId == dto.ToUserId)
             {
                 return (false, "You cannot send a friend request to yourself.");
             }
 
             var alreadyFriends = _friendRequests.Any(r =>
                 r.Status == FriendRequestStatus.Accepted &&
-                ((r.FromUserId == dto.FromUserId && r.ToUserId == dto.ToUserId) ||
-                 (r.FromUserId == dto.ToUserId && r.ToUserId == dto.FromUserId)));
+                ((r.FromUserId == actorUserId && r.ToUserId == dto.ToUserId) ||
+                 (r.FromUserId == dto.ToUserId && r.ToUserId == actorUserId)));
 
             if (alreadyFriends)
             {
@@ -511,15 +511,15 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
 
             var pendingExists = _friendRequests.Any(r =>
                 r.Status == FriendRequestStatus.Pending &&
-                ((r.FromUserId == dto.FromUserId && r.ToUserId == dto.ToUserId) ||
-                 (r.FromUserId == dto.ToUserId && r.ToUserId == dto.FromUserId)));
+                ((r.FromUserId == actorUserId && r.ToUserId == dto.ToUserId) ||
+                 (r.FromUserId == dto.ToUserId && r.ToUserId == actorUserId)));
 
             if (pendingExists)
             {
                 return (false, "A pending friend request already exists between these users.");
             }
 
-            _friendRequests.Add(new FriendRequest(Guid.NewGuid(), dto.FromUserId, dto.ToUserId, FriendRequestStatus.Pending, DateTime.UtcNow));
+            _friendRequests.Add(new FriendRequest(Guid.NewGuid(), actorUserId, dto.ToUserId, FriendRequestStatus.Pending, DateTime.UtcNow));
             return (true, null);
         }
     }
@@ -646,7 +646,7 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         }
     }
 
-    public (bool Success, string? Error, ArgumentCase? UpdatedCase) AcceptCaseInvitation(Guid caseId, AcceptInvitationRequest request)
+    public (bool Success, string? Error, ArgumentCase? UpdatedCase) AcceptCaseInvitation(Guid caseId, Guid actorUserId, AcceptInvitationRequest request)
     {
         lock (_syncRoot)
         {
@@ -661,7 +661,7 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                 return (false, "This case is not awaiting acceptance.", null);
             }
 
-            if (foundCase.InvitedUserId != request.UserId)
+            if (foundCase.InvitedUserId != actorUserId)
             {
                 return (false, "You are not the invited user for this case.", null);
             }
@@ -671,7 +671,7 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                 return (false, "A claim is required to accept the invitation.", null);
             }
 
-            var sideBUser = _users.FirstOrDefault(u => u.Id == request.UserId);
+            var sideBUser = _users.FirstOrDefault(u => u.Id == actorUserId);
             if (sideBUser is null)
             {
                 return (false, "User not found.", null);

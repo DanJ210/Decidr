@@ -96,34 +96,19 @@ export interface CreateCaseRequest {
 }
 
 export interface AcceptInvitationRequest {
-  userId: string
   claim: string
 }
 
-export interface DeclineInvitationRequest {
-  userId: string
-}
-
 export interface SendFriendRequestDto {
-  fromUserId: string
   toUserId: string
 }
 
-export interface RespondFriendRequestDto {
-  actorUserId: string
-}
-
 export interface RemoveFriendDto {
-  actorUserId: string
   friendUserId: string
 }
 
 export interface CastVoteRequest {
   side: CaseSide
-}
-
-export interface CloseCaseRequest {
-  actorUserId: string
 }
 
 export interface CreateCaseCommentRequest {

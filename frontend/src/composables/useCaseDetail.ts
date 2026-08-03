@@ -474,7 +474,7 @@ export function useCaseDetail() {
     const user = activeUser.value
     if (!selectedCase || !user || !canCloseCase.value) return
 
-    const result = await courtStore.closeCase(selectedCase.id, user.id)
+    const result = await courtStore.closeCase(selectedCase.id)
     if (!isViewingCase(selectedCase.id)) {
       return
     }
@@ -494,7 +494,7 @@ export function useCaseDetail() {
     const user = activeUser.value
     if (!selectedCase || !user || !sideBClaim.value.trim()) return
 
-    const result = await courtStore.acceptInvitation(selectedCase.id, user.id, sideBClaim.value.trim())
+    const result = await courtStore.acceptInvitation(selectedCase.id, sideBClaim.value.trim())
     if (!isViewingCase(selectedCase.id)) {
       return
     }
@@ -515,7 +515,7 @@ export function useCaseDetail() {
     const user = activeUser.value
     if (!selectedCase || !user) return
 
-    const success = await courtStore.declineInvitation(selectedCase.id, user.id)
+    const success = await courtStore.declineInvitation(selectedCase.id)
     if (success) {
       await router.push('/')
     }

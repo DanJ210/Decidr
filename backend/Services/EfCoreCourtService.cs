@@ -470,9 +470,9 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
     // Friend system
     // -------------------------------------------------------------------------
 
-    public (bool Success, string? Error) SendFriendRequest(SendFriendRequestDto dto)
+    public (bool Success, string? Error) SendFriendRequest(Guid actorUserId, SendFriendRequestDto dto)
     {
-        if (_db.Users.Find(dto.FromUserId) is null)
+        if (_db.Users.Find(actorUserId) is null)
         {
             return (false, "Requesting user not found.");
         }
@@ -482,15 +482,15 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
             return (false, "Target user not found.");
         }
 
-        if (dto.FromUserId == dto.ToUserId)
+        if (actorUserId == dto.ToUserId)
         {
             return (false, "You cannot send a friend request to yourself.");
         }
 
         var alreadyFriends = _db.FriendRequests.Any(r =>
             r.Status == FriendRequestStatus.Accepted &&
-            ((r.FromUserId == dto.FromUserId && r.ToUserId == dto.ToUserId) ||
-             (r.FromUserId == dto.ToUserId && r.ToUserId == dto.FromUserId)));
+            ((r.FromUserId == actorUserId && r.ToUserId == dto.ToUserId) ||
+             (r.FromUserId == dto.ToUserId && r.ToUserId == actorUserId)));
 
         if (alreadyFriends)
         {
@@ -499,8 +499,8 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
 
         var pendingExists = _db.FriendRequests.Any(r =>
             r.Status == FriendRequestStatus.Pending &&
-            ((r.FromUserId == dto.FromUserId && r.ToUserId == dto.ToUserId) ||
-             (r.FromUserId == dto.ToUserId && r.ToUserId == dto.FromUserId)));
+            ((r.FromUserId == actorUserId && r.ToUserId == dto.ToUserId) ||
+             (r.FromUserId == dto.ToUserId && r.ToUserId == actorUserId)));
 
         if (pendingExists)
         {
@@ -510,7 +510,7 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
         _db.FriendRequests.Add(new FriendRequestEntity
         {
             Id = Guid.NewGuid(),
-            FromUserId = dto.FromUserId,
+            FromUserId = actorUserId,
             ToUserId = dto.ToUserId,
             Status = FriendRequestStatus.Pending,
             CreatedAtUtc = DateTime.UtcNow
@@ -632,7 +632,7 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
             .ToList();
     }
 
-    public (bool Success, string? Error, ArgumentCase? UpdatedCase) AcceptCaseInvitation(Guid caseId, AcceptInvitationRequest request)
+    public (bool Success, string? Error, ArgumentCase? UpdatedCase) AcceptCaseInvitation(Guid caseId, Guid actorUserId, AcceptInvitationRequest request)
     {
         var caseEntity = _db.Cases.Find(caseId);
         if (caseEntity is null)
@@ -645,7 +645,7 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
             return (false, "This case is not awaiting acceptance.", null);
         }
 
-        if (caseEntity.InvitedUserId != request.UserId)
+        if (caseEntity.InvitedUserId != actorUserId)
         {
             return (false, "You are not the invited user for this case.", null);
         }
@@ -655,7 +655,7 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
             return (false, "A claim is required to accept the invitation.", null);
         }
 
-        var sideBUser = _db.Users.Find(request.UserId);
+        var sideBUser = _db.Users.Find(actorUserId);
         if (sideBUser is null)
         {
             return (false, "User not found.", null);

@@ -140,25 +140,14 @@ public record CreateCaseRequest(
 );
 
 public record AcceptInvitationRequest(
-    Guid UserId,
     string Claim
 );
 
-public record DeclineInvitationRequest(
-    Guid UserId
-);
-
 public record SendFriendRequestDto(
-    Guid FromUserId,
     Guid ToUserId
 );
 
-public record RespondFriendRequestDto(
-    Guid ActorUserId
-);
-
 public record RemoveFriendDto(
-    Guid ActorUserId,
     Guid FriendUserId
 );
 
@@ -174,9 +163,7 @@ public record CastVoteRequest(
     CaseSide Side
 );
 
-public record CloseCaseRequest(
-    Guid ActorUserId
-);
+public record CloseCaseRequest;
 
 public record CreateCaseCommentRequest(
     string Message

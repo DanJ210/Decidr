@@ -102,35 +102,35 @@ export const useFriendsStore = defineStore('friends', {
         this.loading = false
       }
     },
-    async sendRequest(fromUserId: string, toUserId: string): Promise<boolean> {
+    async sendRequest(toUserId: string): Promise<boolean> {
       this.error = null
 
       try {
-        await sendFriendRequest({ fromUserId, toUserId })
+        await sendFriendRequest(toUserId)
         // Optimistically add to outgoing list so the UI updates immediately
         this.outgoingRequests = [
           ...this.outgoingRequests,
           {
             id: `temp-${Date.now()}`,
-            fromUserId,
+            fromUserId: this.activeUserId ?? '',
             toUserId,
             status: 'Pending' as const,
             createdAtUtc: new Date().toISOString(),
           },
         ]
         // Then sync with the server to get the real ID
-        await this.loadOutgoingRequests(fromUserId)
+        await this.loadOutgoingRequests(this.activeUserId ?? '')
         return true
       } catch {
         this.error = 'Unable to send friend request right now.'
         return false
       }
     },
-    async respondToRequest(requestId: string, actorUserId: string, accept: boolean): Promise<boolean> {
+    async respondToRequest(requestId: string, accept: boolean): Promise<boolean> {
       this.error = null
 
       try {
-        await respondToFriendRequest(requestId, { actorUserId }, accept)
+        await respondToFriendRequest(requestId, accept)
         this.incomingRequests = this.incomingRequests.filter((r) => r.id !== requestId)
         return true
       } catch {
@@ -138,11 +138,11 @@ export const useFriendsStore = defineStore('friends', {
         return false
       }
     },
-    async removeFriend(actorUserId: string, friendUserId: string): Promise<boolean> {
+    async removeFriend(friendUserId: string): Promise<boolean> {
       this.error = null
 
       try {
-        await removeFriendApi({ actorUserId, friendUserId })
+        await removeFriendApi(friendUserId)
         this.friends = this.friends.filter((f) => f.id !== friendUserId)
         return true
       } catch {

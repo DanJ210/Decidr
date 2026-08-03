@@ -107,12 +107,12 @@ export const useCourtStore = defineStore('court', {
         this.mutating = false
       }
     },
-    async closeCase(caseId: string, actorUserId: string) {
+    async closeCase(caseId: string) {
       this.mutating = true
       this.error = null
 
       try {
-        const updated = await closeCase(caseId, { actorUserId })
+        const updated = await closeCase(caseId)
         this.replaceCase(updated)
         return { success: true, updatedCase: updated } satisfies CaseMutationResult
       } catch {
@@ -124,12 +124,12 @@ export const useCourtStore = defineStore('court', {
         this.mutating = false
       }
     },
-    async acceptInvitation(caseId: string, userId: string, claim: string) {
+    async acceptInvitation(caseId: string, claim: string) {
       this.mutating = true
       this.error = null
 
       try {
-        const updated = await acceptCaseInvitation(caseId, { userId, claim })
+        const updated = await acceptCaseInvitation(caseId, { claim })
         this.replaceCase(updated)
         return { success: true, updatedCase: updated } satisfies CaseMutationResult
       } catch {
@@ -141,12 +141,12 @@ export const useCourtStore = defineStore('court', {
         this.mutating = false
       }
     },
-    async declineInvitation(caseId: string, userId: string) {
+    async declineInvitation(caseId: string) {
       this.mutating = true
       this.error = null
 
       try {
-        await declineCaseInvitation(caseId, userId)
+        await declineCaseInvitation(caseId)
         this.cases = this.cases.filter((c) => c.id !== caseId)
         if (this.selectedCase?.id === caseId) {
           this.selectedCase = null

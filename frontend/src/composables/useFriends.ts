@@ -89,14 +89,15 @@ export function useFriends() {
   async function sendRequest(toUserId: string) {
     const userId = authStore.selectedUser?.id
     if (!userId) return
-    await friendsStore.sendRequest(userId, toUserId)
+    friendsStore.setActiveUser(userId)
+    await friendsStore.sendRequest(toUserId)
   }
 
   async function respondToRequest(requestId: string, accept: boolean) {
     const userId = authStore.selectedUser?.id
     if (!userId) return
 
-    const ok = await friendsStore.respondToRequest(requestId, userId, accept)
+    const ok = await friendsStore.respondToRequest(requestId, accept)
     if (ok) {
       await friendsStore.loadFriends(userId)
     }
@@ -106,7 +107,8 @@ export function useFriends() {
     const userId = authStore.selectedUser?.id
     if (!userId) return
 
-    await friendsStore.removeFriend(userId, friendUserId)
+    friendsStore.setActiveUser(userId)
+    await friendsStore.removeFriend(friendUserId)
   }
 
   return {

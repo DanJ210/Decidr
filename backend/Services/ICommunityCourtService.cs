@@ -20,7 +20,7 @@ public interface ICommunityCourtService
     IReadOnlyList<UserRewardView> GetUserRewards(Guid userId);
 
     // Friend system
-    (bool Success, string? Error) SendFriendRequest(SendFriendRequestDto dto);
+    (bool Success, string? Error) SendFriendRequest(Guid actorUserId, SendFriendRequestDto dto);
     (bool Success, string? Error) RespondToFriendRequest(Guid requestId, Guid actorUserId, bool accept);
     (bool Success, string? Error) RemoveFriend(Guid actorUserId, Guid friendUserId);
     IReadOnlyList<AppUser> GetFriends(Guid userId);
@@ -30,6 +30,6 @@ public interface ICommunityCourtService
 
     // Case invitations
     IReadOnlyList<ArgumentCase> GetPendingInvitations(Guid userId);
-    (bool Success, string? Error, ArgumentCase? UpdatedCase) AcceptCaseInvitation(Guid caseId, AcceptInvitationRequest request);
+    (bool Success, string? Error, ArgumentCase? UpdatedCase) AcceptCaseInvitation(Guid caseId, Guid actorUserId, AcceptInvitationRequest request);
     (bool Success, string? Error) DeclineCaseInvitation(Guid caseId, Guid actorUserId);
 }

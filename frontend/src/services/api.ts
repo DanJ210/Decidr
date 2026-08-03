@@ -11,13 +11,9 @@ import type {
   CaseVoteStatus,
   CaseComment,
   CastVoteRequest,
-  CloseCaseRequest,
   CreateCaseRequest,
   CreateCaseCommentRequest,
   FriendRequest,
-  RemoveFriendDto,
-  RespondFriendRequestDto,
-  SendFriendRequestDto,
   UserRewardView,
 } from '../types'
 
@@ -68,8 +64,8 @@ export async function castVote(caseId: string, request: CastVoteRequest): Promis
   return data
 }
 
-export async function closeCase(caseId: string, request: CloseCaseRequest): Promise<ArgumentCase> {
-  const { data } = await apiClient.post<ArgumentCase>(`/cases/${caseId}/close`, request)
+export async function closeCase(caseId: string): Promise<ArgumentCase> {
+  const { data } = await apiClient.post<ArgumentCase>(`/cases/${caseId}/close`)
   return data
 }
 
@@ -111,8 +107,8 @@ export async function acceptCaseInvitation(caseId: string, request: AcceptInvita
   return data
 }
 
-export async function declineCaseInvitation(caseId: string, userId: string): Promise<void> {
-  await apiClient.post(`/cases/${caseId}/decline`, { userId })
+export async function declineCaseInvitation(caseId: string): Promise<void> {
+  await apiClient.post(`/cases/${caseId}/decline`)
 }
 
 export async function fetchUsers(): Promise<AppUser[]> {
@@ -149,15 +145,15 @@ export async function fetchInvitations(userId: string): Promise<ArgumentCase[]> 
   return data
 }
 
-export async function sendFriendRequest(dto: SendFriendRequestDto): Promise<void> {
-  await apiClient.post('/friends/request', dto)
+export async function sendFriendRequest(toUserId: string): Promise<void> {
+  await apiClient.post('/friends/request', { toUserId })
 }
 
-export async function respondToFriendRequest(requestId: string, dto: RespondFriendRequestDto, accept: boolean): Promise<void> {
+export async function respondToFriendRequest(requestId: string, accept: boolean): Promise<void> {
   const path = accept ? 'accept' : 'decline'
-  await apiClient.post(`/friends/${requestId}/${path}`, dto)
+  await apiClient.post(`/friends/${requestId}/${path}`)
 }
 
-export async function removeFriend(dto: RemoveFriendDto): Promise<void> {
-  await apiClient.post('/friends/remove', dto)
+export async function removeFriend(friendUserId: string): Promise<void> {
+  await apiClient.post('/friends/remove', { friendUserId })
 }

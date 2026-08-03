@@ -9,10 +9,20 @@ namespace backend.Controllers;
 public class UsersController : ControllerBase
 {
     private readonly ICommunityCourtService _courtService;
+    private readonly IAuthenticatedUserService _authenticatedUserService;
+    private readonly IWebHostEnvironment _environment;
+    private readonly IConfiguration _configuration;
 
-    public UsersController(ICommunityCourtService courtService)
+    public UsersController(
+        ICommunityCourtService courtService,
+        IAuthenticatedUserService authenticatedUserService,
+        IWebHostEnvironment environment,
+        IConfiguration configuration)
     {
         _courtService = courtService;
+        _authenticatedUserService = authenticatedUserService;
+        _environment = environment;
+        _configuration = configuration;
     }
 
     [HttpGet]
@@ -22,57 +32,70 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet("{id:guid}/rewards")]
-    public ActionResult<IEnumerable<UserRewardView>> GetRewards(Guid id)
+    public async Task<ActionResult<IEnumerable<UserRewardView>>> GetRewards(Guid id, CancellationToken cancellationToken)
     {
-        if (_courtService.GetUser(id) is null)
+        if (!await CanAccessUserAsync(id, cancellationToken))
         {
-            return NotFound();
+            return Unauthorized();
         }
 
         return Ok(_courtService.GetUserRewards(id));
     }
 
     [HttpGet("{id:guid}/friends")]
-    public ActionResult<IEnumerable<AppUser>> GetFriends(Guid id)
+    public async Task<ActionResult<IEnumerable<AppUser>>> GetFriends(Guid id, CancellationToken cancellationToken)
     {
-        if (_courtService.GetUser(id) is null)
+        if (!await CanAccessUserAsync(id, cancellationToken))
         {
-            return NotFound();
+            return Unauthorized();
         }
 
         return Ok(_courtService.GetFriends(id));
     }
 
     [HttpGet("{id:guid}/friend-requests")]
-    public ActionResult<IEnumerable<FriendRequest>> GetFriendRequests(Guid id)
+    public async Task<ActionResult<IEnumerable<FriendRequest>>> GetFriendRequests(Guid id, CancellationToken cancellationToken)
     {
-        if (_courtService.GetUser(id) is null)
+        if (!await CanAccessUserAsync(id, cancellationToken))
         {
-            return NotFound();
+            return Unauthorized();
         }
 
         return Ok(_courtService.GetFriendRequests(id));
     }
 
     [HttpGet("{id:guid}/sent-requests")]
-    public ActionResult<IEnumerable<FriendRequest>> GetOutgoingFriendRequests(Guid id)
+    public async Task<ActionResult<IEnumerable<FriendRequest>>> GetOutgoingFriendRequests(Guid id, CancellationToken cancellationToken)
     {
-        if (_courtService.GetUser(id) is null)
+        if (!await CanAccessUserAsync(id, cancellationToken))
         {
-            return NotFound();
+            return Unauthorized();
         }
 
         return Ok(_courtService.GetOutgoingFriendRequests(id));
     }
 
     [HttpGet("{id:guid}/invitations")]
-    public ActionResult<IEnumerable<ArgumentCase>> GetInvitations(Guid id)
+    public async Task<ActionResult<IEnumerable<ArgumentCase>>> GetInvitations(Guid id, CancellationToken cancellationToken)
     {
-        if (_courtService.GetUser(id) is null)
+        if (!await CanAccessUserAsync(id, cancellationToken))
         {
-            return NotFound();
+            return Unauthorized();
         }
 
         return Ok(_courtService.GetPendingInvitations(id));
+    }
+
+    private async Task<bool> CanAccessUserAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        if (User.Identity?.IsAuthenticated == true)
+        {
+            var actor = await _authenticatedUserService.GetOrCreateAsync(User, cancellationToken);
+            return actor?.Id == userId;
+        }
+
+        return _environment.IsDevelopment() &&
+            string.IsNullOrWhiteSpace(_configuration["Entra:Authority"]) &&
+            string.IsNullOrWhiteSpace(_configuration["Entra:Audience"]);
     }
 }

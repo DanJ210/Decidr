@@ -323,9 +323,12 @@ public class CasesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/close")]
-    public ActionResult<ArgumentCase> CloseCase(Guid id, [FromBody] CloseCaseRequest request)
+    public async Task<ActionResult<ArgumentCase>> CloseCase(Guid id, CancellationToken cancellationToken)
     {
-        var result = _courtService.CloseCase(id, request.ActorUserId);
+        var actor = await _authenticatedUserService.GetOrCreateAsync(User, cancellationToken);
+        if (actor is null) return Unauthorized();
+
+        var result = _courtService.CloseCase(id, actor.Id);
         if (!result.Success)
         {
             return BadRequest(result.Error);
@@ -335,9 +338,12 @@ public class CasesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/accept")]
-    public ActionResult<ArgumentCase> AcceptInvitation(Guid id, [FromBody] AcceptInvitationRequest request)
+    public async Task<ActionResult<ArgumentCase>> AcceptInvitation(Guid id, [FromBody] AcceptInvitationRequest request, CancellationToken cancellationToken)
     {
-        var result = _courtService.AcceptCaseInvitation(id, request);
+        var actor = await _authenticatedUserService.GetOrCreateAsync(User, cancellationToken);
+        if (actor is null) return Unauthorized();
+
+        var result = _courtService.AcceptCaseInvitation(id, actor.Id, request);
         if (!result.Success)
         {
             return BadRequest(result.Error);
@@ -347,9 +353,12 @@ public class CasesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/decline")]
-    public ActionResult DeclineInvitation(Guid id, [FromBody] DeclineInvitationRequest request)
+    public async Task<ActionResult> DeclineInvitation(Guid id, CancellationToken cancellationToken)
     {
-        var result = _courtService.DeclineCaseInvitation(id, request.UserId);
+        var actor = await _authenticatedUserService.GetOrCreateAsync(User, cancellationToken);
+        if (actor is null) return Unauthorized();
+
+        var result = _courtService.DeclineCaseInvitation(id, actor.Id);
         if (!result.Success)
         {
             return BadRequest(result.Error);
