@@ -136,7 +136,7 @@ function sideAPercentage(item: ArgumentCase) {
     </ul>
 
     <p v-if="!courtStore.loading && !courtStore.error && !filteredCaseFeed.length" class="notice">
-      No {{ activeFilter.toLowerCase() }} cases right now.
+      No {{ activeFilter === 'All' ? '' : activeFilter.toLowerCase() + ' ' }}cases right now.
     </p>
   </section>
 </template>
