@@ -1,24 +1,11 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted } from 'vue'
+import { ChevronDown, Scale } from '@lucide/vue'
 import { useAuthStore } from './stores/auth'
 import BottomNav from './components/BottomNav.vue'
 
 const authStore = useAuthStore()
-const menuOpen = ref(false)
-const route = useRoute()
-
-watch(route, () => {
-  menuOpen.value = false
-})
-
-function toggleMenu() {
-  menuOpen.value = !menuOpen.value
-}
-
-function closeMenu() {
-  menuOpen.value = false
-}
+const selectedUserInitial = computed(() => authStore.selectedUser?.displayName.charAt(0).toUpperCase() ?? '?')
 
 function handleUserChange(event: Event) {
   const userId = (event.target as HTMLSelectElement).value
@@ -38,32 +25,28 @@ onMounted(() => {
   <div class="app-shell">
     <div class="top-area">
       <header class="top-nav">
-        <RouterLink to="/" class="brand" @click="closeMenu">Decidr</RouterLink>
+        <RouterLink to="/" class="brand" aria-label="Decidr home">
+          <span class="brand-mark" aria-hidden="true"><Scale :size="18" :stroke-width="2.4" /></span>
+          <span>Decidr</span>
+        </RouterLink>
 
         <nav class="quick-links desktop-only" aria-label="Primary navigation">
-          <RouterLink to="/" class="case-link">Feed</RouterLink>
-          <RouterLink to="/cases/new" class="case-link">New Case</RouterLink>
-          <RouterLink to="/friends" class="case-link">Friends</RouterLink>
-          <RouterLink to="/rewards" class="case-link">Rewards</RouterLink>
+          <RouterLink to="/" class="top-nav-link">Feed</RouterLink>
+          <RouterLink to="/cases/new" class="top-nav-link">Create</RouterLink>
+          <RouterLink to="/friends" class="top-nav-link">Friends</RouterLink>
+          <RouterLink to="/rewards" class="top-nav-link">Rewards</RouterLink>
         </nav>
 
-        <button
-          type="button"
-          class="hamburger-btn mobile-only"
-          :aria-expanded="menuOpen"
-          :aria-label="menuOpen ? 'Close navigation menu' : 'Open navigation menu'"
-          @click="toggleMenu"
-        >
-          <span class="hamburger-bar"></span>
-          <span class="hamburger-bar"></span>
-          <span class="hamburger-bar"></span>
-        </button>
-      </header>
-
-      <div class="active-user-picker">
-        <label for="active-user-select">Active User</label>
+        <label class="user-switcher" for="active-user-select">
+          <span class="user-avatar" aria-hidden="true">{{ selectedUserInitial }}</span>
+          <span class="user-switcher-copy">
+            <span class="user-switcher-label">Active profile</span>
+            <span class="user-switcher-name">{{ authStore.selectedUser?.displayName ?? 'Select user' }}</span>
+          </span>
+          <ChevronDown class="user-switcher-chevron" :size="16" aria-hidden="true" />
         <select
           id="active-user-select"
+          aria-label="Switch active profile"
           :value="authStore.selectedUserId ?? ''"
           :disabled="authStore.loading || !authStore.users.length"
           @change="handleUserChange"
@@ -73,22 +56,8 @@ onMounted(() => {
             {{ user.displayName }}
           </option>
         </select>
-      </div>
-
-      <nav v-if="menuOpen" class="hamburger-menu" aria-label="Site navigation">
-        <RouterLink to="/" class="hamburger-item" @click="closeMenu">
-          <span aria-hidden="true">🏠</span> Feed
-        </RouterLink>
-        <RouterLink to="/cases/new" class="hamburger-item" @click="closeMenu">
-          <span aria-hidden="true">＋</span> New Case
-        </RouterLink>
-        <RouterLink to="/friends" class="hamburger-item" @click="closeMenu">
-          <span aria-hidden="true">👥</span> Friends
-        </RouterLink>
-        <RouterLink to="/rewards" class="hamburger-item" @click="closeMenu">
-          <span aria-hidden="true">🏆</span> Rewards
-        </RouterLink>
-      </nav>
+        </label>
+      </header>
     </div>
 
     <main class="main-content">
