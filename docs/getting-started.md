@@ -4,7 +4,7 @@
 
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 - [Node.js 18+](https://nodejs.org/) and npm
-- PostgreSQL (or run with in-memory fallback)
+- SQL Server 2022, Azure SQL, or the in-memory fallback
 
 ## Backend Configuration
 
@@ -14,8 +14,28 @@ The backend reads connection settings from:
 2. `backend/appsettings.Development.json`
 3. `backend/appsettings.Development.local.json` (optional, ignored by git)
 
-If `ConnectionStrings:DefaultConnection` is set, the app uses PostgreSQL with EF Core.
+If `ConnectionStrings:DefaultConnection` is set, the app uses SQL Server or Azure SQL with EF Core.
 If it is empty, the app falls back to in-memory storage.
+
+For local SQL Server development, create a repository-root `.env` file:
+
+```dotenv
+MSSQL_SA_PASSWORD=<strong-local-password>
+```
+
+Start SQL Server with `docker compose up -d`, then create the ignored
+`backend/appsettings.Development.local.json` file:
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost,1433;Database=decidr_dev;User Id=sa;******;Encrypt=True;TrustServerCertificate=True"
+  }
+}
+```
+
+For Azure SQL, provide `ConnectionStrings__DefaultConnection` through the
+deployment environment or secret store instead of committing credentials.
 
 ## Running the Backend
 
