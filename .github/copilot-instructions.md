@@ -9,10 +9,10 @@
 - **Type**: Full-stack web application
 - **Backend**: ASP.NET Core 8 (C#, .NET 8 SDK required)
 - **Frontend**: Vue 3, TypeScript, Vite build tool
-- **Database**: PostgreSQL 16 (optional; in-memory fallback available)
+- **Database**: Azure SQL / SQL Server 2022 (optional; in-memory fallback available)
 - **State Management**: Pinia
 - **HTTP Client**: Axios
-- **Main Root Files**: `docker-compose.yml` (PostgreSQL), `.github/` (agents)
+- **Main Root Files**: `docker-compose.yml` (SQL Server), `.github/` (agents)
 
 ---
 
@@ -22,46 +22,46 @@
 Always verify these are installed before running any commands:
 - **.NET 8 SDK**: Required for backend compilation and running
 - **Node.js 18+**: Required for frontend build and npm package management
-- **Docker & Docker Compose** (optional but recommended): Simplest way to spin up PostgreSQL 16 without manual installation
-- **PostgreSQL 16** (optional alternative): Only needed if NOT using Docker; in-memory fallback also available
+- **Docker & Docker Compose** (optional but recommended): Simplest way to run SQL Server 2022 locally
+- **SQL Server 2022** (optional alternative): Only needed if NOT using Docker; Azure SQL and the in-memory fallback are also supported
 
 ### Bootstrap & Setup
 
-#### Database Bootstrap (PostgreSQL via Docker Compose)
-**Recommended approach** — Set up PostgreSQL without manual installation:
+#### Database Bootstrap (SQL Server via Docker Compose)
+**Recommended approach** — Set up SQL Server without manual installation:
 
 1. Create a `.env` file in the repository root with the required password:
 ```bash
-echo "POSTGRES_PASSWORD=your_secure_password_here" > .env
+echo "MSSQL_SA_PASSWORD=your_secure_password_here" > .env
 ```
 
-2. Start the PostgreSQL container:
+2. Start the SQL Server container:
 ```bash
 docker-compose up -d
 ```
-- **Service**: PostgreSQL 16 runs on `localhost:5433` (container port 5432 mapped to 5433)
+- **Service**: SQL Server 2022 runs on `localhost:1433`
 - **Database**: `decidr_dev`
-- **User**: `decidr`
-- **Time to Start**: ~10 seconds
-- **Precondition**: Docker and Docker Compose installed, `.env` file with `POSTGRES_PASSWORD` set
-- **Postcondition**: PostgreSQL container is running; verify with `docker ps`
+- **User**: `sa`
+- **Time to Start**: ~30 seconds
+- **Precondition**: Docker and Docker Compose installed, `.env` file with a strong `MSSQL_SA_PASSWORD` set
+- **Postcondition**: SQL Server is running; verify with `docker compose ps`
 
 3. Configure backend connection string in `backend/appsettings.Development.local.json`:
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5433;Database=decidr_dev;Username=decidr;Password=your_secure_password_here"
+    "DefaultConnection": "<local SQL Server connection string>"
   }
 }
 ```
 - **Notes**: Create this file locally (git-ignored); it overrides `appsettings.Development.json`
 
-4. Stop PostgreSQL when finished:
+4. Stop SQL Server when finished:
 ```bash
 docker-compose down
 ```
 
-**Alternative**: Skip PostgreSQL entirely and let the backend use in-memory storage (see "Database Fallback" below).
+**Alternative**: Configure Azure SQL through `ConnectionStrings__DefaultConnection`, or leave the connection string empty to use in-memory storage.
 
 #### Backend Bootstrap
 ```bash
@@ -114,7 +114,7 @@ dotnet run
 - **Swagger UI**: Available at `http://localhost:5066/swagger` (development only)
 - **Time to Start**: ~5 seconds
 - **Precondition**: .NET 8 SDK installed, `dotnet restore` run
-- **Notes**: On first run, EF Core migrations are applied automatically. If `ConnectionStrings:DefaultConnection` is empty or whitespace, in-memory storage is used with seeded test data. If it is non-empty and PostgreSQL is not running, startup will fail — either start PostgreSQL or override the connection string to empty in `appsettings.Development.local.json`.
+- **Notes**: On first run, EF Core migrations are applied automatically. If `ConnectionStrings:DefaultConnection` is empty or whitespace, in-memory storage is used with seeded test data. If it is non-empty and SQL Server is unavailable, startup will fail.
 
 #### Run Frontend (Development)
 ```bash
@@ -147,33 +147,31 @@ Document test commands here when they are added.
 
 ### Database & Persistence
 
-#### PostgreSQL Setup with docker-compose.yml
+#### SQL Server Setup with docker-compose.yml
 
-The `docker-compose.yml` file at the repository root provides a complete PostgreSQL 16 setup. This is the **recommended way** to get a persistent database running locally without manual installation.
+The `docker-compose.yml` file at the repository root provides a SQL Server 2022 development instance. Azure SQL remains the intended hosted database.
 
 **docker-compose.yml Configuration:**
 ```yaml
 services:
   db:
-    image: postgres:16-alpine           # PostgreSQL 16 lightweight image
+    image: mcr.microsoft.com/mssql/server:2022-latest
     ports:
-      - "5433:5432"                    # Maps container 5432 → localhost 5433
+      - "1433:1433"
     environment:
-      POSTGRES_DB: decidr_dev          # Database name
-      POSTGRES_USER: decidr            # Username
-      POSTGRES_PASSWORD: (from .env)   # Password (required via environment)
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: (from .env)
     volumes:
-      - db_data:/var/lib/postgresql/data  # Persistent volume
-    healthcheck:                         # Ensures DB is ready
-      test: ["CMD-SHELL", "pg_isready -U decidr -d decidr_dev"]
+      - db_data:/var/opt/mssql
 ```
 
 **Quick Start:**
 ```bash
 # Step 1: Set password in .env
-echo "POSTGRES_PASSWORD=your_password" > .env
+echo "MSSQL_SA_PASSWORD=your_password" > .env
 
-# Step 2: Start PostgreSQL
+# Step 2: Start SQL Server
 docker-compose up -d
 
 # Step 3: Verify it's running
@@ -193,8 +191,8 @@ docker-compose down
 ```
 
 **Verification:**
-- Confirm container is running: `docker ps` (should show postgres:16-alpine)
-- Connect directly: `psql -h localhost -p 5433 -U decidr -d decidr_dev`
+- Confirm the container is running: `docker compose ps`
+- Connect with SQL Server tooling at `localhost,1433` using the `sa` account
 - Health status: `docker-compose ps` (Status should show "Up")
 
 #### Database Migrations (EF Core)
@@ -202,8 +200,8 @@ docker-compose down
 cd backend
 dotnet ef database update
 ```
-- **Applies**: Pending EF Core migrations to PostgreSQL
-- **Precondition**: `dotnet-ef` tool installed (`dotnet tool install --global dotnet-ef`), `ConnectionStrings:DefaultConnection` is configured (see Bootstrap) and PostgreSQL is running
+- **Applies**: Pending EF Core migrations to Azure SQL or SQL Server
+- **Precondition**: `dotnet-ef` tool installed (`dotnet tool install --global dotnet-ef`), `ConnectionStrings:DefaultConnection` is configured, and the database is reachable
 - **Automatic**: Migrations run automatically on app startup if not already applied
 - **Notes**: Safe to run multiple times (idempotent)
 
@@ -218,12 +216,12 @@ If Docker is not available or you prefer in-memory storage:
 - Seeded with 5 users and 2 test cases on startup
 
 #### Seed Data
-- **PostgreSQL mode**: Seeded only if database is empty (first migration)
+- **SQL Server mode**: Seeded only if database is empty (first migration)
 - **In-memory mode**: Seeded automatically at startup with same test data
 - **Seeded Users**: Alex, Jordan, Casey, Morgan (Members), Sam (Moderator)
 - **Seeded Cases**: Two debate examples for testing
 
-**Reset Database (PostgreSQL):**
+**Reset Database (local SQL Server):**
 ```bash
 docker-compose down -v          # Remove volume to reset database
 docker-compose up -d            # Start fresh
@@ -252,7 +250,7 @@ If frontend cannot reach backend API:
 - Clear Vite cache: `rm -rf frontend/node_modules/.vite`
 
 #### Database Connection Fallback
-The backend uses `InMemoryCommunityCourtService` **only when `ConnectionStrings:DefaultConnection` is empty or whitespace**. If the connection string is set and PostgreSQL is not running, the app will throw an exception at startup (EF Core runs `db.Database.Migrate()` in Development). To use in-memory storage:
+The backend uses `InMemoryCommunityCourtService` **only when `ConnectionStrings:DefaultConnection` is empty or whitespace**. If the connection string is set and SQL Server is unavailable, the app will throw an exception at startup (EF Core runs `db.Database.Migrate()` in Development). To use in-memory storage:
 - Override `ConnectionStrings:DefaultConnection` to empty in `backend/appsettings.Development.local.json` (see Bootstrap section)
 - Data is reset on app restart; this is by design for development
 
@@ -299,7 +297,7 @@ The backend uses `InMemoryCommunityCourtService` **only when `ConnectionStrings:
 │   ├── data-models.md          # C# ↔ TypeScript model mapping
 │   └── frontend.md             # Frontend structure and UX
 │
-├── docker-compose.yml          # PostgreSQL service for development
+├── docker-compose.yml          # SQL Server service for development
 └── .gitignore                  # Excludes node_modules, appsettings.*.local.json, etc.
 ```
 
@@ -307,11 +305,11 @@ The backend uses `InMemoryCommunityCourtService` **only when `ConnectionStrings:
 
 | File | Purpose |
 |------|---------|
-| `backend/backend.csproj` | NuGet dependencies: EF Core, Npgsql, Swashbuckle |
+| `backend/backend.csproj` | NuGet dependencies: EF Core SQL Server, Swashbuckle |
 | `backend/Program.cs` | Middleware registration, response compression, static file serving |
 | `frontend/package.json` | npm dependencies: Vue, Pinia, Axios, Vite |
 | `frontend/vite.config.ts` | Proxy rules, dev server config (`http://localhost:5066/api`) |
-| `docker-compose.yml` | PostgreSQL 16 configuration (port 5433) |
+| `docker-compose.yml` | SQL Server 2022 configuration (port 1433) |
 
 ### Validation & CI Checks
 
@@ -360,7 +358,7 @@ curl -X GET http://localhost:5066/api/cases
 
 **Services** contain business logic:
 - `ICommunityCourtService` interface defines operations
-- `EfCoreCourtService` implements with EF Core + PostgreSQL
+- `EfCoreCourtService` implements with EF Core + Azure SQL / SQL Server
 - `InMemoryCommunityCourtService` provides fallback for development
 
 **Database** (EF Core):
@@ -396,7 +394,7 @@ curl -X GET http://localhost:5066/api/cases
 ### Backend
 - **Framework**: .NET 8.0
 - **Microsoft.EntityFrameworkCore**: 8.0.27
-- **Npgsql.EntityFrameworkCore.PostgreSQL**: 8.0.11 (PostgreSQL support)
+- **Microsoft.EntityFrameworkCore.SqlServer**: 8.0.27
 - **Swashbuckle.AspNetCore**: 6.6.2 (Swagger/OpenAPI)
 
 ### Frontend
@@ -408,8 +406,9 @@ curl -X GET http://localhost:5066/api/cases
 - **Axios**: 1.16.1
 
 ### External Services
-- **PostgreSQL**: 16 (optional; in-memory fallback works)
-- **Docker**: (optional; only for running PostgreSQL in container)
+- **Azure SQL**: Hosted relational database
+- **SQL Server**: 2022 container for local development (optional; in-memory fallback works)
+- **Docker**: Optional; only needed for the local SQL Server container
 
 ---
 
@@ -436,4 +435,3 @@ When working on Decidr:
 - **Search the codebase only if**: The information here is incomplete, contradicts what you find, or doesn't address your specific task
 - **Always validate changes** by running the full build and startup sequence after making code changes
 - **For new patterns** not documented here, search `docs/` and the relevant source files to understand design intent before implementing
-

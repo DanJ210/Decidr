@@ -17,11 +17,11 @@ namespace backend.Data.Migrations
                 name: "RewardBadges",
                 columns: table => new
                 {
-                    Code = table.Column<string>(type: "text", nullable: false),
-                    Label = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
-                    IconKey = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    Tier = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    Description = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: false)
+                    Code = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    Label = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
+                    IconKey = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    Tier = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -32,10 +32,10 @@ namespace backend.Data.Migrations
                 name: "Users",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    UserName = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    DisplayName = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
-                    Role = table.Column<string>(type: "text", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    UserName = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    DisplayName = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
+                    Role = table.Column<string>(type: "nvarchar(max)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -46,22 +46,22 @@ namespace backend.Data.Migrations
                 name: "Cases",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    Title = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
-                    Category = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    Summary = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: false),
-                    SideAUserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    SideAUserName = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    SideAClaim = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: false),
-                    SideAPostedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    SideBUserId = table.Column<Guid>(type: "uuid", nullable: true),
-                    SideBUserName = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
-                    SideBClaim = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),
-                    SideBPostedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    InvitedUserId = table.Column<Guid>(type: "uuid", nullable: true),
-                    Status = table.Column<string>(type: "text", nullable: false),
-                    WinnerSide = table.Column<string>(type: "text", nullable: true),
-                    CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Title = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
+                    Category = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    Summary = table.Column<string>(type: "nvarchar(1024)", maxLength: 1024, nullable: false),
+                    SideAUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SideAUserName = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    SideAClaim = table.Column<string>(type: "nvarchar(2048)", maxLength: 2048, nullable: false),
+                    SideAPostedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    SideBUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    SideBUserName = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
+                    SideBClaim = table.Column<string>(type: "nvarchar(2048)", maxLength: 2048, nullable: true),
+                    SideBPostedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    InvitedUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    Status = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    WinnerSide = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -90,11 +90,11 @@ namespace backend.Data.Migrations
                 name: "FriendRequests",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    FromUserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    ToUserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Status = table.Column<string>(type: "text", nullable: false),
-                    CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    FromUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ToUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -117,13 +117,13 @@ namespace backend.Data.Migrations
                 name: "UserRewards",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    BadgeCode = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    SourceType = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    SourceId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Reason = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: false),
-                    AwardedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    BadgeCode = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    SourceType = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    SourceId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Reason = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: false),
+                    AwardedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -146,12 +146,12 @@ namespace backend.Data.Migrations
                 name: "CaseComments",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    CaseId = table.Column<Guid>(type: "uuid", nullable: false),
-                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    UserName = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    Message = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: false),
-                    CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CaseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    UserName = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    Message = table.Column<string>(type: "nvarchar(1024)", maxLength: 1024, nullable: false),
+                    CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -174,17 +174,17 @@ namespace backend.Data.Migrations
                 name: "CaseEvidence",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    CaseId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Side = table.Column<string>(type: "text", nullable: false),
-                    AddedByUserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    AddedByUserName = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    Type = table.Column<string>(type: "text", nullable: false),
-                    Title = table.Column<string>(type: "character varying(160)", maxLength: 160, nullable: false),
-                    ResourceUrl = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: false),
-                    MimeType = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CaseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Side = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    AddedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    AddedByUserName = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    Type = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Title = table.Column<string>(type: "nvarchar(160)", maxLength: 160, nullable: false),
+                    ResourceUrl = table.Column<string>(type: "nvarchar(2048)", maxLength: 2048, nullable: false),
+                    MimeType = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
                     SizeBytes = table.Column<long>(type: "bigint", nullable: false),
-                    CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -207,11 +207,11 @@ namespace backend.Data.Migrations
                 name: "CaseVotes",
                 columns: table => new
                 {
-                    CaseId = table.Column<Guid>(type: "uuid", nullable: false),
-                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Side = table.Column<string>(type: "text", nullable: false),
-                    CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    ChangeCount = table.Column<int>(type: "integer", nullable: false)
+                    CaseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Side = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ChangeCount = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {

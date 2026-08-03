@@ -43,7 +43,7 @@ Decidr is a full-stack single-page application (SPA). The ASP.NET Core backend e
 │  │  DbSet<FriendRequestEntity>          │  │
 │  └──────────────────────────────────────┘  │
 │                                            │
-│  PostgreSQL via Npgsql + EF Core Migrations│
+│  Azure SQL via EF Core SQL Server provider │
 │                                            │
 │  Static files → wwwroot (Vue build)        │
 └────────────────────────────────────────────┘
@@ -52,7 +52,7 @@ Decidr is a full-stack single-page application (SPA). The ASP.NET Core backend e
 ## Key Design Decisions
 
 ### Persistence Strategy
-By default, the backend uses `EfCoreCourtService` with `DecidirDbContext` and PostgreSQL (via Npgsql). On startup, migrations are applied and development seed data is inserted when the database is empty.
+When a connection string is configured, the backend uses `EfCoreCourtService` with `DecidirDbContext` and Azure SQL or SQL Server. In development, migrations are applied and seed data is inserted when the database is empty.
 
 If no `ConnectionStrings:DefaultConnection` is configured, the app falls back to `InMemoryCommunityCourtService` for local/demo execution.
 
