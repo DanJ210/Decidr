@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { ArrowLeft, ChevronDown, ExternalLink, FileText, MessageCircle, Trophy } from '@lucide/vue'
 import { useCaseDetail } from '../composables/useCaseDetail'
 
 const {
@@ -42,6 +44,20 @@ const {
   submitComment,
 } = useCaseDetail()
 
+const sideAPercentage = computed(() => {
+  if (!caseItem.value || totalVotes.value === 0) return 50
+  return Math.round((caseItem.value.verdict.votesForSideA / totalVotes.value) * 100)
+})
+
+function formatTimestamp(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(value))
+}
+
 function formatEvidenceSize(sizeBytes: number | null) {
   if (!sizeBytes) {
     return ''
@@ -62,16 +78,29 @@ function formatEvidenceSize(sizeBytes: number | null) {
     <p v-else-if="courtStore.error" class="notice error">{{ courtStore.error }}</p>
 
     <article v-else-if="caseItem" class="detail-shell">
-      <header>
-        <p class="kicker">{{ caseItem.category }}</p>
+      <RouterLink to="/" class="detail-back-link"><ArrowLeft :size="17" /> Community cases</RouterLink>
+
+      <header class="detail-header">
+        <div class="detail-header-meta">
+          <span class="pill">{{ caseItem.category }}</span>
+          <span class="status-dot-label" :class="caseItem.status.toLowerCase()">
+            <span aria-hidden="true"></span>{{ caseItem.status }}
+          </span>
+        </div>
         <h1>{{ caseItem.title }}</h1>
-        <p>{{ caseItem.summary }}</p>
+        <p class="detail-summary">{{ caseItem.summary }}</p>
+        <div class="detail-participants">
+          <span><i class="participant-dot side-a-dot"></i>@{{ caseItem.sideA.userName }}</span>
+          <span v-if="caseItem.sideB"><i class="participant-dot side-b-dot"></i>@{{ caseItem.sideB.userName }}</span>
+          <span v-else><i class="participant-dot pending-dot"></i>Awaiting Side B</span>
+        </div>
       </header>
 
       <!-- Pending: invitation banner for the invited user -->
-      <section v-if="caseItem.status === 'Pending'" class="verdict">
+      <section v-if="caseItem.status === 'Pending'" class="detail-section invitation-detail">
         <div v-if="isInvited">
-          <h2>You've Been Invited!</h2>
+          <p class="eyebrow">Your response is needed</p>
+          <h2>Take Side B</h2>
           <p>
             <strong>@{{ inviterName }}</strong> has invited you to argue the opposing side of this case.
             Write your response below to make this case go live.
@@ -111,7 +140,8 @@ function formatEvidenceSize(sizeBytes: number | null) {
           </div>
         </div>
         <div v-else>
-          <h2>Awaiting Response</h2>
+          <p class="eyebrow">Case pending</p>
+          <h2>Awaiting a response</h2>
           <p>
             <strong>@{{ caseItem.sideA.userName }}</strong> has started this case and is waiting for
             the invited user to write their side before it goes live.
@@ -131,25 +161,93 @@ function formatEvidenceSize(sizeBytes: number | null) {
 
       <!-- Open / Closed: full case view -->
       <template v-else>
-        <div class="arguments">
-          <section>
-            <h2>Side A · {{ caseItem.sideA.userName }}</h2>
-            <p>{{ caseItem.sideA.claim }}</p>
+        <div class="argument-matchup" aria-label="Case arguments">
+          <section class="argument-panel argument-side-a">
+            <header>
+              <span class="argument-side-label">Side A</span>
+              <strong>@{{ caseItem.sideA.userName }}</strong>
+            </header>
+            <blockquote>{{ caseItem.sideA.claim }}</blockquote>
           </section>
-          <section>
-            <h2>Side B · {{ caseItem.sideB?.userName }}</h2>
-            <p>{{ caseItem.sideB?.claim }}</p>
+          <section class="argument-panel argument-side-b">
+            <header>
+              <span class="argument-side-label">Side B</span>
+              <strong>@{{ caseItem.sideB?.userName }}</strong>
+            </header>
+            <blockquote>{{ caseItem.sideB?.claim }}</blockquote>
           </section>
         </div>
 
-        <section class="verdict evidence-section">
-          <h2>Review Side Evidence</h2>
-          <p class="status-text">Review each side's supporting materials before you cast a vote.</p>
+        <section class="detail-section verdict-panel">
+          <header class="section-heading">
+            <span class="section-icon"><Trophy :size="19" /></span>
+            <div>
+              <p class="eyebrow">{{ totalVotes }} {{ totalVotes === 1 ? 'vote' : 'votes' }}</p>
+              <h2>Community verdict</h2>
+            </div>
+            <span v-if="caseItem.winnerSide" class="winner-label">Side {{ caseItem.winnerSide }} won</span>
+          </header>
 
-          <p v-if="evidenceLoading" class="notice">Loading side evidence...</p>
-          <p v-else-if="evidenceError" class="notice error">{{ evidenceError }}</p>
+          <div class="verdict-tallies">
+            <span><i class="participant-dot side-a-dot"></i>Side A <strong>{{ caseItem.verdict.votesForSideA }}</strong></span>
+            <span><strong>{{ caseItem.verdict.votesForSideB }}</strong> Side B<i class="participant-dot side-b-dot"></i></span>
+          </div>
+          <div
+            class="vote-meter detail-vote-meter"
+            :class="{ empty: totalVotes === 0 }"
+            role="img"
+            :aria-label="totalVotes ? `${sideAPercentage} percent Side A and ${100 - sideAPercentage} percent Side B` : 'No votes yet'"
+          >
+            <span class="vote-meter-a" :style="{ width: `${sideAPercentage}%` }"></span>
+            <span class="vote-meter-b"></span>
+          </div>
+          <p v-if="totalVotes === 0" class="empty-verdict">No votes yet. The first vote sets the pace.</p>
 
-          <div v-else class="evidence-grid">
+          <div class="vote-action-bar desktop-vote-actions">
+            <button
+              type="button"
+              class="vote-button vote-side-a"
+              :disabled="!canVoteSideA || courtStore.mutating"
+              @click="vote('A')"
+            >
+              <span>Vote</span><strong>Side A</strong>
+            </button>
+            <button
+              type="button"
+              class="vote-button vote-side-b"
+              :disabled="!canVoteSideB || courtStore.mutating"
+              @click="vote('B')"
+            >
+              <span>Vote</span><strong>Side B</strong>
+            </button>
+          </div>
+
+          <p v-if="votePermissionMessage" class="status-text">{{ votePermissionMessage }}</p>
+          <div v-if="canCloseCase" class="case-admin-actions">
+            <button type="button" class="text-button danger-text" :disabled="courtStore.mutating" @click="closeCase">
+              Close voting and declare a winner
+            </button>
+          </div>
+          <p v-else-if="closePermissionMessage" class="status-text close-message">{{ closePermissionMessage }}</p>
+        </section>
+
+        <section class="detail-section evidence-section">
+          <details class="section-disclosure">
+            <summary>
+              <span class="section-icon"><FileText :size="19" /></span>
+              <span class="disclosure-title">
+                <strong>Review evidence</strong>
+                <small>{{ sideAEvidence.length + sideBEvidence.length }} supporting {{ sideAEvidence.length + sideBEvidence.length === 1 ? 'item' : 'items' }}</small>
+              </span>
+              <ChevronDown :size="19" class="disclosure-chevron" aria-hidden="true" />
+            </summary>
+            <div class="disclosure-content">
+              <p class="status-text">Review each side's supporting materials before you cast a vote.</p>
+
+              <p v-if="evidenceLoading" class="notice">Loading side evidence...</p>
+              <p v-else-if="evidenceError" class="notice error">{{ evidenceError }}</p>
+
+              <div v-else class="evidence-grid">
             <section class="evidence-column">
               <h3>
                 Side A · {{ caseItem.sideA.userName }}
@@ -178,6 +276,7 @@ function formatEvidenceSize(sizeBytes: number | null) {
                   />
                   <a :href="item.resourceUrl" target="_blank" rel="noopener noreferrer" class="case-link">
                     {{ item.type === 'Link' ? 'Open source link' : item.type === 'Image' ? 'Open image' : 'Open document' }}
+                    <ExternalLink :size="14" aria-hidden="true" />
                   </a>
                 </li>
               </ul>
@@ -185,46 +284,48 @@ function formatEvidenceSize(sizeBytes: number | null) {
               <p v-if="sideAEvidenceAtLimit" class="status-text">
                 Side A reached the maximum of {{ maxEvidenceItemsPerSide }} evidence items.
               </p>
-              <div v-if="canAddEvidenceSideA" class="evidence-add-panel">
-                <h4>Add Evidence to Side A</h4>
-                <label>
-                  Link Title
-                  <input v-model="evidenceDrafts.A.linkTitle" placeholder="Source title" />
-                </label>
-                <label>
-                  Link URL
-                  <input v-model="evidenceDrafts.A.linkUrl" placeholder="https://example.com/source" />
-                </label>
-                <div class="action-bar">
-                  <button
-                    type="button"
-                    class="action-btn"
-                    :disabled="isEvidenceLinkSubmitting('A') || !evidenceDrafts.A.linkTitle.trim() || !evidenceDrafts.A.linkUrl.trim()"
-                    @click="submitEvidenceLink('A')"
-                  >
-                    Add Link
-                  </button>
-                </div>
+              <details v-if="canAddEvidenceSideA" class="evidence-add-panel">
+                <summary>Add evidence to Side A</summary>
+                <div class="evidence-add-fields">
+                  <label>
+                    Link Title
+                    <input v-model="evidenceDrafts.A.linkTitle" placeholder="Source title" />
+                  </label>
+                  <label>
+                    Link URL
+                    <input v-model="evidenceDrafts.A.linkUrl" placeholder="https://example.com/source" />
+                  </label>
+                  <div class="action-bar">
+                    <button
+                      type="button"
+                      class="action-btn"
+                      :disabled="isEvidenceLinkSubmitting('A') || !evidenceDrafts.A.linkTitle.trim() || !evidenceDrafts.A.linkUrl.trim()"
+                      @click="submitEvidenceLink('A')"
+                    >
+                      Add Link
+                    </button>
+                  </div>
 
-                <label>
-                  File Title (optional)
-                  <input v-model="evidenceDrafts.A.fileTitle" placeholder="Defaults to filename" />
-                </label>
-                <label>
-                  Upload File
-                  <input :accept="evidenceFileAccept" type="file" @change="setEvidenceFile('A', $event)" />
-                </label>
-                <div class="action-bar">
-                  <button
-                    type="button"
-                    class="action-btn"
-                    :disabled="isEvidenceFileSubmitting('A') || !evidenceDrafts.A.file"
-                    @click="submitEvidenceFile('A')"
-                  >
+                  <label>
+                    File Title (optional)
+                    <input v-model="evidenceDrafts.A.fileTitle" placeholder="Defaults to filename" />
+                  </label>
+                  <label>
                     Upload File
-                  </button>
+                    <input :accept="evidenceFileAccept" type="file" @change="setEvidenceFile('A', $event)" />
+                  </label>
+                  <div class="action-bar">
+                    <button
+                      type="button"
+                      class="action-btn"
+                      :disabled="isEvidenceFileSubmitting('A') || !evidenceDrafts.A.file"
+                      @click="submitEvidenceFile('A')"
+                    >
+                      Upload File
+                    </button>
+                  </div>
                 </div>
-              </div>
+              </details>
             </section>
 
             <section class="evidence-column">
@@ -255,6 +356,7 @@ function formatEvidenceSize(sizeBytes: number | null) {
                   />
                   <a :href="item.resourceUrl" target="_blank" rel="noopener noreferrer" class="case-link">
                     {{ item.type === 'Link' ? 'Open source link' : item.type === 'Image' ? 'Open image' : 'Open document' }}
+                    <ExternalLink :size="14" aria-hidden="true" />
                   </a>
                 </li>
               </ul>
@@ -262,133 +364,121 @@ function formatEvidenceSize(sizeBytes: number | null) {
               <p v-if="sideBEvidenceAtLimit" class="status-text">
                 Side B reached the maximum of {{ maxEvidenceItemsPerSide }} evidence items.
               </p>
-              <div v-if="canAddEvidenceSideB" class="evidence-add-panel">
-                <h4>Add Evidence to Side B</h4>
-                <label>
-                  Link Title
-                  <input v-model="evidenceDrafts.B.linkTitle" placeholder="Source title" />
-                </label>
-                <label>
-                  Link URL
-                  <input v-model="evidenceDrafts.B.linkUrl" placeholder="https://example.com/source" />
-                </label>
-                <div class="action-bar">
-                  <button
-                    type="button"
-                    class="action-btn"
-                    :disabled="isEvidenceLinkSubmitting('B') || !evidenceDrafts.B.linkTitle.trim() || !evidenceDrafts.B.linkUrl.trim()"
-                    @click="submitEvidenceLink('B')"
-                  >
-                    Add Link
-                  </button>
-                </div>
+              <details v-if="canAddEvidenceSideB" class="evidence-add-panel">
+                <summary>Add evidence to Side B</summary>
+                <div class="evidence-add-fields">
+                  <label>
+                    Link Title
+                    <input v-model="evidenceDrafts.B.linkTitle" placeholder="Source title" />
+                  </label>
+                  <label>
+                    Link URL
+                    <input v-model="evidenceDrafts.B.linkUrl" placeholder="https://example.com/source" />
+                  </label>
+                  <div class="action-bar">
+                    <button
+                      type="button"
+                      class="action-btn"
+                      :disabled="isEvidenceLinkSubmitting('B') || !evidenceDrafts.B.linkTitle.trim() || !evidenceDrafts.B.linkUrl.trim()"
+                      @click="submitEvidenceLink('B')"
+                    >
+                      Add Link
+                    </button>
+                  </div>
 
-                <label>
-                  File Title (optional)
-                  <input v-model="evidenceDrafts.B.fileTitle" placeholder="Defaults to filename" />
-                </label>
-                <label>
-                  Upload File
-                  <input :accept="evidenceFileAccept" type="file" @change="setEvidenceFile('B', $event)" />
-                </label>
-                <div class="action-bar">
-                  <button
-                    type="button"
-                    class="action-btn"
-                    :disabled="isEvidenceFileSubmitting('B') || !evidenceDrafts.B.file"
-                    @click="submitEvidenceFile('B')"
-                  >
+                  <label>
+                    File Title (optional)
+                    <input v-model="evidenceDrafts.B.fileTitle" placeholder="Defaults to filename" />
+                  </label>
+                  <label>
                     Upload File
-                  </button>
+                    <input :accept="evidenceFileAccept" type="file" @change="setEvidenceFile('B', $event)" />
+                  </label>
+                  <div class="action-bar">
+                    <button
+                      type="button"
+                      class="action-btn"
+                      :disabled="isEvidenceFileSubmitting('B') || !evidenceDrafts.B.file"
+                      @click="submitEvidenceFile('B')"
+                    >
+                      Upload File
+                    </button>
+                  </div>
                 </div>
-              </div>
+              </details>
             </section>
-          </div>
+              </div>
+            </div>
+          </details>
         </section>
 
-        <section class="verdict">
-          <h2>Community Verdict</h2>
-          <p>Total votes: {{ totalVotes }}</p>
-          <ul>
-            <li>Side A: {{ caseItem.verdict.votesForSideA }}</li>
-            <li>Side B: {{ caseItem.verdict.votesForSideB }}</li>
-          </ul>
-
-          <p class="status-text">
-            Status: <strong>{{ caseItem.status }}</strong>
-            <span v-if="caseItem.winnerSide"> · Winner: Side {{ caseItem.winnerSide }}</span>
-          </p>
-
-          <div class="action-bar">
-            <button
-              type="button"
-              class="action-btn"
-              :disabled="!canVoteSideA || courtStore.mutating"
-              @click="vote('A')"
-            >
-              Vote Side A
-            </button>
-            <button
-              type="button"
-              class="action-btn"
-              :disabled="!canVoteSideB || courtStore.mutating"
-              @click="vote('B')"
-            >
-              Vote Side B
-            </button>
-            <button
-              type="button"
-              class="action-btn danger"
-              :disabled="!canCloseCase || courtStore.mutating"
-              @click="closeCase"
-            >
-              Close Case
-            </button>
-          </div>
-
-          <p v-if="votePermissionMessage" class="status-text">{{ votePermissionMessage }}</p>
-          <p v-if="closePermissionMessage" class="status-text">{{ closePermissionMessage }}</p>
-        </section>
       </template>
 
-      <section class="verdict">
-        <h2>Case Comments</h2>
-        <p class="status-text">One shared comment pool for everyone, regardless of which side they voted for.</p>
+      <section class="detail-section comment-section">
+        <header class="section-heading">
+          <span class="section-icon neutral-icon"><MessageCircle :size="19" /></span>
+          <div>
+            <p class="eyebrow">{{ comments.length }} {{ comments.length === 1 ? 'reply' : 'replies' }}</p>
+            <h2>Discussion</h2>
+          </div>
+        </header>
 
         <p v-if="commentsLoading" class="notice">Loading comments...</p>
         <p v-else-if="commentsError" class="notice error">{{ commentsError }}</p>
         <p v-else-if="comments.length === 0" class="status-text">Be the first to comment on this case.</p>
-        <ul v-else>
-          <li v-for="comment in comments" :key="comment.id">
-            <strong>@{{ comment.userName }}</strong> · {{ new Date(comment.createdAtUtc).toLocaleString() }}
+        <ul v-else class="comment-list">
+          <li v-for="comment in comments" :key="comment.id" class="comment-item">
+            <div class="comment-meta">
+              <strong>@{{ comment.userName }}</strong>
+              <time :datetime="comment.createdAtUtc">{{ formatTimestamp(comment.createdAtUtc) }}</time>
+            </div>
             <p>{{ comment.message }}</p>
           </li>
         </ul>
 
-        <label>
-          Add a Comment
+        <form class="comment-composer" @submit.prevent="submitComment">
+          <label for="case-comment">Add a comment</label>
           <textarea
+            id="case-comment"
             v-model="commentMessage"
             rows="3"
             placeholder="Share your thoughts on this case..."
             maxlength="1024"
             :disabled="!canComment || commentsSubmitting"
           />
-        </label>
-        <p v-if="!canComment" class="status-text">Select an active user to join the discussion.</p>
-        <div class="action-bar">
           <button
-            type="button"
+            type="submit"
             class="action-btn"
             :disabled="!canComment || !commentMessage.trim() || commentsSubmitting"
-            @click="submitComment"
           >
             Post Comment
           </button>
-        </div>
+          <p v-if="!canComment" class="status-text">Select an active user to join the discussion.</p>
+        </form>
       </section>
 
-      <RouterLink to="/" class="case-link">Back to Cases</RouterLink>
+      <div
+        v-if="caseItem.status === 'Open' && (canVoteSideA || canVoteSideB)"
+        class="mobile-vote-tray"
+        aria-label="Vote on this case"
+      >
+        <button
+          type="button"
+          class="vote-button vote-side-a"
+          :disabled="!canVoteSideA || courtStore.mutating"
+          @click="vote('A')"
+        >
+          Vote <strong>A</strong>
+        </button>
+        <button
+          type="button"
+          class="vote-button vote-side-b"
+          :disabled="!canVoteSideB || courtStore.mutating"
+          @click="vote('B')"
+        >
+          Vote <strong>B</strong>
+        </button>
+      </div>
     </article>
   </section>
 </template>
