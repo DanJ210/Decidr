@@ -155,6 +155,7 @@ public class DecidirDbContext : DbContext
         modelBuilder.Entity<RewardBadgeEntity>(e =>
         {
             e.HasKey(b => b.Code);
+            e.Property(b => b.Code).HasMaxLength(64);
             e.Property(b => b.Label).IsRequired().HasMaxLength(128);
             e.Property(b => b.IconKey).IsRequired().HasMaxLength(64);
             e.Property(b => b.Tier).IsRequired().HasMaxLength(32);

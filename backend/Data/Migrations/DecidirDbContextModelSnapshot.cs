@@ -244,7 +244,8 @@ namespace backend.Data.Migrations
             modelBuilder.Entity("backend.Data.Entities.RewardBadgeEntity", b =>
                 {
                     b.Property<string>("Code")
-                        .HasColumnType("nvarchar(450)");
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<string>("Description")
                         .IsRequired()

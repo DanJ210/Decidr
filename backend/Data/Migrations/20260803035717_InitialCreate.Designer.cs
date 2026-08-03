@@ -12,7 +12,7 @@ using backend.Data;
 namespace backend.Data.Migrations
 {
     [DbContext(typeof(DecidirDbContext))]
-    [Migration("20260803035328_InitialCreate")]
+    [Migration("20260803035717_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -247,7 +247,8 @@ namespace backend.Data.Migrations
             modelBuilder.Entity("backend.Data.Entities.RewardBadgeEntity", b =>
                 {
                     b.Property<string>("Code")
-                        .HasColumnType("nvarchar(450)");
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<string>("Description")
                         .IsRequired()

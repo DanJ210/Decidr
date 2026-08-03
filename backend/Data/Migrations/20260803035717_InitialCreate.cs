@@ -17,7 +17,7 @@ namespace backend.Data.Migrations
                 name: "RewardBadges",
                 columns: table => new
                 {
-                    Code = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
                     Label = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
                     IconKey = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
                     Tier = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
