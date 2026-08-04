@@ -98,6 +98,14 @@ dotnet run
 
 The app is then fully accessible at the backend URL.
 
+## Run Tests
+
+Run the backend authentication-boundary regression tests from the repository root:
+
+```bash
+dotnet test backend.Tests/backend.Tests.csproj
+```
+
 ## Seed Data
 
 On first run against an empty database, EF Core migrations are applied and the app seeds two debate cases and five users (four Members, one Moderator).

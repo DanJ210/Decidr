@@ -76,7 +76,11 @@ export async function getAccessToken(): Promise<string | null> {
   try {
     return (await msalInstance.acquireTokenSilent(request)).accessToken
   } catch {
-    return null
+    try {
+      return (await msalInstance.acquireTokenPopup({ scopes: [apiScope!] })).accessToken
+    } catch {
+      return null
+    }
   }
 }
 
