@@ -7,7 +7,7 @@ The frontend is a Vue 3 SPA built with Vite and TypeScript. Source lives in `fro
 ```
 frontend/src/
 ├── main.ts              # App bootstrap (Vue, Pinia, Router)
-├── App.vue              # Root component (includes temporary Active User picker)
+├── App.vue              # Root component (Entra sign-in or Development user picker)
 ├── types.ts             # Shared TypeScript types (mirrors backend models)
 ├── style.css            # Global styles
 ├── router/
@@ -15,7 +15,7 @@ frontend/src/
 ├── services/
 │   └── api.ts           # Axios-based API client functions
 ├── stores/
-│   ├── auth.ts          # Active user selection (Pinia store)
+│   ├── auth.ts          # Entra session or Development selected-user state
 │   ├── court.ts         # Case list and case detail state (Pinia store)
 │   ├── friends.ts       # Friends, friend requests, and invitations (Pinia store)
 │   └── rewards.ts       # User reward badges (Pinia store)
@@ -190,12 +190,15 @@ Defined in `router/index.ts`. Uses `createWebHistory` (HTML5 mode).
 ## Pinia Stores
 
 ### `auth` — `stores/auth.ts`
-Manages user identity. Persists `selectedUserId` to `localStorage` under the key `decidr-selected-user-id`.
+Manages the Entra session when configured, or the Development selected-user
+fallback when Entra settings are absent. The fallback persists `selectedUserId`
+to `localStorage` under the key `decidr-selected-user-id`.
 
 | State | Type | Description |
 |-------|------|-------------|
-| `users` | `AppUser[]` | All users loaded from the API |
-| `selectedUserId` | `string \| null` | Currently acting user |
+| `users` | `AppUser[]` | Current Entra profile, or selectable Development users |
+| `selectedUserId` | `string \| null` | Current local profile ID |
+| `isAuthenticated` | `boolean` | Whether an Entra account is active |
 | `loading` | `boolean` | API fetch in progress |
 | `error` | `string \| null` | Last error message |
 
@@ -205,7 +208,9 @@ Manages user identity. Persists `selectedUserId` to `localStorage` under the key
 
 | Action | Description |
 |--------|-------------|
-| `loadUsers()` | Fetches all users; restores cached selection or defaults to first user |
+| `loadUsers()` | Loads `/api/auth/me` for Entra sessions, or selectable users in Development |
+| `login()` | Starts the MSAL interactive sign-in flow when Entra is configured |
+| `logout()` | Ends the MSAL session and clears the local profile |
 | `setSelectedUser(userId)` | Updates selection and persists to `localStorage` |
 
 ---
@@ -226,10 +231,10 @@ Manages the case list and the currently viewed case.
 | `loadCases()` | Fetches all public cases |
 | `loadCase(id)` | Fetches a single case by ID (any status) |
 | `createCase(request)` | Creates a new `Pending` case; prepends it to `cases` |
-| `vote(caseId, userId, side)` | Casts a vote; updates `cases` and `selectedCase` |
-| `closeCase(caseId, actorUserId)` | Closes a case; updates `cases` and `selectedCase` |
-| `acceptInvitation(caseId, userId, claim)` | Accepts a case invitation; case moves to `Open` |
-| `declineInvitation(caseId, userId)` | Declines an invitation; removes case from local state |
+| `vote(caseId, side)` | Casts a vote; updates `cases` and `selectedCase` |
+| `closeCase(caseId)` | Closes a case; updates `cases` and `selectedCase` |
+| `acceptInvitation(caseId, claim)` | Accepts a case invitation; case moves to `Open` |
+| `declineInvitation(caseId)` | Declines an invitation; removes case from local state |
 
 ---
 
@@ -252,9 +257,9 @@ Manages the social graph: friends list, incoming friend requests, and pending ca
 | `loadFriendRequests(userId)` | Fetches incoming pending friend requests |
 | `loadOutgoingRequests(userId)` | Fetches sent pending friend requests |
 | `loadInvitations(userId)` | Fetches pending case invitations for the user |
-| `sendRequest(fromUserId, toUserId)` | Sends a friend request |
-| `respondToRequest(requestId, actorUserId, accept)` | Accepts or declines a friend request; removes it from `incomingRequests` |
-| `removeFriend(actorUserId, friendUserId)` | Removes an existing friend connection |
+| `sendRequest(toUserId)` | Sends a friend request from the authenticated active user |
+| `respondToRequest(requestId, accept)` | Accepts or declines a friend request; removes it from `incomingRequests` |
+| `removeFriend(friendUserId)` | Removes an existing friend connection for the authenticated active user |
 | `clearAll()` | Clears all state (used on user switch) |
 
 ---
@@ -286,22 +291,22 @@ Defined in `services/api.ts`. All functions use a shared Axios instance with `ba
 | `fetchCaseEvidence(caseId)` | `GET` | `/cases/{id}/evidence` | Get side-grouped evidence collections |
 | `createCase(request)` | `POST` | `/cases` | Create a new `Pending` case (friend connection required for invite) |
 | `castVote(caseId, request)` | `POST` | `/cases/{id}/vote` | Cast a vote |
-| `closeCase(caseId, request)` | `POST` | `/cases/{id}/close` | Close a case |
+| `closeCase(caseId)` | `POST` | `/cases/{id}/close` | Close a case |
 | `fetchCaseComments(caseId)` | `GET` | `/cases/{id}/comments` | Get the shared case comment pool |
 | `postCaseComment(caseId, request)` | `POST` | `/cases/{id}/comments` | Add a case-level comment |
 | `postCaseEvidenceLink(caseId, request)` | `POST` | `/cases/{id}/evidence/link` | Add link evidence to one side |
 | `uploadCaseEvidenceFile(caseId, request)` | `POST` | `/cases/{id}/evidence/upload` | Upload document/image evidence to one side |
 | `acceptCaseInvitation(caseId, request)` | `POST` | `/cases/{id}/accept` | Accept invitation and provide Side B claim |
-| `declineCaseInvitation(caseId, userId)` | `POST` | `/cases/{id}/decline` | Decline an invitation |
+| `declineCaseInvitation(caseId)` | `POST` | `/cases/{id}/decline` | Decline an invitation |
 | `fetchUsers()` | `GET` | `/users` | Get all users |
 | `fetchUserRewards(userId)` | `GET` | `/users/{id}/rewards` | Get user rewards |
 | `fetchFriends(userId)` | `GET` | `/users/{id}/friends` | Get user's friends |
 | `fetchFriendRequests(userId)` | `GET` | `/users/{id}/friend-requests` | Get incoming friend requests |
 | `fetchOutgoingFriendRequests(userId)` | `GET` | `/users/{id}/sent-requests` | Get sent pending friend requests |
 | `fetchInvitations(userId)` | `GET` | `/users/{id}/invitations` | Get pending case invitations |
-| `sendFriendRequest(dto)` | `POST` | `/friends/request` | Send a friend request |
-| `respondToFriendRequest(id, dto, accept)` | `POST` | `/friends/{id}/accept` or `.../decline` | Accept or decline a friend request |
-| `removeFriend(dto)` | `POST` | `/friends/remove` | Remove an accepted friend connection |
+| `sendFriendRequest(toUserId)` | `POST` | `/friends/request` | Send a friend request from the authenticated user |
+| `respondToFriendRequest(id, accept)` | `POST` | `/friends/{id}/accept` or `.../decline` | Accept or decline a friend request as the authenticated user |
+| `removeFriend(friendUserId)` | `POST` | `/friends/remove` | Remove an accepted friend connection as the authenticated user |
 
 ---
 

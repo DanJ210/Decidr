@@ -89,8 +89,21 @@ Badges are awarded automatically at key lifecycle events:
 
 Duplicate awards are prevented: a `(userId, badgeCode, sourceType, sourceId)` combination is only awarded once.
 
-### User Identity (Simplified Auth)
-There is no authentication system. The frontend stores a `selectedUserId` in `localStorage`. All actions (voting, closing cases, creating cases, sending friend requests) pass a `userId` in the request body. The backend validates that the user exists and has the appropriate role or participation.
+### User Identity and Authentication
+In configured environments, the Vue SPA authenticates with Microsoft Entra External
+ID through MSAL and sends bearer tokens with API requests. ASP.NET Core JWT bearer
+validation checks the token authority and audience. `IAuthenticatedUserService`
+maps the token's `iss` and `sub` claims to the local `UserEntity`; a first sign-in
+creates a local Member profile.
+
+Write endpoints resolve the acting user from the authenticated claims. Actor IDs
+are not accepted from request bodies. Request IDs remain only when they identify a
+target user, case, friend request, or other resource. User-scoped private reads
+also require the authenticated local user to match the route ID.
+
+Development without Entra configuration retains the seeded selected-user fallback
+for local demos. This fallback is intentionally unavailable as an authentication
+mode outside Development.
 
 ### Frontend–Backend Integration
 In production, `dotnet run` serves both the API and the compiled Vue SPA. The backend registers `UseDefaultFiles()`, `UseStaticFiles()`, and `MapFallbackToFile("index.html")` so Vue Router can handle client-side navigation. In development, the Vite dev server handles the frontend and proxies API calls to the .NET backend.

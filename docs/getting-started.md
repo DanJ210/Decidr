@@ -37,6 +37,33 @@ Start SQL Server with `docker compose up -d`, then create the ignored
 For Azure SQL, provide `ConnectionStrings__DefaultConnection` through the
 deployment environment or secret store instead of committing credentials.
 
+## Entra External ID Configuration
+
+Production and non-Development environments require Microsoft Entra External ID.
+Configure the backend with:
+
+```dotenv
+Entra__Authority=https://<tenant>.ciamlogin.com/<tenant-id>/v2.0
+Entra__Audience=<backend-api-application-id-or-audience>
+```
+
+Configure the SPA with a local `frontend/.env.local` file (also ignored by git):
+
+```dotenv
+VITE_ENTRA_CLIENT_ID=<spa-application-client-id>
+VITE_ENTRA_AUTHORITY=https://<tenant>.ciamlogin.com/<tenant-id>
+VITE_ENTRA_API_SCOPE=api://<backend-api-application-id>/<scope-name>
+```
+
+The SPA signs users in with MSAL and attaches an access token to API requests.
+The backend validates the token and maps the `iss` plus `sub` claims to a local
+Decidr profile. A first authenticated sign-in creates a local Member profile;
+subsequent requests reuse that profile.
+
+When running in Development without Entra settings, the app retains the seeded
+selected-user profile picker and in-memory/SQL Server demo behavior. Do not use
+that fallback as an authentication mechanism in a deployed environment.
+
 ## Running the Backend
 
 ```bash
