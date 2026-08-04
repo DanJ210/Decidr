@@ -42,16 +42,16 @@ public class CasesController : ControllerBase
     };
 
     private readonly ICommunityCourtService _courtService;
-    private readonly IAuthenticatedUserService _authenticatedUserService;
+    private readonly IActorResolver _actorResolver;
     private readonly IWebHostEnvironment _webHostEnvironment;
 
     public CasesController(
         ICommunityCourtService courtService,
-        IAuthenticatedUserService authenticatedUserService,
+        IActorResolver actorResolver,
         IWebHostEnvironment webHostEnvironment)
     {
         _courtService = courtService;
-        _authenticatedUserService = authenticatedUserService;
+        _actorResolver = actorResolver;
         _webHostEnvironment = webHostEnvironment;
     }
 
@@ -106,12 +106,7 @@ public class CasesController : ControllerBase
             return BadRequest("All text fields are required.");
         }
 
-        if (User.Identity?.IsAuthenticated != true)
-        {
-            return Unauthorized();
-        }
-
-        var actor = await _authenticatedUserService.GetOrCreateAsync(User, cancellationToken);
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
         if (actor is null)
         {
             return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
@@ -170,7 +165,7 @@ public class CasesController : ControllerBase
             return Unauthorized();
         }
 
-        var actor = await _authenticatedUserService.GetOrCreateAsync(User, cancellationToken);
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
         if (actor is null)
         {
             return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
@@ -193,7 +188,7 @@ public class CasesController : ControllerBase
             return Unauthorized();
         }
 
-        var actor = await _authenticatedUserService.GetOrCreateAsync(User, cancellationToken);
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
         if (actor is null)
         {
             return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
@@ -217,7 +212,7 @@ public class CasesController : ControllerBase
             return Unauthorized();
         }
 
-        var actor = await _authenticatedUserService.GetOrCreateAsync(User, cancellationToken);
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
         if (actor is null)
         {
             return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
@@ -307,7 +302,7 @@ public class CasesController : ControllerBase
             return Unauthorized();
         }
 
-        var actor = await _authenticatedUserService.GetOrCreateAsync(User, cancellationToken);
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
         if (actor is null)
         {
             return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
@@ -325,7 +320,7 @@ public class CasesController : ControllerBase
     [HttpPost("{id:guid}/close")]
     public async Task<ActionResult<ArgumentCase>> CloseCase(Guid id, CancellationToken cancellationToken)
     {
-        var actor = await _authenticatedUserService.GetOrCreateAsync(User, cancellationToken);
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
         if (actor is null) return Unauthorized();
 
         var result = _courtService.CloseCase(id, actor.Id);
@@ -340,7 +335,7 @@ public class CasesController : ControllerBase
     [HttpPost("{id:guid}/accept")]
     public async Task<ActionResult<ArgumentCase>> AcceptInvitation(Guid id, [FromBody] AcceptInvitationRequest request, CancellationToken cancellationToken)
     {
-        var actor = await _authenticatedUserService.GetOrCreateAsync(User, cancellationToken);
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
         if (actor is null) return Unauthorized();
 
         var result = _courtService.AcceptCaseInvitation(id, actor.Id, request);
@@ -355,7 +350,7 @@ public class CasesController : ControllerBase
     [HttpPost("{id:guid}/decline")]
     public async Task<ActionResult> DeclineInvitation(Guid id, CancellationToken cancellationToken)
     {
-        var actor = await _authenticatedUserService.GetOrCreateAsync(User, cancellationToken);
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
         if (actor is null) return Unauthorized();
 
         var result = _courtService.DeclineCaseInvitation(id, actor.Id);

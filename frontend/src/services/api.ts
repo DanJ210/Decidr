@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { getAccessToken } from '../authConfig'
+import { entraConfigured, getAccessToken } from '../authConfig'
 import type {
   AcceptInvitationRequest,
   AddCaseEvidenceLinkRequest,
@@ -26,6 +26,11 @@ apiClient.interceptors.request.use(async (config) => {
   const accessToken = await getAccessToken()
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`
+  } else if (!entraConfigured) {
+    const developmentUserId = localStorage.getItem('decidr-selected-user-id')
+    if (developmentUserId) {
+      config.headers['X-Dev-User-Id'] = developmentUserId
+    }
   }
   return config
 })

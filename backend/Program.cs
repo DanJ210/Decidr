@@ -74,6 +74,7 @@ else
     builder.Services.AddSingleton<ICommunityCourtService, InMemoryCommunityCourtService>();
     builder.Services.AddSingleton<IAuthenticatedUserService, UnavailableAuthenticatedUserService>();
 }
+builder.Services.AddScoped<IActorResolver, ActorResolver>();
 
 var app = builder.Build();
 
