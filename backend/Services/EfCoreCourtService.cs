@@ -122,9 +122,9 @@ public class EfCoreCourtService : ICommunityCourtService
         return _db.CaseVotes.AsNoTracking().Any(v => v.CaseId == caseId && v.UserId == userId);
     }
 
-    public ArgumentCase CreateCase(CreateCaseRequest request)
+    public ArgumentCase CreateCase(Guid actorUserId, CreateCaseRequest request)
     {
-        var sideAUser = _db.Users.Find(request.SideAUserId)
+        var sideAUser = _db.Users.Find(actorUserId)
             ?? throw new InvalidOperationException("Side A user not found.");
 
         var createdAt = DateTime.UtcNow;
@@ -150,7 +150,7 @@ public class EfCoreCourtService : ICommunityCourtService
         return MapCase(entity);
     }
 
-    public (bool Success, string? Error, CaseComment? Comment) AddCaseComment(Guid caseId, CreateCaseCommentRequest request)
+    public (bool Success, string? Error, CaseComment? Comment) AddCaseComment(Guid caseId, Guid actorUserId, CreateCaseCommentRequest request)
     {
         var caseEntity = _db.Cases.Find(caseId);
         if (caseEntity is null)
@@ -169,7 +169,7 @@ public class EfCoreCourtService : ICommunityCourtService
             return (false, "Comment message cannot exceed 1024 characters.", null);
         }
 
-        var user = _db.Users.Find(request.UserId);
+        var user = _db.Users.Find(actorUserId);
         if (user is null)
         {
             return (false, "User not found.", null);
@@ -192,9 +192,9 @@ public class EfCoreCourtService : ICommunityCourtService
         return (true, null, new CaseComment(entity.Id, entity.CaseId, entity.UserId, entity.UserName, entity.Message, entity.CreatedAtUtc));
     }
 
-    public (bool Success, string? Error, CaseEvidenceItem? Evidence) AddCaseEvidenceLink(Guid caseId, AddCaseEvidenceLinkRequest request)
+    public (bool Success, string? Error, CaseEvidenceItem? Evidence) AddCaseEvidenceLink(Guid caseId, Guid actorUserId, AddCaseEvidenceLinkRequest request)
     {
-        var validation = ValidateEvidenceWrite(caseId, request.UserId, request.Side);
+        var validation = ValidateEvidenceWrite(caseId, actorUserId, request.Side);
         if (!validation.Success)
         {
             return (false, validation.Error, null);
@@ -243,9 +243,9 @@ public class EfCoreCourtService : ICommunityCourtService
         return (true, null, MapCaseEvidence(entity));
     }
 
-    public (bool Success, string? Error, CaseEvidenceItem? Evidence) AddCaseEvidenceFile(Guid caseId, AddCaseEvidenceFileRequest request)
+    public (bool Success, string? Error, CaseEvidenceItem? Evidence) AddCaseEvidenceFile(Guid caseId, Guid actorUserId, AddCaseEvidenceFileRequest request)
     {
-        var validation = ValidateEvidenceWrite(caseId, request.UserId, request.Side);
+        var validation = ValidateEvidenceWrite(caseId, actorUserId, request.Side);
         if (!validation.Success)
         {
             return (false, validation.Error, null);
@@ -308,7 +308,7 @@ public class EfCoreCourtService : ICommunityCourtService
     // Votes
     // -------------------------------------------------------------------------
 
-    public (bool Success, string? Error, ArgumentCase? UpdatedCase) CastVote(Guid caseId, CastVoteRequest request)
+    public (bool Success, string? Error, ArgumentCase? UpdatedCase) CastVote(Guid caseId, Guid actorUserId, CastVoteRequest request)
     {
         var caseEntity = _db.Cases.Find(caseId);
         if (caseEntity is null)
@@ -321,17 +321,17 @@ public class EfCoreCourtService : ICommunityCourtService
             return (false, "Case is not open and can no longer receive votes.", null);
         }
 
-        if (_db.Users.Find(request.UserId) is null)
+        if (_db.Users.Find(actorUserId) is null)
         {
             return (false, "User not found.", null);
         }
 
-        if (caseEntity.SideAUserId == request.UserId || caseEntity.SideBUserId == request.UserId)
+        if (caseEntity.SideAUserId == actorUserId || caseEntity.SideBUserId == actorUserId)
         {
             return (false, "Case participants cannot vote on their own case.", null);
         }
 
-        var existingVote = _db.CaseVotes.Find(caseId, request.UserId);
+        var existingVote = _db.CaseVotes.Find(caseId, actorUserId);
         if (existingVote is not null)
         {
             return (false, "You have already voted on this case.", null);
@@ -341,17 +341,17 @@ public class EfCoreCourtService : ICommunityCourtService
             _db.CaseVotes.Add(new CaseVoteEntity
             {
                 CaseId = caseId,
-                UserId = request.UserId,
+                UserId = actorUserId,
                 Side = request.Side,
                 CreatedAtUtc = DateTime.UtcNow,
                 ChangeCount = 0
             });
-            AwardReward(request.UserId, "VOTE_PARTICIPATION", "CaseVote", caseId, "Thanks for participating in community judging.");
+            AwardReward(actorUserId, "VOTE_PARTICIPATION", "CaseVote", caseId, "Thanks for participating in community judging.");
         }
 
         _db.SaveChanges();
 
-        var updated = MapCaseForViewer(caseEntity, request.UserId);
+        var updated = MapCaseForViewer(caseEntity, actorUserId);
         return (true, null, updated);
     }
 
@@ -470,9 +470,9 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
     // Friend system
     // -------------------------------------------------------------------------
 
-    public (bool Success, string? Error) SendFriendRequest(SendFriendRequestDto dto)
+    public (bool Success, string? Error) SendFriendRequest(Guid actorUserId, SendFriendRequestDto dto)
     {
-        if (_db.Users.Find(dto.FromUserId) is null)
+        if (_db.Users.Find(actorUserId) is null)
         {
             return (false, "Requesting user not found.");
         }
@@ -482,15 +482,15 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
             return (false, "Target user not found.");
         }
 
-        if (dto.FromUserId == dto.ToUserId)
+        if (actorUserId == dto.ToUserId)
         {
             return (false, "You cannot send a friend request to yourself.");
         }
 
         var alreadyFriends = _db.FriendRequests.Any(r =>
             r.Status == FriendRequestStatus.Accepted &&
-            ((r.FromUserId == dto.FromUserId && r.ToUserId == dto.ToUserId) ||
-             (r.FromUserId == dto.ToUserId && r.ToUserId == dto.FromUserId)));
+            ((r.FromUserId == actorUserId && r.ToUserId == dto.ToUserId) ||
+             (r.FromUserId == dto.ToUserId && r.ToUserId == actorUserId)));
 
         if (alreadyFriends)
         {
@@ -499,8 +499,8 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
 
         var pendingExists = _db.FriendRequests.Any(r =>
             r.Status == FriendRequestStatus.Pending &&
-            ((r.FromUserId == dto.FromUserId && r.ToUserId == dto.ToUserId) ||
-             (r.FromUserId == dto.ToUserId && r.ToUserId == dto.FromUserId)));
+            ((r.FromUserId == actorUserId && r.ToUserId == dto.ToUserId) ||
+             (r.FromUserId == dto.ToUserId && r.ToUserId == actorUserId)));
 
         if (pendingExists)
         {
@@ -510,7 +510,7 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
         _db.FriendRequests.Add(new FriendRequestEntity
         {
             Id = Guid.NewGuid(),
-            FromUserId = dto.FromUserId,
+            FromUserId = actorUserId,
             ToUserId = dto.ToUserId,
             Status = FriendRequestStatus.Pending,
             CreatedAtUtc = DateTime.UtcNow
@@ -632,7 +632,7 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
             .ToList();
     }
 
-    public (bool Success, string? Error, ArgumentCase? UpdatedCase) AcceptCaseInvitation(Guid caseId, AcceptInvitationRequest request)
+    public (bool Success, string? Error, ArgumentCase? UpdatedCase) AcceptCaseInvitation(Guid caseId, Guid actorUserId, AcceptInvitationRequest request)
     {
         var caseEntity = _db.Cases.Find(caseId);
         if (caseEntity is null)
@@ -645,7 +645,7 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
             return (false, "This case is not awaiting acceptance.", null);
         }
 
-        if (caseEntity.InvitedUserId != request.UserId)
+        if (caseEntity.InvitedUserId != actorUserId)
         {
             return (false, "You are not the invited user for this case.", null);
         }
@@ -655,7 +655,7 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
             return (false, "A claim is required to accept the invitation.", null);
         }
 
-        var sideBUser = _db.Users.Find(request.UserId);
+        var sideBUser = _db.Users.Find(actorUserId);
         if (sideBUser is null)
         {
             return (false, "User not found.", null);

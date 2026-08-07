@@ -4,6 +4,11 @@ Base URL: `/api`
 
 All request and response bodies are JSON. Enum values are serialized as strings (e.g., `"Open"`, `"A"`).
 
+Authenticated requests require a valid Entra v2 access token with the delegated
+`access_as_user` scope. Mutation actors and private viewer state are derived from
+that token. In Development only, when Entra is not configured, `X-Dev-User-Id`
+may identify a seeded local actor.
+
 ---
 
 ## Cases
@@ -16,19 +21,20 @@ Returns all `Open` and `Closed` cases ordered by creation date descending. `Pend
 ---
 
 ### `GET /api/cases/{id}`
-Returns a single case by GUID (any status, including `Pending`).
+Returns a single case by GUID (any status, including `Pending`). When an actor is
+available, `currentUserVote` is populated for that actor.
 
 **Response `200 OK`** — `ArgumentCase`  
 **Response `404 Not Found`** — case does not exist
 
 ---
 
-### `GET /api/cases/{id}/vote-status?userId={guid}`
-Returns whether a specific user has already voted on a case.
+### `GET /api/cases/{id}/vote-status`
+Returns whether the authenticated actor has already voted on a case.
 
 **Validation**
 - Case must exist.
-- User must exist.
+- The request must resolve to an authenticated actor.
 
 **Response `200 OK`**
 ```json
@@ -36,7 +42,7 @@ Returns whether a specific user has already voted on a case.
   "hasVoted": true
 }
 ```
-**Response `400 Bad Request`** — user does not exist  
+**Response `401 Unauthorized`** — actor is unavailable or invalid  
 **Response `404 Not Found`** — case does not exist
 
 ---
@@ -50,7 +56,6 @@ Creates a new debate case in `Pending` status. Side B is not set yet — the inv
   "title": "string",
   "category": "string",
   "summary": "string",
-  "sideAUserId": "guid",
   "sideAClaim": "string",
   "invitedUserId": "guid"
 }
@@ -58,9 +63,9 @@ Creates a new debate case in `Pending` status. Side B is not set yet — the inv
 
 **Validation**
 - All text fields must be non-empty.
-- `sideAUserId` and `invitedUserId` must be different.
-- Both user IDs must exist.
-- `sideAUserId` and `invitedUserId` must be connected as accepted friends.
+- The authenticated actor and `invitedUserId` must be different.
+- The invited user must exist.
+- The authenticated actor and invited user must be connected as accepted friends.
 
 **Response `201 Created`** — `ArgumentCase` (status `Pending`) with `Location` header  
 **Response `400 Bad Request`** — validation failure message
@@ -73,14 +78,13 @@ The invited user accepts the invitation and provides their Side B claim. The cas
 **Request body**
 ```json
 {
-  "userId": "guid",
   "claim": "string"
 }
 ```
 
 **Validation**
 - Case must exist and be `Pending`.
-- `userId` must match `invitedUserId` on the case.
+- The authenticated actor must match `invitedUserId` on the case.
 - `claim` must be non-empty.
 
 **Response `200 OK`** — updated `ArgumentCase` (status `Open`)  
@@ -91,16 +95,9 @@ The invited user accepts the invitation and provides their Side B claim. The cas
 ### `POST /api/cases/{id}/decline`
 The invited user declines the invitation. The case moves to `Closed` with no winner.
 
-**Request body**
-```json
-{
-  "userId": "guid"
-}
-```
-
 **Validation**
 - Case must exist and be `Pending`.
-- `userId` must match `invitedUserId` on the case.
+- The authenticated actor must match `invitedUserId` on the case.
 
 **Response `204 No Content`**  
 **Response `400 Bad Request`** — error message
@@ -113,16 +110,14 @@ Casts a community vote on a case.
 **Request body**
 ```json
 {
-  "userId": "guid",
   "side": "A" | "B"
 }
 ```
 
 **Validation**
 - Case must exist and be `Open`.
-- User must exist.
-- User must not be a participant in the case (Side A or Side B poster).
-- User may only vote once per case; changing an existing vote is not supported.
+- The authenticated actor must not be a participant in the case (Side A or Side B poster).
+- The authenticated actor may only vote once per case; changing an existing vote is not supported.
 
 **Response `200 OK`** — updated `ArgumentCase`  
 **Response `400 Bad Request`** — error message

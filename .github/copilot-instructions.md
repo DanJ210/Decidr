@@ -141,9 +141,14 @@ dotnet run
 
 ### Test Commands
 
-**Currently**: No test suite is configured.
+Backend regression tests are in `backend.Tests/` and can be run with:
 
-Document test commands here when they are added.
+```bash
+dotnet test backend.Tests/backend.Tests.csproj
+```
+
+The current suite covers authenticated actor precedence and the Development-only
+selected-user header boundary.
 
 ### Database & Persistence
 

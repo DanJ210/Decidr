@@ -168,7 +168,7 @@ export function useCaseDetail() {
     checkingVoteStatus.value = true
 
     try {
-      const status = await fetchCaseVoteStatus(selected.id, user.id)
+      const status = await fetchCaseVoteStatus(selected.id)
       if (isCurrentVoteStatusRequest(requestId, selected.id, user.id)) {
         hasVoted.value = status.hasVoted
       }
@@ -183,7 +183,6 @@ export function useCaseDetail() {
   async function loadCaseState(id: string, preserveCurrentCaseOnFailure = false) {
     const requestId = ++caseStateRequestId
     const loaded = await courtStore.loadCase(id, {
-      userId: activeUser.value?.id,
       clearSelectedCaseOnFailure: !preserveCurrentCaseOnFailure,
     })
 
@@ -376,7 +375,6 @@ export function useCaseDetail() {
 
     try {
       const created = await postCaseEvidenceLink(selectedCase.id, {
-        userId: user.id,
         side,
         title,
         url,
@@ -419,7 +417,6 @@ export function useCaseDetail() {
 
     try {
       const created = await uploadCaseEvidenceFile(selectedCase.id, {
-        userId: user.id,
         side,
         title,
         file: draft.file,
@@ -448,7 +445,7 @@ export function useCaseDetail() {
     const selectedCase = caseItem.value
     if (!selectedUser || !selectedCase) return
 
-    const result = await courtStore.vote(selectedCase.id, selectedUser.id, side)
+    const result = await courtStore.vote(selectedCase.id, side)
     if (result.success) {
       if (isViewingCase(selectedCase.id)) {
         if (result.updatedCase) {
@@ -476,7 +473,7 @@ export function useCaseDetail() {
     const user = activeUser.value
     if (!selectedCase || !user || !canCloseCase.value) return
 
-    const result = await courtStore.closeCase(selectedCase.id, user.id)
+    const result = await courtStore.closeCase(selectedCase.id)
     if (!isViewingCase(selectedCase.id)) {
       return
     }
@@ -496,7 +493,7 @@ export function useCaseDetail() {
     const user = activeUser.value
     if (!selectedCase || !user || !sideBClaim.value.trim()) return
 
-    const result = await courtStore.acceptInvitation(selectedCase.id, user.id, sideBClaim.value.trim())
+    const result = await courtStore.acceptInvitation(selectedCase.id, sideBClaim.value.trim())
     if (!isViewingCase(selectedCase.id)) {
       return
     }
@@ -517,7 +514,7 @@ export function useCaseDetail() {
     const user = activeUser.value
     if (!selectedCase || !user) return
 
-    const success = await courtStore.declineInvitation(selectedCase.id, user.id)
+    const success = await courtStore.declineInvitation(selectedCase.id)
     if (success) {
       await router.push('/')
     }
@@ -533,7 +530,6 @@ export function useCaseDetail() {
     commentsError.value = null
     try {
       const created = await postCaseComment(selectedCase.id, {
-        userId: user.id,
         message: trimmedMessage,
       })
       comments.value = [...comments.value, created]

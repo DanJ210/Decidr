@@ -42,11 +42,16 @@ public class CasesController : ControllerBase
     };
 
     private readonly ICommunityCourtService _courtService;
+    private readonly IActorResolver _actorResolver;
     private readonly IWebHostEnvironment _webHostEnvironment;
 
-    public CasesController(ICommunityCourtService courtService, IWebHostEnvironment webHostEnvironment)
+    public CasesController(
+        ICommunityCourtService courtService,
+        IActorResolver actorResolver,
+        IWebHostEnvironment webHostEnvironment)
     {
         _courtService = courtService;
+        _actorResolver = actorResolver;
         _webHostEnvironment = webHostEnvironment;
     }
 
@@ -57,26 +62,28 @@ public class CasesController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    public ActionResult<ArgumentCase> GetCaseById(Guid id, [FromQuery] Guid? userId = null)
+    public async Task<ActionResult<ArgumentCase>> GetCaseById(Guid id, CancellationToken cancellationToken)
     {
-        var match = _courtService.GetCase(id, userId);
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        var match = _courtService.GetCase(id, actor?.Id);
         return match is null ? NotFound() : Ok(match);
     }
 
     [HttpGet("{id:guid}/vote-status")]
-    public ActionResult<CaseVoteStatus> GetVoteStatus(Guid id, [FromQuery] Guid userId)
+    public async Task<ActionResult<CaseVoteStatus>> GetVoteStatus(Guid id, CancellationToken cancellationToken)
     {
         if (_courtService.GetCase(id) is null)
         {
             return NotFound();
         }
 
-        if (_courtService.GetUser(userId) is null)
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null)
         {
-            return BadRequest("User not found.");
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
         }
 
-        return Ok(new CaseVoteStatus(_courtService.HasUserVoted(id, userId)));
+        return Ok(new CaseVoteStatus(_courtService.HasUserVoted(id, actor.Id)));
     }
 
     [HttpGet("{id:guid}/evidence")]
@@ -91,7 +98,7 @@ public class CasesController : ControllerBase
     }
 
     [HttpPost]
-    public ActionResult<ArgumentCase> CreateCase([FromBody] CreateCaseRequest request)
+    public async Task<ActionResult<ArgumentCase>> CreateCase([FromBody] CreateCaseRequest request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Title) ||
             string.IsNullOrWhiteSpace(request.Category) ||
@@ -101,14 +108,15 @@ public class CasesController : ControllerBase
             return BadRequest("All text fields are required.");
         }
 
-        if (request.SideAUserId == request.InvitedUserId)
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null)
         {
-            return BadRequest("You cannot invite yourself to Side B.");
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
         }
 
-        if (_courtService.GetUser(request.SideAUserId) is null)
+        if (actor.Id == request.InvitedUserId)
         {
-            return BadRequest("Side A user does not exist.");
+            return BadRequest("You cannot invite yourself to Side B.");
         }
 
         if (_courtService.GetUser(request.InvitedUserId) is null)
@@ -116,12 +124,12 @@ public class CasesController : ControllerBase
             return BadRequest("Invited user does not exist.");
         }
 
-        if (!_courtService.AreFriends(request.SideAUserId, request.InvitedUserId))
+        if (!_courtService.AreFriends(actor.Id, request.InvitedUserId))
         {
             return BadRequest("You can only invite users who are connected as friends.");
         }
 
-        var created = _courtService.CreateCase(request);
+        var created = _courtService.CreateCase(actor.Id, request);
         return CreatedAtAction(nameof(GetCaseById), new { id = created.Id }, created);
     }
 
@@ -143,7 +151,7 @@ public class CasesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/comments")]
-    public ActionResult<CaseComment> AddCaseComment(Guid id, [FromBody] CreateCaseCommentRequest request)
+    public async Task<ActionResult<CaseComment>> AddCaseComment(Guid id, [FromBody] CreateCaseCommentRequest request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Message))
         {
@@ -154,7 +162,13 @@ public class CasesController : ControllerBase
             return BadRequest("Comment message cannot exceed 1024 characters.");
         }
 
-        var result = _courtService.AddCaseComment(id, request);
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null)
+        {
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        }
+
+        var result = _courtService.AddCaseComment(id, actor.Id, request);
         if (!result.Success)
         {
             return BadRequest(result.Error);
@@ -164,9 +178,15 @@ public class CasesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/evidence/link")]
-    public ActionResult<CaseEvidenceItem> AddCaseEvidenceLink(Guid id, [FromBody] AddCaseEvidenceLinkRequest request)
+    public async Task<ActionResult<CaseEvidenceItem>> AddCaseEvidenceLink(Guid id, [FromBody] AddCaseEvidenceLinkRequest request, CancellationToken cancellationToken)
     {
-        var result = _courtService.AddCaseEvidenceLink(id, request);
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null)
+        {
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        }
+
+        var result = _courtService.AddCaseEvidenceLink(id, actor.Id, request);
         if (!result.Success)
         {
             return BadRequest(result.Error);
@@ -177,8 +197,14 @@ public class CasesController : ControllerBase
 
     [HttpPost("{id:guid}/evidence/upload")]
     [RequestSizeLimit(MaxEvidenceFileSizeBytes + (1024 * 1024))]
-    public async Task<ActionResult<CaseEvidenceItem>> AddCaseEvidenceUpload(Guid id, [FromForm] AddCaseEvidenceUploadForm request)
+    public async Task<ActionResult<CaseEvidenceItem>> AddCaseEvidenceUpload(Guid id, [FromForm] AddCaseEvidenceUploadForm request, CancellationToken cancellationToken)
     {
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null)
+        {
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        }
+
         if (request.File is null)
         {
             return BadRequest("A file is required.");
@@ -212,7 +238,7 @@ public class CasesController : ControllerBase
             return BadRequest($"Evidence title cannot exceed {MaxEvidenceTitleLength} characters.");
         }
 
-        var validationError = ValidateEvidenceUploadRequest(id, request.UserId, request.Side);
+        var validationError = ValidateEvidenceUploadRequest(id, actor.Id, request.Side);
         if (validationError is not null)
         {
             return BadRequest(validationError);
@@ -233,8 +259,8 @@ public class CasesController : ControllerBase
 
         var result = _courtService.AddCaseEvidenceFile(
             id,
+            actor.Id,
             new AddCaseEvidenceFileRequest(
-                request.UserId,
                 request.Side,
                 evidenceType,
                 evidenceTitle,
@@ -256,9 +282,15 @@ public class CasesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/vote")]
-    public ActionResult<ArgumentCase> CastVote(Guid id, [FromBody] CastVoteRequest request)
+    public async Task<ActionResult<ArgumentCase>> CastVote(Guid id, [FromBody] CastVoteRequest request, CancellationToken cancellationToken)
     {
-        var result = _courtService.CastVote(id, request);
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null)
+        {
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        }
+
+        var result = _courtService.CastVote(id, actor.Id, request);
         if (!result.Success)
         {
             return BadRequest(result.Error);
@@ -268,9 +300,15 @@ public class CasesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/close")]
-    public ActionResult<ArgumentCase> CloseCase(Guid id, [FromBody] CloseCaseRequest request)
+    public async Task<ActionResult<ArgumentCase>> CloseCase(Guid id, CancellationToken cancellationToken)
     {
-        var result = _courtService.CloseCase(id, request.ActorUserId);
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null)
+        {
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        }
+
+        var result = _courtService.CloseCase(id, actor.Id);
         if (!result.Success)
         {
             return BadRequest(result.Error);
@@ -280,9 +318,15 @@ public class CasesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/accept")]
-    public ActionResult<ArgumentCase> AcceptInvitation(Guid id, [FromBody] AcceptInvitationRequest request)
+    public async Task<ActionResult<ArgumentCase>> AcceptInvitation(Guid id, [FromBody] AcceptInvitationRequest request, CancellationToken cancellationToken)
     {
-        var result = _courtService.AcceptCaseInvitation(id, request);
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null)
+        {
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        }
+
+        var result = _courtService.AcceptCaseInvitation(id, actor.Id, request);
         if (!result.Success)
         {
             return BadRequest(result.Error);
@@ -292,9 +336,15 @@ public class CasesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/decline")]
-    public ActionResult DeclineInvitation(Guid id, [FromBody] DeclineInvitationRequest request)
+    public async Task<ActionResult> DeclineInvitation(Guid id, CancellationToken cancellationToken)
     {
-        var result = _courtService.DeclineCaseInvitation(id, request.UserId);
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null)
+        {
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        }
+
+        var result = _courtService.DeclineCaseInvitation(id, actor.Id);
         if (!result.Success)
         {
             return BadRequest(result.Error);
@@ -392,7 +442,6 @@ public class CasesController : ControllerBase
 
     public sealed class AddCaseEvidenceUploadForm
     {
-        public Guid UserId { get; set; }
         public CaseSide Side { get; set; }
         public string? Title { get; set; }
         public IFormFile? File { get; set; }

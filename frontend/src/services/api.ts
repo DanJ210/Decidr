@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { entraConfigured, getAccessToken } from '../authConfig'
 import type {
   AcceptInvitationRequest,
   AddCaseEvidenceLinkRequest,
@@ -10,13 +11,9 @@ import type {
   CaseVoteStatus,
   CaseComment,
   CastVoteRequest,
-  CloseCaseRequest,
   CreateCaseRequest,
   CreateCaseCommentRequest,
   FriendRequest,
-  RemoveFriendDto,
-  RespondFriendRequestDto,
-  SendFriendRequestDto,
   UserRewardView,
 } from '../types'
 
@@ -25,22 +22,42 @@ const apiClient = axios.create({
   timeout: 10000,
 })
 
+apiClient.interceptors.request.use(async (config) => {
+  let accessToken: string | null = null
+  try {
+    accessToken = await getAccessToken()
+  } catch {
+    // Public requests should remain usable when silent token acquisition fails.
+  }
+
+  if (accessToken) {
+    config.headers.Authorization = `Bearer ${accessToken}`
+  } else if (!entraConfigured) {
+    const developmentUserId = localStorage.getItem('decidr-selected-user-id')
+    if (developmentUserId) {
+      config.headers['X-Dev-User-Id'] = developmentUserId
+    }
+  }
+  return config
+})
+
+export async function fetchCurrentUser(): Promise<AppUser> {
+  const { data } = await apiClient.get<AppUser>('/auth/me')
+  return data
+}
+
 export async function fetchCases(): Promise<ArgumentCase[]> {
   const { data } = await apiClient.get<ArgumentCase[]>('/cases')
   return data
 }
 
-export async function fetchCaseById(id: string, userId?: string): Promise<ArgumentCase> {
-  const { data } = await apiClient.get<ArgumentCase>(`/cases/${id}`, {
-    params: userId ? { userId } : undefined,
-  })
+export async function fetchCaseById(id: string): Promise<ArgumentCase> {
+  const { data } = await apiClient.get<ArgumentCase>(`/cases/${id}`)
   return data
 }
 
-export async function fetchCaseVoteStatus(caseId: string, userId: string): Promise<CaseVoteStatus> {
-  const { data } = await apiClient.get<CaseVoteStatus>(`/cases/${caseId}/vote-status`, {
-    params: { userId },
-  })
+export async function fetchCaseVoteStatus(caseId: string): Promise<CaseVoteStatus> {
+  const { data } = await apiClient.get<CaseVoteStatus>(`/cases/${caseId}/vote-status`)
   return data
 }
 
@@ -54,8 +71,8 @@ export async function castVote(caseId: string, request: CastVoteRequest): Promis
   return data
 }
 
-export async function closeCase(caseId: string, request: CloseCaseRequest): Promise<ArgumentCase> {
-  const { data } = await apiClient.post<ArgumentCase>(`/cases/${caseId}/close`, request)
+export async function closeCase(caseId: string): Promise<ArgumentCase> {
+  const { data } = await apiClient.post<ArgumentCase>(`/cases/${caseId}/close`)
   return data
 }
 
@@ -81,10 +98,9 @@ export async function postCaseEvidenceLink(caseId: string, request: AddCaseEvide
 
 export async function uploadCaseEvidenceFile(
   caseId: string,
-  request: { userId: string; side: CaseSide; title: string; file: File }
+  request: { side: CaseSide; title: string; file: File }
 ): Promise<CaseEvidenceItem> {
   const formData = new FormData()
-  formData.append('userId', request.userId)
   formData.append('side', request.side)
   formData.append('title', request.title)
   formData.append('file', request.file)
@@ -98,8 +114,8 @@ export async function acceptCaseInvitation(caseId: string, request: AcceptInvita
   return data
 }
 
-export async function declineCaseInvitation(caseId: string, userId: string): Promise<void> {
-  await apiClient.post(`/cases/${caseId}/decline`, { userId })
+export async function declineCaseInvitation(caseId: string): Promise<void> {
+  await apiClient.post(`/cases/${caseId}/decline`)
 }
 
 export async function fetchUsers(): Promise<AppUser[]> {
@@ -136,15 +152,15 @@ export async function fetchInvitations(userId: string): Promise<ArgumentCase[]> 
   return data
 }
 
-export async function sendFriendRequest(dto: SendFriendRequestDto): Promise<void> {
-  await apiClient.post('/friends/request', dto)
+export async function sendFriendRequest(toUserId: string): Promise<void> {
+  await apiClient.post('/friends/request', { toUserId })
 }
 
-export async function respondToFriendRequest(requestId: string, dto: RespondFriendRequestDto, accept: boolean): Promise<void> {
+export async function respondToFriendRequest(requestId: string, accept: boolean): Promise<void> {
   const path = accept ? 'accept' : 'decline'
-  await apiClient.post(`/friends/${requestId}/${path}`, dto)
+  await apiClient.post(`/friends/${requestId}/${path}`)
 }
 
-export async function removeFriend(dto: RemoveFriendDto): Promise<void> {
-  await apiClient.post('/friends/remove', dto)
+export async function removeFriend(friendUserId: string): Promise<void> {
+  await apiClient.post('/friends/remove', { friendUserId })
 }
