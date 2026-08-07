@@ -1,16 +1,17 @@
 import { defineStore } from 'pinia'
-import { entraConfigured, getActiveAccount, signIn, signOut } from '../authConfig'
+import { ensureAccessToken, entraConfigured, getActiveAccount, initializeMsal, signIn, signOut, takeAuthenticationError } from '../authConfig'
 import { fetchCurrentUser, fetchUsers } from '../services/api'
 import type { AppUser } from '../types'
 
 const selectedUserStorageKey = 'decidr-selected-user-id'
+type AuthenticationStatus = 'signedOut' | 'authenticating' | 'accountPresent' | 'profileReady' | 'error'
 
 interface AuthState {
   users: AppUser[]
   selectedUserId: string | null
   loading: boolean
   error: string | null
-  isAuthenticated: boolean
+  authenticationStatus: AuthenticationStatus
   configured: boolean
 }
 
@@ -20,10 +21,17 @@ export const useAuthStore = defineStore('auth', {
     selectedUserId: null,
     loading: false,
     error: null,
-    isAuthenticated: false,
+    authenticationStatus: 'signedOut',
     configured: entraConfigured,
   }),
   getters: {
+    isAuthenticated(state): boolean {
+      return state.authenticationStatus === 'profileReady'
+    },
+    hasMicrosoftAccount(state): boolean {
+      return state.authenticationStatus === 'accountPresent' || state.authenticationStatus === 'profileReady' ||
+        (state.authenticationStatus === 'error' && getActiveAccount() !== null)
+    },
     selectedUser(state): AppUser | null {
       return state.users.find((user) => user.id === state.selectedUserId) ?? null
     },
@@ -35,17 +43,31 @@ export const useAuthStore = defineStore('auth', {
 
       try {
         if (this.configured) {
-          if (!getActiveAccount()) {
+          await initializeMsal()
+
+          const authenticationError = takeAuthenticationError()
+          if (authenticationError) {
+            this.error = authenticationError
+          }
+
+          const account = getActiveAccount()
+          if (!account) {
             this.users = []
             this.selectedUserId = null
-            this.isAuthenticated = false
+            this.authenticationStatus = authenticationError ? 'error' : 'signedOut'
+            return
+          }
+
+          this.authenticationStatus = 'accountPresent'
+          if (!await ensureAccessToken()) {
+            this.authenticationStatus = 'authenticating'
             return
           }
 
           const currentUser = await fetchCurrentUser()
           this.users = [currentUser]
           this.selectedUserId = currentUser.id
-          this.isAuthenticated = true
+          this.authenticationStatus = 'profileReady'
           return
         }
 
@@ -61,8 +83,13 @@ export const useAuthStore = defineStore('auth', {
         if (this.selectedUserId) {
           localStorage.setItem(selectedUserStorageKey, this.selectedUserId)
         }
-      } catch {
-        this.error = 'Unable to load users right now.'
+      } catch (error) {
+        this.users = []
+        this.selectedUserId = null
+        this.authenticationStatus = 'error'
+        this.error = error instanceof Error
+          ? error.message
+          : 'Unable to load the signed-in Decidr profile.'
       } finally {
         this.loading = false
       }
@@ -70,20 +97,23 @@ export const useAuthStore = defineStore('auth', {
     async login() {
       this.loading = true
       this.error = null
+      this.authenticationStatus = 'authenticating'
       try {
         await signIn()
-        await this.loadUsers()
-      } catch {
-        this.error = 'Unable to sign in right now.'
+      } catch (error) {
+        this.authenticationStatus = 'error'
+        this.error = error instanceof Error
+          ? error.message
+          : 'Unable to sign in right now.'
       } finally {
         this.loading = false
       }
     },
     async logout() {
-      await signOut()
       this.users = []
       this.selectedUserId = null
-      this.isAuthenticated = false
+      this.authenticationStatus = 'signedOut'
+      await signOut()
     },
     setSelectedUser(userId: string) {
       this.selectedUserId = userId

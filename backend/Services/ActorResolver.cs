@@ -30,6 +30,11 @@ public sealed class ActorResolver : IActorResolver
     {
         if (principal.Identity?.IsAuthenticated == true)
         {
+            if (!AuthorizationPolicies.HasAccessAsUserScope(principal))
+            {
+                return null;
+            }
+
             return await _authenticatedUserService.GetOrCreateAsync(principal, cancellationToken);
         }
 

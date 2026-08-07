@@ -1,4 +1,5 @@
 using backend.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers;
@@ -15,6 +16,7 @@ public sealed class AuthController : ControllerBase
     }
 
     [HttpGet("me")]
+    [Authorize(Policy = AuthorizationPolicies.AccessAsUser)]
     public async Task<IActionResult> GetCurrentUser(CancellationToken cancellationToken)
     {
         if (User.Identity?.IsAuthenticated != true)

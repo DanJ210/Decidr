@@ -168,7 +168,7 @@ export function useCaseDetail() {
     checkingVoteStatus.value = true
 
     try {
-      const status = await fetchCaseVoteStatus(selected.id, user.id)
+      const status = await fetchCaseVoteStatus(selected.id)
       if (isCurrentVoteStatusRequest(requestId, selected.id, user.id)) {
         hasVoted.value = status.hasVoted
       }
@@ -183,7 +183,6 @@ export function useCaseDetail() {
   async function loadCaseState(id: string, preserveCurrentCaseOnFailure = false) {
     const requestId = ++caseStateRequestId
     const loaded = await courtStore.loadCase(id, {
-      userId: activeUser.value?.id,
       clearSelectedCaseOnFailure: !preserveCurrentCaseOnFailure,
     })
 

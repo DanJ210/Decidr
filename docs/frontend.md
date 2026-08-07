@@ -198,12 +198,14 @@ to `localStorage` under the key `decidr-selected-user-id`.
 |-------|------|-------------|
 | `users` | `AppUser[]` | Current Entra profile, or selectable Development users |
 | `selectedUserId` | `string \| null` | Current local profile ID |
-| `isAuthenticated` | `boolean` | Whether an Entra account is active |
+| `authenticationStatus` | `AuthenticationStatus` | Signed-out, authenticating, account-present, profile-ready, or error state |
 | `loading` | `boolean` | API fetch in progress |
 | `error` | `string \| null` | Last error message |
 
 | Getter | Returns | Description |
 |--------|---------|-------------|
+| `isAuthenticated` | `boolean` | Whether the Decidr profile is ready |
+| `hasMicrosoftAccount` | `boolean` | Whether MSAL has an active Microsoft account |
 | `selectedUser` | `AppUser \| null` | Full user object for `selectedUserId` |
 
 | Action | Description |
@@ -288,6 +290,7 @@ Defined in `services/api.ts`. All functions use a shared Axios instance with `ba
 |----------|--------|----------|-------------|
 | `fetchCases()` | `GET` | `/cases` | Get all public cases |
 | `fetchCaseById(id)` | `GET` | `/cases/{id}` | Get one case (any status) |
+| `fetchCaseVoteStatus(caseId)` | `GET` | `/cases/{id}/vote-status` | Get vote state for the authenticated actor |
 | `fetchCaseEvidence(caseId)` | `GET` | `/cases/{id}/evidence` | Get side-grouped evidence collections |
 | `createCase(request)` | `POST` | `/cases` | Create a new `Pending` case (friend connection required for invite) |
 | `castVote(caseId, request)` | `POST` | `/cases/{id}/vote` | Cast a vote |

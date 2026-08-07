@@ -62,26 +62,28 @@ public class CasesController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    public ActionResult<ArgumentCase> GetCaseById(Guid id, [FromQuery] Guid? userId = null)
+    public async Task<ActionResult<ArgumentCase>> GetCaseById(Guid id, CancellationToken cancellationToken)
     {
-        var match = _courtService.GetCase(id, userId);
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        var match = _courtService.GetCase(id, actor?.Id);
         return match is null ? NotFound() : Ok(match);
     }
 
     [HttpGet("{id:guid}/vote-status")]
-    public ActionResult<CaseVoteStatus> GetVoteStatus(Guid id, [FromQuery] Guid userId)
+    public async Task<ActionResult<CaseVoteStatus>> GetVoteStatus(Guid id, CancellationToken cancellationToken)
     {
         if (_courtService.GetCase(id) is null)
         {
             return NotFound();
         }
 
-        if (_courtService.GetUser(userId) is null)
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null)
         {
-            return BadRequest("User not found.");
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
         }
 
-        return Ok(new CaseVoteStatus(_courtService.HasUserVoted(id, userId)));
+        return Ok(new CaseVoteStatus(_courtService.HasUserVoted(id, actor.Id)));
     }
 
     [HttpGet("{id:guid}/evidence")]
@@ -160,11 +162,6 @@ public class CasesController : ControllerBase
             return BadRequest("Comment message cannot exceed 1024 characters.");
         }
 
-        if (User.Identity?.IsAuthenticated != true)
-        {
-            return Unauthorized();
-        }
-
         var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
         if (actor is null)
         {
@@ -183,11 +180,6 @@ public class CasesController : ControllerBase
     [HttpPost("{id:guid}/evidence/link")]
     public async Task<ActionResult<CaseEvidenceItem>> AddCaseEvidenceLink(Guid id, [FromBody] AddCaseEvidenceLinkRequest request, CancellationToken cancellationToken)
     {
-        if (User.Identity?.IsAuthenticated != true)
-        {
-            return Unauthorized();
-        }
-
         var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
         if (actor is null)
         {
@@ -207,11 +199,6 @@ public class CasesController : ControllerBase
     [RequestSizeLimit(MaxEvidenceFileSizeBytes + (1024 * 1024))]
     public async Task<ActionResult<CaseEvidenceItem>> AddCaseEvidenceUpload(Guid id, [FromForm] AddCaseEvidenceUploadForm request, CancellationToken cancellationToken)
     {
-        if (User.Identity?.IsAuthenticated != true)
-        {
-            return Unauthorized();
-        }
-
         var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
         if (actor is null)
         {
@@ -297,11 +284,6 @@ public class CasesController : ControllerBase
     [HttpPost("{id:guid}/vote")]
     public async Task<ActionResult<ArgumentCase>> CastVote(Guid id, [FromBody] CastVoteRequest request, CancellationToken cancellationToken)
     {
-        if (User.Identity?.IsAuthenticated != true)
-        {
-            return Unauthorized();
-        }
-
         var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
         if (actor is null)
         {

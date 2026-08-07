@@ -44,7 +44,7 @@ Configure the backend with:
 
 ```dotenv
 Entra__Authority=https://<tenant>.ciamlogin.com/<tenant-id>/v2.0
-Entra__Audience=<backend-api-application-id-or-audience>
+Entra__Audience=<backend-api-application-client-id>
 ```
 
 Configure the SPA with a local `frontend/.env.local` file (also ignored by git):
@@ -55,10 +55,16 @@ VITE_ENTRA_AUTHORITY=https://<tenant>.ciamlogin.com/<tenant-id>
 VITE_ENTRA_API_SCOPE=api://<backend-api-application-id>/<scope-name>
 ```
 
-The SPA signs users in with MSAL and attaches an access token to API requests.
-The backend validates the token and maps the `iss` plus `sub` claims to a local
-Decidr profile. A first authenticated sign-in creates a local Member profile;
-subsequent requests reuse that profile.
+The SPA signs users in with MSAL and silently attaches an access token when one
+is available. Profile initialization starts an interactive redirect only when
+MSAL reports that interaction is required; public reads remain available when
+silent token acquisition fails. The backend validates a v2 token, requires the
+delegated `access_as_user` scope, and maps stable `tid` plus `oid` claims to a
+local Decidr profile. A first authenticated sign-in creates a local Member
+profile; subsequent requests reuse that profile.
+
+Entra authentication requires a non-empty `DefaultConnection`. Startup fails
+when Entra is configured without persistent SQL Server or Azure SQL storage.
 
 When running in Development without Entra settings, the app retains the seeded
 selected-user profile picker and in-memory/SQL Server demo behavior. Do not use

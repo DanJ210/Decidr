@@ -56,22 +56,23 @@ onMounted(() => {
         </select>
         </label>
 
-        <button v-else-if="!authStore.isAuthenticated" class="user-switcher" type="button" :disabled="authStore.loading" @click="authStore.login">
+        <button v-else-if="!authStore.hasMicrosoftAccount" class="user-switcher auth-switcher" type="button" aria-label="Sign in" :disabled="authStore.loading" @click="authStore.login">
           <span class="user-avatar" aria-hidden="true">?</span>
           <span class="user-switcher-copy">
             <span class="user-switcher-label">Account</span>
-            <span class="user-switcher-name">Sign in</span>
+            <span class="user-switcher-name">{{ authStore.loading ? 'Signing in' : 'Sign in' }}</span>
           </span>
         </button>
 
-        <button v-else class="user-switcher" type="button" @click="authStore.logout">
+        <button v-else class="user-switcher auth-switcher" type="button" aria-label="Sign out" :disabled="authStore.loading" @click="authStore.logout">
           <span class="user-avatar" aria-hidden="true">{{ selectedUserInitial }}</span>
           <span class="user-switcher-copy">
-            <span class="user-switcher-label">Signed in</span>
-            <span class="user-switcher-name">{{ authStore.selectedUser?.displayName }}</span>
+            <span class="user-switcher-label">{{ authStore.isAuthenticated ? 'Signed in' : 'Account' }}</span>
+            <span class="user-switcher-name">{{ authStore.selectedUser?.displayName ?? 'Profile unavailable' }}</span>
           </span>
         </button>
       </header>
+      <p v-if="authStore.error" class="auth-error" role="alert">{{ authStore.error }}</p>
     </div>
 
     <main class="main-content">

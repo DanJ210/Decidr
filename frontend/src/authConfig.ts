@@ -1,7 +1,8 @@
 import {
+  InteractionRequiredAuthError,
   PublicClientApplication,
 } from '@azure/msal-browser'
-import type { AccountInfo, AuthenticationResult, SilentRequest } from '@azure/msal-browser'
+import type { AccountInfo, SilentRequest } from '@azure/msal-browser'
 
 const clientId = (import.meta.env.VITE_ENTRA_CLIENT_ID as string | undefined) ?? ''
 const authority = (import.meta.env.VITE_ENTRA_AUTHORITY as string | undefined) ?? ''
@@ -25,6 +26,14 @@ export const msalInstance = entraConfigured
 
 let initialization: Promise<void> | null = null
 
+function getAuthenticationError(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+
+  return 'Microsoft sign-in did not complete.'
+}
+
 export async function initializeMsal(): Promise<void> {
   if (!msalInstance) {
     return
@@ -32,19 +41,31 @@ export async function initializeMsal(): Promise<void> {
 
   initialization ??= msalInstance.initialize()
   await initialization
+  try {
+    const result = await msalInstance.handleRedirectPromise()
+    if (result?.account) {
+      msalInstance.setActiveAccount(result.account)
+    }
+  } catch (error) {
+    sessionStorage.setItem('decidr-auth-error', getAuthenticationError(error))
+  }
 }
 
-export async function signIn(): Promise<AuthenticationResult | null> {
+export function takeAuthenticationError(): string | null {
+  const error = sessionStorage.getItem('decidr-auth-error')
+  sessionStorage.removeItem('decidr-auth-error')
+  return error
+}
+
+export async function signIn(): Promise<void> {
   if (!msalInstance) {
-    return null
+    return
   }
 
   await initializeMsal()
-  const result = await msalInstance.loginPopup({
+  await msalInstance.loginRedirect({
     scopes: [apiScope!],
   })
-  msalInstance.setActiveAccount(result.account)
-  return result
 }
 
 export async function signOut(): Promise<void> {
@@ -53,10 +74,10 @@ export async function signOut(): Promise<void> {
   }
 
   await initializeMsal()
-  await msalInstance.logoutPopup()
+  await msalInstance.logoutRedirect()
 }
 
-export async function getAccessToken(): Promise<string | null> {
+async function acquireAccessTokenSilently(): Promise<string | null> {
   if (!msalInstance) {
     return null
   }
@@ -73,14 +94,31 @@ export async function getAccessToken(): Promise<string | null> {
     scopes: [apiScope!],
   }
 
+  return (await msalInstance.acquireTokenSilent(request)).accessToken
+}
+
+export async function getAccessToken(): Promise<string | null> {
   try {
-    return (await msalInstance.acquireTokenSilent(request)).accessToken
-  } catch {
-    try {
-      return (await msalInstance.acquireTokenPopup({ scopes: [apiScope!] })).accessToken
-    } catch {
+    return await acquireAccessTokenSilently()
+  } catch (error) {
+    if (error instanceof InteractionRequiredAuthError) {
       return null
     }
+
+    throw error
+  }
+}
+
+export async function ensureAccessToken(): Promise<boolean> {
+  try {
+    return Boolean(await acquireAccessTokenSilently())
+  } catch (error) {
+    if (!(error instanceof InteractionRequiredAuthError) || !msalInstance) {
+      throw error
+    }
+
+    await msalInstance.acquireTokenRedirect({ scopes: [apiScope!] })
+    return false
   }
 }
 

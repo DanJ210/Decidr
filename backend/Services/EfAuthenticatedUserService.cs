@@ -17,15 +17,15 @@ public sealed class EfAuthenticatedUserService : IAuthenticatedUserService
 
     public async Task<UserEntity?> GetOrCreateAsync(ClaimsPrincipal principal, CancellationToken cancellationToken = default)
     {
-        var subject = principal.FindFirstValue("sub");
-        var issuer = principal.FindFirstValue("iss");
-        if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(issuer))
+        var tenantId = principal.FindFirstValue("tid");
+        var objectId = principal.FindFirstValue("oid");
+        if (string.IsNullOrWhiteSpace(tenantId) || string.IsNullOrWhiteSpace(objectId))
         {
             return null;
         }
 
         var user = await _db.Users.FirstOrDefaultAsync(
-            candidate => candidate.IdentityIssuer == issuer && candidate.IdentitySubject == subject,
+            candidate => candidate.IdentityIssuer == tenantId && candidate.IdentitySubject == objectId,
             cancellationToken);
         if (user is not null)
         {
@@ -37,23 +37,44 @@ public sealed class EfAuthenticatedUserService : IAuthenticatedUserService
         var userName = principal.FindFirstValue("preferred_username") ?? email;
         if (string.IsNullOrWhiteSpace(userName))
         {
-            userName = $"user-{subject}";
+            userName = $"user-{objectId}";
         }
 
         user = new UserEntity
         {
             Id = Guid.NewGuid(),
-            IdentityIssuer = issuer,
-            IdentitySubject = subject,
+            IdentityIssuer = tenantId,
+            IdentitySubject = objectId,
             Email = email,
             UserName = await MakeUniqueUserNameAsync(userName, cancellationToken),
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? "New member" : displayName,
             Role = UserRole.Member,
         };
 
-        _db.Users.Add(user);
-        await _db.SaveChangesAsync(cancellationToken);
-        return user;
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            _db.Users.Add(user);
+            try
+            {
+                await _db.SaveChangesAsync(cancellationToken);
+                return user;
+            }
+            catch (DbUpdateException) when (attempt == 0)
+            {
+                _db.Entry(user).State = EntityState.Detached;
+                var concurrentlyCreatedUser = await _db.Users.FirstOrDefaultAsync(
+                    candidate => candidate.IdentityIssuer == tenantId && candidate.IdentitySubject == objectId,
+                    cancellationToken);
+                if (concurrentlyCreatedUser is not null)
+                {
+                    return concurrentlyCreatedUser;
+                }
+
+                user.UserName = await MakeUniqueUserNameAsync(userName, cancellationToken);
+            }
+        }
+
+        throw new InvalidOperationException("The authenticated user profile could not be provisioned.");
     }
 
     private async Task<string> MakeUniqueUserNameAsync(string requestedName, CancellationToken cancellationToken)

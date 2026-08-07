@@ -93,13 +93,17 @@ Duplicate awards are prevented: a `(userId, badgeCode, sourceType, sourceId)` co
 In configured environments, the Vue SPA authenticates with Microsoft Entra External
 ID through MSAL and sends bearer tokens with API requests. ASP.NET Core JWT bearer
 validation checks the token authority and audience. `IAuthenticatedUserService`
-maps the token's `iss` and `sub` claims to the local `UserEntity`; a first sign-in
-creates a local Member profile.
+maps the token's stable `tid` and `oid` claims to the local `UserEntity`; a first
+sign-in creates a local Member profile. Authenticated API operations require the
+delegated `access_as_user` scope. Entra configuration also requires persistent
+SQL storage so external identities cannot be provisioned into transient memory.
 
 Write endpoints resolve the acting user from the authenticated claims. Actor IDs
 are not accepted from request bodies. Request IDs remain only when they identify a
 target user, case, friend request, or other resource. User-scoped private reads
-also require the authenticated local user to match the route ID.
+also require the authenticated local user to match the route ID. Vote status and
+per-viewer case state derive the viewer from the authenticated actor rather than
+accepting a user ID from the caller.
 
 Development without Entra configuration retains the seeded selected-user fallback
 for local demos. This fallback is intentionally unavailable as an authentication

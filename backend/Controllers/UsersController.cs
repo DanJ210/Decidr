@@ -90,6 +90,11 @@ public class UsersController : ControllerBase
     {
         if (User.Identity?.IsAuthenticated == true)
         {
+            if (!AuthorizationPolicies.HasAccessAsUserScope(User))
+            {
+                return false;
+            }
+
             var actor = await _authenticatedUserService.GetOrCreateAsync(User, cancellationToken);
             return actor?.Id == userId;
         }

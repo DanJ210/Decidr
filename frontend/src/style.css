@@ -180,6 +180,10 @@ textarea {
   min-width: 0;
 }
 
+.auth-switcher .user-switcher-copy {
+  display: block;
+}
+
 .user-switcher-label,
 .user-switcher-name {
   display: block;
@@ -218,6 +222,13 @@ textarea {
 .user-switcher:focus-within {
   outline: 3px solid var(--focus);
   outline-offset: 3px;
+}
+
+.auth-error {
+  margin: 0.5rem 1rem 0;
+  color: var(--danger);
+  font-size: 0.8rem;
+  text-align: right;
 }
 
 /* ─── Main content ───────────────────────────────────────── */

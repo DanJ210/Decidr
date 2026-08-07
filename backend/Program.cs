@@ -5,6 +5,7 @@ using backend.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,16 +49,29 @@ if (!entraConfigured && !builder.Environment.IsDevelopment())
     throw new InvalidOperationException("Entra:Authority and Entra:Audience must be configured outside Development.");
 }
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(AuthorizationPolicies.AccessAsUser, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireAssertion(context => AuthorizationPolicies.HasAccessAsUserScope(context.User));
+    });
+});
 if (entraConfigured)
 {
+    var audience = entraAudience!.TrimEnd('/');
+
     builder.Services
         .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(options =>
         {
             options.Authority = entraAuthority;
-            options.Audience = entraAudience;
+            options.MapInboundClaims = false;
             options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidAudience = audience,
+            };
         });
 }
 
@@ -71,6 +85,11 @@ if (!string.IsNullOrWhiteSpace(connectionString))
 }
 else
 {
+    if (entraConfigured)
+    {
+        throw new InvalidOperationException("A database connection is required when Entra authentication is configured.");
+    }
+
     builder.Services.AddSingleton<ICommunityCourtService, InMemoryCommunityCourtService>();
     builder.Services.AddSingleton<IAuthenticatedUserService, UnavailableAuthenticatedUserService>();
 }

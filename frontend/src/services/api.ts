@@ -23,7 +23,13 @@ const apiClient = axios.create({
 })
 
 apiClient.interceptors.request.use(async (config) => {
-  const accessToken = await getAccessToken()
+  let accessToken: string | null = null
+  try {
+    accessToken = await getAccessToken()
+  } catch {
+    // Public requests should remain usable when silent token acquisition fails.
+  }
+
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`
   } else if (!entraConfigured) {
@@ -45,17 +51,13 @@ export async function fetchCases(): Promise<ArgumentCase[]> {
   return data
 }
 
-export async function fetchCaseById(id: string, userId?: string): Promise<ArgumentCase> {
-  const { data } = await apiClient.get<ArgumentCase>(`/cases/${id}`, {
-    params: userId ? { userId } : undefined,
-  })
+export async function fetchCaseById(id: string): Promise<ArgumentCase> {
+  const { data } = await apiClient.get<ArgumentCase>(`/cases/${id}`)
   return data
 }
 
-export async function fetchCaseVoteStatus(caseId: string, userId: string): Promise<CaseVoteStatus> {
-  const { data } = await apiClient.get<CaseVoteStatus>(`/cases/${caseId}/vote-status`, {
-    params: { userId },
-  })
+export async function fetchCaseVoteStatus(caseId: string): Promise<CaseVoteStatus> {
+  const { data } = await apiClient.get<CaseVoteStatus>(`/cases/${caseId}/vote-status`)
   return data
 }
 

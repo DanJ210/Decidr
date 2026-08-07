@@ -32,12 +32,29 @@ public sealed class ActorResolverTests
         courtService.Setup(service => service.GetUser(headerActor.Id)).Returns(headerActor);
         var resolver = CreateResolver(authService, courtService, isDevelopment: true);
         var request = CreateRequest(headerActor.Id);
-        var principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"));
+        var principal = CreateAuthenticatedPrincipal();
 
         var resolved = await resolver.ResolveAsync(principal, request);
 
         Assert.Same(claimActor, resolved);
         authService.Verify(service => service.GetOrCreateAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()), Times.Once);
+        courtService.Verify(service => service.GetUser(It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Authenticated_identity_without_access_scope_is_rejected()
+    {
+        var authService = new Mock<IAuthenticatedUserService>();
+        var courtService = new Mock<ICommunityCourtService>();
+        var resolver = CreateResolver(authService, courtService, isDevelopment: true);
+        var principal = new ClaimsPrincipal(new ClaimsIdentity([], "Bearer"));
+
+        var resolved = await resolver.ResolveAsync(principal, CreateRequest(Guid.NewGuid()));
+
+        Assert.Null(resolved);
+        authService.Verify(
+            service => service.GetOrCreateAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()),
+            Times.Never);
         courtService.Verify(service => service.GetUser(It.IsAny<Guid>()), Times.Never);
     }
 
@@ -122,5 +139,12 @@ public sealed class ActorResolverTests
         var context = new DefaultHttpContext();
         context.Request.Headers["X-Dev-User-Id"] = userId.ToString();
         return context.Request;
+    }
+
+    private static ClaimsPrincipal CreateAuthenticatedPrincipal()
+    {
+        return new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim("scp", "access_as_user")],
+            "Bearer"));
     }
 }

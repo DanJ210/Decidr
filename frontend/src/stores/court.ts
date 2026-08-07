@@ -39,7 +39,7 @@ export const useCourtStore = defineStore('court', {
         this.loading = false
       }
     },
-    async loadCase(id: string, options?: { userId?: string; clearSelectedCaseOnFailure?: boolean }) {
+    async loadCase(id: string, options?: { clearSelectedCaseOnFailure?: boolean }) {
       const requestId = this.selectedCaseRequestId + 1
       this.selectedCaseRequestId = requestId
       this.loading = true
@@ -47,7 +47,7 @@ export const useCourtStore = defineStore('court', {
       const clearSelectedCaseOnFailure = options?.clearSelectedCaseOnFailure ?? true
 
       try {
-        const loaded = await fetchCaseById(id, options?.userId)
+        const loaded = await fetchCaseById(id)
         if (this.selectedCaseRequestId !== requestId) {
           return null
         }
