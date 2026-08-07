@@ -103,6 +103,12 @@ export const useFriendsStore = defineStore('friends', {
       }
     },
     async sendRequest(toUserId: string): Promise<boolean> {
+      const actorUserId = this.activeUserId
+      if (!actorUserId) {
+        this.error = 'Unable to send a friend request without an active user.'
+        return false
+      }
+
       this.error = null
 
       try {
@@ -112,14 +118,14 @@ export const useFriendsStore = defineStore('friends', {
           ...this.outgoingRequests,
           {
             id: `temp-${Date.now()}`,
-            fromUserId: this.activeUserId ?? '',
+            fromUserId: actorUserId,
             toUserId,
             status: 'Pending' as const,
             createdAtUtc: new Date().toISOString(),
           },
         ]
         // Then sync with the server to get the real ID
-        await this.loadOutgoingRequests(this.activeUserId ?? '')
+        await this.loadOutgoingRequests(actorUserId)
         return true
       } catch {
         this.error = 'Unable to send friend request right now.'
