@@ -303,7 +303,10 @@ public class CasesController : ControllerBase
     public async Task<ActionResult<ArgumentCase>> CloseCase(Guid id, CancellationToken cancellationToken)
     {
         var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
-        if (actor is null) return Unauthorized();
+        if (actor is null)
+        {
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        }
 
         var result = _courtService.CloseCase(id, actor.Id);
         if (!result.Success)
@@ -318,7 +321,10 @@ public class CasesController : ControllerBase
     public async Task<ActionResult<ArgumentCase>> AcceptInvitation(Guid id, [FromBody] AcceptInvitationRequest request, CancellationToken cancellationToken)
     {
         var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
-        if (actor is null) return Unauthorized();
+        if (actor is null)
+        {
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        }
 
         var result = _courtService.AcceptCaseInvitation(id, actor.Id, request);
         if (!result.Success)
@@ -333,7 +339,10 @@ public class CasesController : ControllerBase
     public async Task<ActionResult> DeclineInvitation(Guid id, CancellationToken cancellationToken)
     {
         var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
-        if (actor is null) return Unauthorized();
+        if (actor is null)
+        {
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        }
 
         var result = _courtService.DeclineCaseInvitation(id, actor.Id);
         if (!result.Success)
