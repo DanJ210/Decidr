@@ -9,20 +9,14 @@ namespace backend.Controllers;
 public class UsersController : ControllerBase
 {
     private readonly ICommunityCourtService _courtService;
-    private readonly IAuthenticatedUserService _authenticatedUserService;
-    private readonly IWebHostEnvironment _environment;
-    private readonly IConfiguration _configuration;
+    private readonly IActorResolver _actorResolver;
 
     public UsersController(
         ICommunityCourtService courtService,
-        IAuthenticatedUserService authenticatedUserService,
-        IWebHostEnvironment environment,
-        IConfiguration configuration)
+        IActorResolver actorResolver)
     {
         _courtService = courtService;
-        _authenticatedUserService = authenticatedUserService;
-        _environment = environment;
-        _configuration = configuration;
+        _actorResolver = actorResolver;
     }
 
     [HttpGet]
@@ -88,19 +82,7 @@ public class UsersController : ControllerBase
 
     private async Task<bool> CanAccessUserAsync(Guid userId, CancellationToken cancellationToken)
     {
-        if (User.Identity?.IsAuthenticated == true)
-        {
-            if (!AuthorizationPolicies.HasAccessAsUserScope(User))
-            {
-                return false;
-            }
-
-            var actor = await _authenticatedUserService.GetOrCreateAsync(User, cancellationToken);
-            return actor?.Id == userId;
-        }
-
-        return _environment.IsDevelopment() &&
-            string.IsNullOrWhiteSpace(_configuration["Entra:Authority"]) &&
-            string.IsNullOrWhiteSpace(_configuration["Entra:Audience"]);
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        return actor?.Id == userId;
     }
 }

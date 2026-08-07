@@ -196,7 +196,7 @@ to `localStorage` under the key `decidr-selected-user-id`.
 
 | State | Type | Description |
 |-------|------|-------------|
-| `users` | `AppUser[]` | Current Entra profile, or selectable Development users |
+| `users` | `AppUser[]` | User directory in Entra mode, or selectable Development users |
 | `selectedUserId` | `string \| null` | Current local profile ID |
 | `authenticationStatus` | `AuthenticationStatus` | Signed-out, authenticating, account-present, profile-ready, or error state |
 | `loading` | `boolean` | API fetch in progress |

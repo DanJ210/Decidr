@@ -65,7 +65,10 @@ export const useAuthStore = defineStore('auth', {
           }
 
           const currentUser = await fetchCurrentUser()
-          this.users = [currentUser]
+          const users = await fetchUsers()
+          this.users = users.some((user) => user.id === currentUser.id)
+            ? users
+            : [currentUser, ...users]
           this.selectedUserId = currentUser.id
           this.authenticationStatus = 'profileReady'
           return
