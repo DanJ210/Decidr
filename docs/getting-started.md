@@ -51,9 +51,13 @@ Configure the SPA with a local `frontend/.env.local` file (also ignored by git):
 
 ```dotenv
 VITE_ENTRA_CLIENT_ID=<spa-application-client-id>
-VITE_ENTRA_AUTHORITY=https://<tenant>.ciamlogin.com/<tenant-id>
+VITE_ENTRA_AUTHORITY=https://<tenant-id>.ciamlogin.com/<tenant-id>
 VITE_ENTRA_API_SCOPE=api://<backend-api-application-id>/<scope-name>
 ```
+
+Use the canonical tenant-ID authority for MSAL. The friendly tenant-subdomain
+authority can return discovery metadata whose issuer uses the tenant-ID host;
+MSAL 5 rejects that alias mismatch with `endpoints_resolution_error`.
 
 The SPA signs users in with MSAL and silently attaches an access token when one
 is available. Profile initialization starts an interactive redirect only when
