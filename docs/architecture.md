@@ -109,6 +109,17 @@ Development without Entra configuration retains the seeded selected-user fallbac
 for local demos. This fallback is intentionally unavailable as an authentication
 mode outside Development.
 
+API endpoints are rate limited per authenticated Entra object ID, falling back
+to the remote IP address for anonymous traffic. Responses include anti-sniffing,
+anti-framing, and strict referrer-policy headers, and non-Development deployments
+enable HTTP Strict Transport Security (HSTS).
+
+Uploaded evidence is stored under the local web root during development. Before
+deploying for untrusted users, move uploads to Azure Blob Storage with anonymous
+container access disabled and serve files through an application-controlled
+download path. Production storage should validate file signatures, set explicit
+content types and download dispositions, and enable malware scanning.
+
 ### Frontend–Backend Integration
 In production, `dotnet run` serves both the API and the compiled Vue SPA. The backend registers `UseDefaultFiles()`, `UseStaticFiles()`, and `MapFallbackToFile("index.html")` so Vue Router can handle client-side navigation. In development, the Vite dev server handles the frontend and proxies API calls to the .NET backend.
 

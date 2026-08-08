@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Threading.RateLimiting;
 using System.Text.Json.Serialization;
 using backend.Data;
 using backend.Services;
@@ -40,6 +41,24 @@ builder.Services.Configure<GzipCompressionProviderOptions>(options =>
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("api", context =>
+    {
+        var partitionKey = context.User.FindFirst("oid")?.Value
+            ?? context.Connection.RemoteIpAddress?.ToString()
+            ?? "unknown";
+
+        return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 120,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        });
+    });
+});
 
 var entraAuthority = builder.Configuration["Entra:Authority"];
 var entraAudience = builder.Configuration["Entra:Audience"];
@@ -112,9 +131,20 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    app.UseHsts();
+}
 
 app.UseHttpsRedirection();
 app.UseResponseCompression();
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.XContentTypeOptions = "nosniff";
+    context.Response.Headers.XFrameOptions = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    await next();
+});
 
 if (entraConfigured)
 {
@@ -122,7 +152,8 @@ if (entraConfigured)
     app.UseAuthorization();
 }
 
-app.MapControllers();
+app.UseRateLimiter();
+app.MapControllers().RequireRateLimiting("api");
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
