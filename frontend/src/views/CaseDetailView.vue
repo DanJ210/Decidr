@@ -26,6 +26,8 @@ const {
   evidenceDrafts,
   sideAEvidence,
   sideBEvidence,
+  sideARecord,
+  sideBRecord,
   canAddEvidenceSideA,
   canAddEvidenceSideB,
   sideAEvidenceAtLimit,
@@ -229,6 +231,19 @@ function formatEvidenceSize(sizeBytes: number | null) {
             </button>
           </div>
           <p v-else-if="closePermissionMessage" class="status-text close-message">{{ closePermissionMessage }}</p>
+
+          <div v-if="caseItem.status === 'Closed' && sideARecord && sideBRecord" class="case-record-impact">
+            <h3>Updated court records</h3>
+            <p>
+              <strong>@{{ sideARecord.userName }}</strong>
+              {{ sideARecord.wins }}W–{{ sideARecord.losses }}L–{{ sideARecord.ties }}T
+            </p>
+            <p>
+              <strong>@{{ sideBRecord.userName }}</strong>
+              {{ sideBRecord.wins }}W–{{ sideBRecord.losses }}L–{{ sideBRecord.ties }}T
+            </p>
+            <RouterLink to="/standings" class="case-link">View court standings</RouterLink>
+          </div>
         </section>
 
         <section class="detail-section evidence-section">

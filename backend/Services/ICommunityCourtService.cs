@@ -6,6 +6,8 @@ public interface ICommunityCourtService
 {
     IReadOnlyList<AppUser> GetUsers();
     AppUser? GetUser(Guid userId);
+    IReadOnlyList<PlayerRecord> GetPlayerRecords();
+    PlayerRecord? GetPlayerRecord(Guid userId);
     IReadOnlyList<ArgumentCase> GetCases();
     ArgumentCase? GetCase(Guid caseId, Guid? viewerUserId = null);
     IReadOnlyList<CaseComment> GetCaseComments(Guid caseId);

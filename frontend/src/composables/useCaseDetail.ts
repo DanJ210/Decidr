@@ -4,13 +4,14 @@ import {
   fetchCaseComments,
   fetchCaseEvidence,
   fetchCaseVoteStatus,
+  fetchPlayerRecord,
   postCaseComment,
   postCaseEvidenceLink,
   uploadCaseEvidenceFile,
 } from '../services/api'
 import { useAuthStore } from '../stores/auth'
 import { useCourtStore } from '../stores/court'
-import type { CaseComment, CaseEvidenceCollection, CaseEvidenceItem, CaseSide } from '../types'
+import type { CaseComment, CaseEvidenceCollection, CaseEvidenceItem, CaseSide, PlayerRecord } from '../types'
 
 const MAX_EVIDENCE_ITEMS_PER_SIDE = 20
 const EVIDENCE_FILE_ACCEPT = '.jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.doc,.docx'
@@ -42,6 +43,8 @@ export function useCaseDetail() {
   const evidenceMutatingSide = ref<CaseSide | null>(null)
   const evidenceMutatingType = ref<'link' | 'file' | null>(null)
   const evidenceError = ref<string | null>(null)
+  const sideARecord = ref<PlayerRecord | null>(null)
+  const sideBRecord = ref<PlayerRecord | null>(null)
   const evidenceDrafts = reactive<Record<CaseSide, SideEvidenceDraft>>({
     A: {
       linkTitle: '',
@@ -201,13 +204,33 @@ export function useCaseDetail() {
       checkingVoteStatus.value = false
       commentsLoading.value = false
       evidenceLoading.value = false
+      sideARecord.value = null
+      sideBRecord.value = null
       return
     }
+
+    const recordRequest = loaded.status === 'Closed' && loaded.sideB
+      ? Promise.all([
+          fetchPlayerRecord(loaded.sideA.userId),
+          fetchPlayerRecord(loaded.sideB.userId),
+        ]).then(([sideA, sideB]) => {
+          if (isCurrentCaseStateRequest(requestId, id)) {
+            sideARecord.value = sideA
+            sideBRecord.value = sideB
+          }
+        }).catch(() => {
+          if (isCurrentCaseStateRequest(requestId, id)) {
+            sideARecord.value = null
+            sideBRecord.value = null
+          }
+        })
+      : Promise.resolve()
 
     await Promise.all([
       refreshVoteStatus(),
       loadComments(id),
       loadEvidence(id),
+      recordRequest,
     ])
   }
 
@@ -220,6 +243,8 @@ export function useCaseDetail() {
       comments.value = []
       evidenceError.value = null
       evidence.value = { sideA: [], sideB: [] }
+      sideARecord.value = null
+      sideBRecord.value = null
       resetAllEvidenceDrafts()
       if (typeof id === 'string') {
         void loadCaseState(id)
@@ -567,6 +592,8 @@ export function useCaseDetail() {
     evidenceDrafts,
     sideAEvidence,
     sideBEvidence,
+    sideARecord,
+    sideBRecord,
     canAddEvidenceSideA,
     canAddEvidenceSideB,
     sideAEvidenceAtLimit,

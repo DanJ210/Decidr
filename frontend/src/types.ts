@@ -10,6 +10,19 @@ export interface AppUser {
   role: UserRole
 }
 
+export interface PlayerRecord {
+  userId: string
+  userName: string
+  displayName: string
+  wins: number
+  losses: number
+  ties: number
+  completedCases: number
+  winRate: number
+  isQualified: boolean
+  rank: number | null
+}
+
 export interface ArgumentPost {
   side: CaseSide
   userId: string

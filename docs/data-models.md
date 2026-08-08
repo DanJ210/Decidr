@@ -55,6 +55,24 @@ Represents a registered user.
 
 ---
 
+### `PlayerRecord`
+An outcome-derived public record for a user.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `UserId` | `Guid` | Player identifier |
+| `UserName` | `string` | Player handle |
+| `DisplayName` | `string` | Player display name |
+| `Wins` | `int` | Closed, decided cases won |
+| `Losses` | `int` | Closed, decided cases lost |
+| `Ties` | `int` | Closed cases with no winner |
+| `CompletedCases` | `int` | Wins, losses, and ties combined |
+| `WinRate` | `double` | Wins divided by decided cases |
+| `IsQualified` | `bool` | Whether the player completed at least three cases |
+| `Rank` | `int?` | Qualified standing, or `null` while provisional |
+
+---
+
 ### `ArgumentPost`
 One side's opening argument in a case.
 

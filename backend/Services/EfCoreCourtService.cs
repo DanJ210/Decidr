@@ -46,6 +46,23 @@ public class EfCoreCourtService : ICommunityCourtService
         return entity is null ? null : MapUser(entity);
     }
 
+    public IReadOnlyList<PlayerRecord> GetPlayerRecords()
+    {
+        var users = _db.Users.AsNoTracking().ToList().Select(MapUser);
+        var cases = _db.Cases
+            .AsNoTracking()
+            .Where(c => c.Status == CaseStatus.Closed && c.SideBUserId != null)
+            .ToList()
+            .Select(MapCase);
+
+        return PlayerRecordCalculator.Calculate(users, cases);
+    }
+
+    public PlayerRecord? GetPlayerRecord(Guid userId)
+    {
+        return GetPlayerRecords().FirstOrDefault(record => record.UserId == userId);
+    }
+
     // -------------------------------------------------------------------------
     // Cases
     // -------------------------------------------------------------------------
