@@ -29,7 +29,7 @@ public sealed class PlayerRecordCalculatorTests
         Assert.Equal(1, alex.Losses);
         Assert.Equal(1, alex.Ties);
         Assert.Equal(3, alex.CompletedCases);
-        Assert.Equal(0.5, alex.WinRate);
+        Assert.Equal(1d / 3d, alex.WinRate);
         Assert.True(alex.IsQualified);
 
         var casey = Assert.Single(records, record => record.UserId == _casey.Id);

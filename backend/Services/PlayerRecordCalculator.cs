@@ -24,8 +24,7 @@ public static class PlayerRecordCalculator
                 (c.WinnerSide == CaseSide.B && c.SideB!.UserId == user.Id));
             var ties = userCases.Count(c => c.WinnerSide is null);
             var losses = userCases.Count - wins - ties;
-            var decidedCases = wins + losses;
-            var winRate = decidedCases == 0 ? 0 : (double)wins / decidedCases;
+            var winRate = userCases.Count == 0 ? 0 : (double)wins / userCases.Count;
 
             return new PlayerRecord(
                 user.Id,

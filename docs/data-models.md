@@ -67,7 +67,7 @@ An outcome-derived public record for a user.
 | `Losses` | `int` | Closed, decided cases lost |
 | `Ties` | `int` | Closed cases with no winner |
 | `CompletedCases` | `int` | Wins, losses, and ties combined |
-| `WinRate` | `double` | Wins divided by decided cases |
+| `WinRate` | `double` | Wins divided by completed cases |
 | `IsQualified` | `bool` | Whether the player completed at least three cases |
 | `Rank` | `int?` | Qualified standing, or `null` while provisional |
 
