@@ -1361,6 +1361,13 @@ textarea {
   font: inherit;
 }
 
+.selected-file {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
 .status-text {
   margin-top: 0.8rem;
   font-size: 0.9rem;

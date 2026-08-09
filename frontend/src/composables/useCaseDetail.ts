@@ -40,10 +40,12 @@ export function useCaseDetail() {
   const checkingVoteStatus = ref(false)
   const evidence = ref<CaseEvidenceCollection>({ sideA: [], sideB: [] })
   const evidenceLoading = ref(false)
+  const evidenceLoaded = ref(false)
   const evidenceMutating = ref(false)
   const evidenceMutatingSide = ref<CaseSide | null>(null)
   const evidenceMutatingType = ref<'link' | 'file' | null>(null)
   const evidenceError = ref<string | null>(null)
+  const evidenceNotice = ref<string | null>(null)
   const evidencePreviewUrls = reactive<Record<string, string>>({})
   const evidenceDrafts = reactive<Record<CaseSide, SideEvidenceDraft>>({
     A: {
@@ -149,16 +151,20 @@ export function useCaseDetail() {
     }
 
     evidenceError.value = null
+    evidenceNotice.value = null
+    const popup = window.open('', '_blank', 'noopener,noreferrer')
+    if (!popup) {
+      evidenceError.value = 'Unable to open a new tab. Please allow pop-ups for this site and try again.'
+      return
+    }
+
     try {
       const content = await fetchCaseEvidenceFile(item.caseId, item.id)
       const objectUrl = URL.createObjectURL(content)
-      const link = document.createElement('a')
-      link.href = objectUrl
-      link.target = '_blank'
-      link.rel = 'noopener noreferrer'
-      link.click()
+      popup.location.href = objectUrl
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
     } catch (error) {
+      popup.close()
       const status = axios.isAxiosError(error) ? error.response?.status : undefined
       evidenceError.value = status === 423
         ? 'This evidence file is still being scanned. Try again shortly.'
@@ -191,13 +197,16 @@ export function useCaseDetail() {
   async function loadEvidence(caseId: string) {
     const requestId = ++evidenceRequestId
     evidenceLoading.value = true
+    evidenceLoaded.value = false
     evidenceError.value = null
+    evidenceNotice.value = null
 
     try {
       const loaded = await fetchCaseEvidence(caseId)
       if (isCurrentEvidenceRequest(requestId, caseId)) {
         clearEvidencePreviewUrls()
         evidence.value = loaded
+        evidenceLoaded.value = true
         for (const item of [...loaded.sideA, ...loaded.sideB]) {
           void loadEvidencePreview(item, requestId)
         }
@@ -259,6 +268,7 @@ export function useCaseDetail() {
         hasVoted.value = false
         comments.value = []
         evidence.value = { sideA: [], sideB: [] }
+        evidenceLoaded.value = false
         evidenceError.value = null
         resetAllEvidenceDrafts()
       }
@@ -284,6 +294,7 @@ export function useCaseDetail() {
       comments.value = []
       evidenceError.value = null
       evidence.value = { sideA: [], sideB: [] }
+      evidenceLoaded.value = false
       resetAllEvidenceDrafts()
       if (typeof id === 'string') {
         void loadCaseState(id)
@@ -478,6 +489,7 @@ export function useCaseDetail() {
     evidenceMutatingSide.value = side
     evidenceMutatingType.value = 'file'
     evidenceError.value = null
+    evidenceNotice.value = null
 
     try {
       const created = await uploadCaseEvidenceFile(selectedCase.id, {
@@ -492,6 +504,7 @@ export function useCaseDetail() {
 
       appendEvidenceItem(created)
       await loadEvidencePreview(created, evidenceRequestId)
+      evidenceNotice.value = 'File uploaded. Security scanning may take a short time before it can be opened.'
       draft.fileTitle = ''
       draft.file = null
     } catch {
@@ -630,7 +643,9 @@ export function useCaseDetail() {
     votePermissionMessage,
     evidence,
     evidenceLoading,
+    evidenceLoaded,
     evidenceError,
+    evidenceNotice,
     evidenceDrafts,
     sideAEvidence,
     sideBEvidence,
