@@ -9,6 +9,11 @@ Authenticated requests require a valid Entra v2 access token with the delegated
 that token. In Development only, when Entra is not configured, `X-Dev-User-Id`
 may identify a seeded local actor.
 
+When Entra is configured, controller endpoints require `access_as_user` by
+default. Only the case feed, case detail, comments, evidence metadata, and result
+actions explicitly allow anonymous access. Pending cases and their related public
+read surfaces remain visible only to Side A, the invited/Side B user, or a moderator.
+
 ---
 
 ## Cases
@@ -21,11 +26,12 @@ Returns all `Open` and `Closed` cases ordered by creation date descending. `Pend
 ---
 
 ### `GET /api/cases/{id}`
-Returns a single case by GUID (any status, including `Pending`). When an actor is
-available, `currentUserVote` is populated for that actor.
+Returns an `Open` or `Closed` case by GUID. A `Pending` case is returned only when
+the resolved actor is Side A, the invited/Side B user, or a moderator. When an
+actor is available, `currentUserVote` is populated for that actor.
 
 **Response `200 OK`** — `ArgumentCase`  
-**Response `404 Not Found`** — case does not exist
+**Response `404 Not Found`** — case does not exist or a pending case is not visible to the caller
 
 ---
 
@@ -147,6 +153,8 @@ Closes a case and determines the winner.
 
 ### `GET /api/cases/{id}/comments`
 Returns all comments for a case in chronological order. Comments are case-level (one shared pool), not side-specific.
+Pending-case comments use the same participant/invitee/moderator visibility rule
+as case detail.
 
 **Response `200 OK`** — `CaseComment[]`  
 **Response `404 Not Found`** — case does not exist
@@ -176,6 +184,8 @@ Adds a new case-level comment to the shared comment pool.
 
 ### `GET /api/cases/{id}/evidence`
 Returns side-scoped supporting materials for a case.
+Pending-case evidence metadata uses the same participant/invitee/moderator
+visibility rule as case detail.
 
 **Response `200 OK`**
 ```json

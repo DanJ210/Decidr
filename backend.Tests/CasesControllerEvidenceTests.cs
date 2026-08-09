@@ -15,7 +15,7 @@ namespace backend.Tests;
 public sealed class CasesControllerEvidenceTests
 {
     [Fact]
-    public void Evidence_list_replaces_storage_key_with_api_content_url()
+    public async Task Evidence_list_replaces_storage_key_with_api_content_url()
     {
         var fixture = CreateFixture();
         var evidence = CreateEvidence(fixture.CaseId, "private/blob-key.pdf");
@@ -23,7 +23,7 @@ public sealed class CasesControllerEvidenceTests
             .Setup(service => service.GetCaseEvidence(fixture.CaseId))
             .Returns(new CaseEvidenceCollection([evidence], []));
 
-        var result = fixture.Controller.GetCaseEvidence(fixture.CaseId);
+        var result = await fixture.Controller.GetCaseEvidence(fixture.CaseId, CancellationToken.None);
 
         var response = Assert.IsType<CaseEvidenceCollection>(Assert.IsType<OkObjectResult>(result.Result).Value);
         Assert.Equal(
@@ -198,7 +198,9 @@ public sealed class CasesControllerEvidenceTests
         var caseId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var courtService = new Mock<ICommunityCourtService>();
-        courtService.Setup(service => service.GetCase(caseId, null)).Returns(CreateCase(caseId, userId));
+        courtService
+            .Setup(service => service.GetCase(caseId, It.IsAny<Guid?>()))
+            .Returns(CreateCase(caseId, userId));
         courtService.Setup(service => service.GetUser(userId)).Returns(new AppUser(userId, "alex_t", "Alex", UserRole.Member));
         courtService.Setup(service => service.GetCaseEvidence(caseId)).Returns(new CaseEvidenceCollection([], []));
 

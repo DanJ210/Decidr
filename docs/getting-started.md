@@ -118,7 +118,9 @@ local profile mapping have been verified end to end.
 
 The API security boundary has also been verified locally: authenticated profile
 requests succeed, anonymous and spoofed-development-header mutations are rejected,
-and API throttling plus baseline response security headers are enabled. Evidence
+controller endpoints require `access_as_user` by default in Entra environments,
+and pending case reads are restricted to participants, invitees, and moderators.
+API throttling plus baseline response security headers are enabled. Evidence
 uploads now use the private Blob container and an application-controlled download
 endpoint. Malware scanning remains pending before uploads should be considered
 fully hardened against hostile content.

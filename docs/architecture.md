@@ -105,12 +105,23 @@ sign-in creates a local Member profile. Authenticated API operations require the
 delegated `access_as_user` scope. Entra configuration also requires persistent
 SQL storage so external identities cannot be provisioned into transient memory.
 
+Controller endpoints are secure by default when Entra is configured: the
+`AccessAsUser` policy is attached to the controller endpoint convention, so new
+actions require a valid scoped token unless they explicitly opt into anonymous
+access. The public case feed, detail, comments, evidence metadata, and result
+actions are the only anonymous API surfaces. This convention is conditional so
+Development without Entra can retain its selected-user header workflow.
+
 Write endpoints resolve the acting user from the authenticated claims. Actor IDs
 are not accepted from request bodies. Request IDs remain only when they identify a
 target user, case, friend request, or other resource. User-scoped private reads
 also require the authenticated local user to match the route ID. Vote status and
 per-viewer case state derive the viewer from the authenticated actor rather than
 accepting a user ID from the caller.
+
+Object authorization also applies to anonymous case reads. `Open` and `Closed`
+cases are public, while a `Pending` case and its comments, evidence metadata, and
+result are visible only to Side A, the invited/Side B user, or a moderator.
 
 Development without Entra configuration retains the seeded selected-user fallback
 for local demos. This fallback is intentionally unavailable as an authentication
