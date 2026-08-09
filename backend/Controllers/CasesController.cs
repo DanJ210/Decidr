@@ -141,14 +141,35 @@ public class CasesController : ControllerBase
         }
 
         var storedContent = await _evidenceStorage.OpenReadAsync(evidence.ResourceUrl, cancellationToken);
-        if (storedContent is null)
+        if (storedContent.Status == EvidenceContentStatus.NotFound)
         {
             return NotFound();
         }
 
+        if (storedContent.Status == EvidenceContentStatus.PendingScan)
+        {
+            return StatusCode(
+                StatusCodes.Status423Locked,
+                "Evidence is awaiting malware scanning.");
+        }
+
+        if (storedContent.Status == EvidenceContentStatus.Malicious)
+        {
+            return StatusCode(
+                StatusCodes.Status410Gone,
+                "Evidence is unavailable because it failed security scanning.");
+        }
+
+        if (storedContent.Status == EvidenceContentStatus.ScanFailed)
+        {
+            return StatusCode(
+                StatusCodes.Status503ServiceUnavailable,
+                "Evidence security scanning did not complete successfully.");
+        }
+
         var extension = Path.GetExtension(evidence.ResourceUrl);
         var downloadName = $"{SanitizeDownloadName(evidence.Title)}{extension}";
-        return File(storedContent.Content, storedContent.ContentType, downloadName);
+        return File(storedContent.Content!, storedContent.ContentType!, downloadName);
     }
 
     [HttpPost]

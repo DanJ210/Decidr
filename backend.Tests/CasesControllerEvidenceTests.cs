@@ -14,6 +14,28 @@ namespace backend.Tests;
 
 public sealed class CasesControllerEvidenceTests
 {
+    [Theory]
+    [InlineData(null, EvidenceContentStatus.PendingScan)]
+    [InlineData("No threats found", EvidenceContentStatus.Clean)]
+    [InlineData("Malicious", EvidenceContentStatus.Malicious)]
+    [InlineData("Error", EvidenceContentStatus.ScanFailed)]
+    [InlineData("Not scanned", EvidenceContentStatus.ScanFailed)]
+    [InlineData("Unexpected", EvidenceContentStatus.PendingScan)]
+    public void Defender_scan_tag_maps_to_fail_closed_status(
+        string? scanResult,
+        EvidenceContentStatus expectedStatus)
+    {
+        var tags = new Dictionary<string, string>();
+        if (scanResult is not null)
+        {
+            tags[AzureBlobCaseEvidenceStorage.MalwareScanResultTag] = scanResult;
+        }
+
+        var status = AzureBlobCaseEvidenceStorage.GetEvidenceContentStatus(tags);
+
+        Assert.Equal(expectedStatus, status);
+    }
+
     [Fact]
     public async Task Evidence_list_replaces_storage_key_with_api_content_url()
     {
@@ -158,6 +180,7 @@ public sealed class CasesControllerEvidenceTests
         fixture.Storage
             .Setup(storage => storage.OpenReadAsync(evidence.ResourceUrl, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new StoredEvidenceContent(
+                EvidenceContentStatus.Clean,
                 new MemoryStream(Encoding.UTF8.GetBytes("file contents")),
                 "application/pdf"));
 
@@ -169,6 +192,52 @@ public sealed class CasesControllerEvidenceTests
         var file = Assert.IsType<FileStreamResult>(result);
         Assert.Equal("application/pdf", file.ContentType);
         Assert.Equal("Evidence.pdf", file.FileDownloadName);
+    }
+
+    [Theory]
+    [InlineData(EvidenceContentStatus.PendingScan, StatusCodes.Status423Locked)]
+    [InlineData(EvidenceContentStatus.Malicious, StatusCodes.Status410Gone)]
+    [InlineData(EvidenceContentStatus.ScanFailed, StatusCodes.Status503ServiceUnavailable)]
+    public async Task Content_endpoint_blocks_object_without_clean_scan_result(
+        EvidenceContentStatus storageStatus,
+        int expectedStatusCode)
+    {
+        var fixture = CreateFixture();
+        var evidence = CreateEvidence(fixture.CaseId, "private/blob-key.pdf");
+        fixture.CourtService
+            .Setup(service => service.GetCaseEvidence(fixture.CaseId))
+            .Returns(new CaseEvidenceCollection([evidence], []));
+        fixture.Storage
+            .Setup(storage => storage.OpenReadAsync(evidence.ResourceUrl, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new StoredEvidenceContent(storageStatus));
+
+        var result = await fixture.Controller.GetCaseEvidenceContent(
+            fixture.CaseId,
+            evidence.Id,
+            CancellationToken.None);
+
+        var blocked = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(expectedStatusCode, blocked.StatusCode);
+    }
+
+    [Fact]
+    public async Task Content_endpoint_returns_not_found_for_missing_object()
+    {
+        var fixture = CreateFixture();
+        var evidence = CreateEvidence(fixture.CaseId, "private/blob-key.pdf");
+        fixture.CourtService
+            .Setup(service => service.GetCaseEvidence(fixture.CaseId))
+            .Returns(new CaseEvidenceCollection([evidence], []));
+        fixture.Storage
+            .Setup(storage => storage.OpenReadAsync(evidence.ResourceUrl, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new StoredEvidenceContent(EvidenceContentStatus.NotFound));
+
+        var result = await fixture.Controller.GetCaseEvidenceContent(
+            fixture.CaseId,
+            evidence.Id,
+            CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]

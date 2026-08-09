@@ -137,8 +137,14 @@ application-controlled download path. Uploads are limited to 10 MB, validated by
 extension, MIME allowlist, and file signature before storage, and returned with
 explicit content types and download filenames. The container has anonymous access
 disabled and the App Service managed identity has data-plane access only at
-container scope. Malware scanning remains required before treating uploads as
-fully hardened against hostile files.
+container scope. In Azure, the download path checks the
+Defender for Storage `Malware Scanning scan result` blob index tag and streams
+content only when the value is exactly `No threats found`. Missing or unknown
+results are pending, and malicious, failed, or unscanned results fail closed.
+Production operations should additionally enable Defender's malicious-blob soft
+delete and use security alerts, Event Grid, or Log Analytics for tamper-resistant
+response and audit workflows because blob index tags can be modified by principals
+with tag-write permission.
 
 ### Frontend–Backend Integration
 In production, `dotnet run` serves both the API and the compiled Vue SPA. The backend registers `UseDefaultFiles()`, `UseStaticFiles()`, and `MapFallbackToFile("index.html")` so Vue Router can handle client-side navigation. In development, the Vite dev server handles the frontend and proxies API calls to the .NET backend.

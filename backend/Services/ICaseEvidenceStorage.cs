@@ -1,8 +1,18 @@
 namespace backend.Services;
 
+public enum EvidenceContentStatus
+{
+    Clean,
+    PendingScan,
+    Malicious,
+    ScanFailed,
+    NotFound
+}
+
 public sealed record StoredEvidenceContent(
-    Stream Content,
-    string ContentType);
+    EvidenceContentStatus Status,
+    Stream? Content = null,
+    string? ContentType = null);
 
 public interface ICaseEvidenceStorage
 {
@@ -13,7 +23,7 @@ public interface ICaseEvidenceStorage
         Stream content,
         CancellationToken cancellationToken);
 
-    Task<StoredEvidenceContent?> OpenReadAsync(
+    Task<StoredEvidenceContent> OpenReadAsync(
         string storageKey,
         CancellationToken cancellationToken);
 

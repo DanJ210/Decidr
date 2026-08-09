@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -157,8 +158,15 @@ export function useCaseDetail() {
       link.rel = 'noopener noreferrer'
       link.click()
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
-    } catch {
-      evidenceError.value = 'Unable to open this evidence file right now.'
+    } catch (error) {
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined
+      evidenceError.value = status === 423
+        ? 'This evidence file is still being scanned. Try again shortly.'
+        : status === 410
+          ? 'This evidence file is unavailable because it failed security scanning.'
+          : status === 503
+            ? 'Security scanning could not be completed. Try again later.'
+            : 'Unable to open this evidence file right now.'
     }
   }
 

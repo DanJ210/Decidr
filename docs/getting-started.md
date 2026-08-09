@@ -142,6 +142,8 @@ Current identity decisions and progress:
   the Web App managed identity at container scope
 - Private evidence implementation: complete; uploads use `DefaultAzureCredential`,
   file signatures are validated, and downloads stream through the authenticated API
+- Evidence malware gate: complete; Azure downloads require Defender's
+  `Malware Scanning scan result` blob index tag to equal `No threats found`
 - Web App: `decidr-danj210`
 - Azure SQL server: `sql-decidr-danj210.database.windows.net`
 - Azure SQL database: `decidr`
@@ -159,8 +161,10 @@ controller endpoints require `access_as_user` by default in Entra environments,
 and pending case reads are restricted to participants, invitees, and moderators.
 API throttling plus baseline response security headers are enabled. Evidence
 uploads now use the private Blob container and an application-controlled download
-endpoint. Malware scanning remains pending before uploads should be considered
-fully hardened against hostile content.
+endpoint. The endpoint fails closed while Defender scanning is pending and for
+malicious, failed, unscanned, or unknown results. The Development-only local file
+provider treats files that pass structural validation as clean so local work does
+not depend on Azure Defender.
 
 Configure these App Service application settings for private evidence storage:
 
@@ -175,11 +179,42 @@ fails startup if either setting is missing. In Development, omitting them select
 the ignored `backend/App_Data/case-evidence` provider; setting them allows local
 Azure testing with a developer identity obtained through standard Azure tooling.
 
+### Enable evidence malware scanning
+
+In the Azure portal, open `stdecidrdanj210`, then **Microsoft Defender for Cloud**
+under **Security + networking**. Enable Defender for Storage and **On-upload
+malware scanning** for this account. Keep blob index scan-result tags enabled;
+the API deliberately refuses access when the result tag is absent or is anything
+other than `No threats found`.
+
+Also configure the following operational controls:
+
+1. Confirm the `Microsoft.EventGrid` resource provider is registered. Defender
+  creates an Event Grid system topic that triggers scans; do not delete it.
+2. Set a monthly scan cap appropriate for this test deployment. The service
+  defaults to 10,000 GB and can exceed a configured cap by up to 20 GB.
+3. Enable Defender's built-in soft deletion of malicious blobs and set a retention
+  period suitable for investigation and false-positive recovery.
+4. Keep Defender security alerts enabled. Add Log Analytics or an Event Grid
+  result destination before production if a tamper-resistant audit trail or
+  automated quarantine workflow is required. Blob index tags are an application
+  access gate, but users with tag-write permission can alter them.
+5. Do not add scan exclusions for the `case-evidence/` container. Excluded,
+  oversized, timed-out, or otherwise unscanned files remain unavailable by design.
+
+Validate with one normal allowed file and the standard EICAR test file in a safe
+test case. A new file should initially return HTTP `423`, the normal file should
+become downloadable only after its tag is `No threats found`, and EICAR should
+remain unavailable with HTTP `410`. Confirm the EICAR detection appears in
+Defender for Cloud and that built-in soft deletion remediates the blob. Never use
+real malware for this validation.
+
 Resume the deployment work in this order:
 
 1. Configure App Service settings and the production SPA callback URI.
 2. Add CI/CD deployment, including controlled production database migrations.
-3. Validate the deployed application and add malware scanning for uploaded evidence.
+3. Enable Defender for Storage as described above and validate the deployed
+  evidence scan lifecycle.
 
 Keep application client IDs and authority values in ignored local settings or
 Azure App Service configuration. Never commit credentials or connection strings.

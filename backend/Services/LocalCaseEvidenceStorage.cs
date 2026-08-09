@@ -24,14 +24,14 @@ public sealed class LocalCaseEvidenceStorage(
         return storageKey;
     }
 
-    public Task<StoredEvidenceContent?> OpenReadAsync(
+    public Task<StoredEvidenceContent> OpenReadAsync(
         string storageKey,
         CancellationToken cancellationToken)
     {
         var fullPath = GetFullPath(storageKey);
         if (!File.Exists(fullPath))
         {
-            return Task.FromResult<StoredEvidenceContent?>(null);
+            return Task.FromResult(new StoredEvidenceContent(EvidenceContentStatus.NotFound));
         }
 
         var content = File.OpenRead(fullPath);
@@ -48,7 +48,10 @@ public sealed class LocalCaseEvidenceStorage(
             _ => "application/octet-stream",
         };
 
-        return Task.FromResult<StoredEvidenceContent?>(new(content, contentType));
+        return Task.FromResult(new StoredEvidenceContent(
+            EvidenceContentStatus.Clean,
+            content,
+            contentType));
     }
 
     public Task DeleteAsync(
