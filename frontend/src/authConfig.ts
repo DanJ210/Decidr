@@ -7,12 +7,18 @@ import type { AccountInfo, SilentRequest } from '@azure/msal-browser'
 const clientId = (import.meta.env.VITE_ENTRA_CLIENT_ID as string | undefined) ?? ''
 const authority = (import.meta.env.VITE_ENTRA_AUTHORITY as string | undefined) ?? ''
 const apiScope = (import.meta.env.VITE_ENTRA_API_SCOPE as string | undefined) ?? ''
-const authorityHost = authority ? new URL(authority).hostname : ''
+const authorityHost = (() => {
+  if (!authority) return ''
+  try {
+    return new URL(authority).hostname
+  } catch {
+    return ''
+  }
+})()
 const authCallbackPath = '/auth/callback'
 const authenticationReturnPathKey = 'decidr-auth-return-path'
 
-export const entraConfigured = Boolean(clientId && authority && apiScope)
-
+export const entraConfigured = Boolean(clientId && authority && authorityHost && apiScope)
 export const msalInstance = entraConfigured
   ? new PublicClientApplication({
       auth: {

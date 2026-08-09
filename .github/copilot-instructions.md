@@ -400,9 +400,9 @@ dotnet ef migrations bundle --project backend/backend.csproj --startup-project b
 
 ### Backend
 - **Framework**: .NET 10.0
-- **Microsoft.EntityFrameworkCore**: 8.0.27
-- **Microsoft.EntityFrameworkCore.SqlServer**: 8.0.27
-- **Swashbuckle.AspNetCore**: 6.6.2 (Swagger/OpenAPI)
+- **Microsoft.EntityFrameworkCore**: 10.0.10
+- **Microsoft.EntityFrameworkCore.SqlServer**: 10.0.10
+- **Swashbuckle.AspNetCore**: 10.2.3 (Swagger/OpenAPI)
 
 ### Frontend
 - **Vue**: 3.5.34

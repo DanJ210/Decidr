@@ -90,9 +90,10 @@ public static class EvidenceFileValidator
                 detectEncodingFromByteOrderMarks: true,
                 leaveOpen: true);
             var buffer = new char[4096];
-            while (await reader.ReadAsync(buffer, cancellationToken) > 0)
+            int charsRead;
+            while ((charsRead = await reader.ReadAsync(buffer, cancellationToken)) > 0)
             {
-                if (buffer.Contains('\0'))
+                if (buffer.AsSpan(0, charsRead).Contains('\0'))
                 {
                     return false;
                 }
