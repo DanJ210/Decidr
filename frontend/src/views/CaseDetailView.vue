@@ -22,6 +22,7 @@ const {
   canCloseCase,
   closePermissionMessage,
   evidenceLoading,
+  evidenceLoaded,
   evidenceError,
   evidenceNotice,
   evidenceDrafts,
@@ -251,7 +252,7 @@ function formatEvidenceSize(sizeBytes: number | null) {
               <p v-if="evidenceError" class="notice error" role="alert">{{ evidenceError }}</p>
               <p v-if="evidenceNotice" class="notice" aria-live="polite">{{ evidenceNotice }}</p>
 
-              <div v-if="!evidenceLoading" class="evidence-grid">
+              <div v-if="!evidenceLoading && evidenceLoaded" class="evidence-grid">
             <section class="evidence-column">
               <h3>
                 Side A · {{ caseItem.sideA.userName }}

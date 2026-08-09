@@ -12,34 +12,18 @@ public class CasesController : ControllerBase
     private const long MaxEvidenceFileSizeBytes = 10 * 1024 * 1024;
     private const int MaxEvidenceItemsPerSide = 20;
     private const int MaxEvidenceTitleLength = 160;
-    private static readonly IReadOnlySet<string> AllowedImageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    private static readonly IReadOnlyDictionary<string, (string MimeType, CaseEvidenceType EvidenceType)> AllowedEvidenceTypes =
+        new Dictionary<string, (string MimeType, CaseEvidenceType EvidenceType)>(StringComparer.OrdinalIgnoreCase)
     {
-        ".jpg",
-        ".jpeg",
-        ".png",
-        ".webp",
-        ".gif"
-    };
-    private static readonly IReadOnlySet<string> AllowedDocumentExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        ".pdf",
-        ".txt",
-        ".doc",
-        ".docx"
-    };
-    private static readonly IReadOnlySet<string> AllowedImageMimeTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-        "image/gif"
-    };
-    private static readonly IReadOnlySet<string> AllowedDocumentMimeTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        "application/pdf",
-        "text/plain",
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        [".jpg"] = ("image/jpeg", CaseEvidenceType.Image),
+        [".jpeg"] = ("image/jpeg", CaseEvidenceType.Image),
+        [".png"] = ("image/png", CaseEvidenceType.Image),
+        [".webp"] = ("image/webp", CaseEvidenceType.Image),
+        [".gif"] = ("image/gif", CaseEvidenceType.Image),
+        [".pdf"] = ("application/pdf", CaseEvidenceType.Document),
+        [".txt"] = ("text/plain", CaseEvidenceType.Document),
+        [".doc"] = ("application/msword", CaseEvidenceType.Document),
+        [".docx"] = ("application/vnd.openxmlformats-officedocument.wordprocessingml.document", CaseEvidenceType.Document),
     };
 
     private readonly ICommunityCourtService _courtService;
@@ -496,15 +480,10 @@ public class CasesController : ControllerBase
     private static bool TryGetEvidenceType(string fileName, string contentType, out CaseEvidenceType evidenceType)
     {
         var extension = Path.GetExtension(fileName);
-        if (AllowedImageExtensions.Contains(extension) && AllowedImageMimeTypes.Contains(contentType))
+        if (AllowedEvidenceTypes.TryGetValue(extension, out var allowedType) &&
+            string.Equals(allowedType.MimeType, contentType, StringComparison.OrdinalIgnoreCase))
         {
-            evidenceType = CaseEvidenceType.Image;
-            return true;
-        }
-
-        if (AllowedDocumentExtensions.Contains(extension) && AllowedDocumentMimeTypes.Contains(contentType))
-        {
-            evidenceType = CaseEvidenceType.Document;
+            evidenceType = allowedType.EvidenceType;
             return true;
         }
 

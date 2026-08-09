@@ -169,6 +169,47 @@ public sealed class CasesControllerEvidenceTests
             Times.Never);
     }
 
+    [Theory]
+    [InlineData("evidence.pdf", "text/plain")]
+    [InlineData("evidence.txt", "application/pdf")]
+    [InlineData("evidence.png", "image/jpeg")]
+    [InlineData("evidence.jpg", "image/png")]
+    public async Task Upload_rejects_mismatched_extension_and_content_type_before_storage_write(
+        string fileName,
+        string contentType)
+    {
+        var fixture = CreateFixture();
+        var content = new MemoryStream("test content"u8.ToArray());
+        var file = new FormFile(content, 0, content.Length, "file", fileName)
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = contentType,
+        };
+
+        var result = await fixture.Controller.AddCaseEvidenceUpload(
+            fixture.CaseId,
+            new CasesController.AddCaseEvidenceUploadForm
+            {
+                Side = CaseSide.A,
+                Title = "Evidence",
+                File = file,
+            },
+            CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.Equal(
+            "Unsupported file type. Allowed types are jpg, jpeg, png, webp, gif, pdf, txt, doc, and docx.",
+            badRequest.Value);
+        fixture.Storage.Verify(
+            storage => storage.UploadAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<Stream>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     [Fact]
     public async Task Content_endpoint_streams_private_object()
     {

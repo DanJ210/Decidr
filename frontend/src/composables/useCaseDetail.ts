@@ -40,6 +40,7 @@ export function useCaseDetail() {
   const checkingVoteStatus = ref(false)
   const evidence = ref<CaseEvidenceCollection>({ sideA: [], sideB: [] })
   const evidenceLoading = ref(false)
+  const evidenceLoaded = ref(false)
   const evidenceMutating = ref(false)
   const evidenceMutatingSide = ref<CaseSide | null>(null)
   const evidenceMutatingType = ref<'link' | 'file' | null>(null)
@@ -196,6 +197,7 @@ export function useCaseDetail() {
   async function loadEvidence(caseId: string) {
     const requestId = ++evidenceRequestId
     evidenceLoading.value = true
+    evidenceLoaded.value = false
     evidenceError.value = null
     evidenceNotice.value = null
 
@@ -204,6 +206,7 @@ export function useCaseDetail() {
       if (isCurrentEvidenceRequest(requestId, caseId)) {
         clearEvidencePreviewUrls()
         evidence.value = loaded
+        evidenceLoaded.value = true
         for (const item of [...loaded.sideA, ...loaded.sideB]) {
           void loadEvidencePreview(item, requestId)
         }
@@ -265,6 +268,7 @@ export function useCaseDetail() {
         hasVoted.value = false
         comments.value = []
         evidence.value = { sideA: [], sideB: [] }
+        evidenceLoaded.value = false
         evidenceError.value = null
         resetAllEvidenceDrafts()
       }
@@ -290,6 +294,7 @@ export function useCaseDetail() {
       comments.value = []
       evidenceError.value = null
       evidence.value = { sideA: [], sideB: [] }
+      evidenceLoaded.value = false
       resetAllEvidenceDrafts()
       if (typeof id === 'string') {
         void loadCaseState(id)
@@ -484,6 +489,7 @@ export function useCaseDetail() {
     evidenceMutatingSide.value = side
     evidenceMutatingType.value = 'file'
     evidenceError.value = null
+    evidenceNotice.value = null
 
     try {
       const created = await uploadCaseEvidenceFile(selectedCase.id, {
@@ -637,6 +643,7 @@ export function useCaseDetail() {
     votePermissionMessage,
     evidence,
     evidenceLoading,
+    evidenceLoaded,
     evidenceError,
     evidenceNotice,
     evidenceDrafts,
