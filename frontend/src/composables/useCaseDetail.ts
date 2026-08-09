@@ -151,16 +151,19 @@ export function useCaseDetail() {
 
     evidenceError.value = null
     evidenceNotice.value = null
+    const popup = window.open('', '_blank', 'noopener,noreferrer')
+    if (!popup) {
+      evidenceError.value = 'Unable to open a new tab. Please allow pop-ups for this site and try again.'
+      return
+    }
+
     try {
       const content = await fetchCaseEvidenceFile(item.caseId, item.id)
       const objectUrl = URL.createObjectURL(content)
-      const link = document.createElement('a')
-      link.href = objectUrl
-      link.target = '_blank'
-      link.rel = 'noopener noreferrer'
-      link.click()
+      popup.location.href = objectUrl
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
     } catch (error) {
+      popup.close()
       const status = axios.isAxiosError(error) ? error.response?.status : undefined
       evidenceError.value = status === 423
         ? 'This evidence file is still being scanned. Try again shortly.'
