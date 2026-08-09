@@ -42,6 +42,7 @@ frontend/dist-ssr/
 **/bin/
 **/obj/
 **/appsettings.Development.local.json
+backend/App_Data/
 
 # Generated static assets from Vite build output
 backend/wwwroot/

@@ -36,6 +36,8 @@ const {
   submitEvidenceLink,
   submitEvidenceFile,
   evidenceFileAccept,
+  getEvidencePreviewUrl,
+  openEvidenceFile,
   maxEvidenceItemsPerSide,
   vote,
   closeCase,
@@ -268,13 +270,19 @@ function formatEvidenceSize(sizeBytes: number | null) {
                     <span v-if="item.sizeBytes"> · {{ formatEvidenceSize(item.sizeBytes) }}</span>
                   </p>
                   <img
-                    v-if="item.type === 'Image'"
-                    :src="item.resourceUrl"
+                    v-if="item.type === 'Image' && getEvidencePreviewUrl(item)"
+                    :src="getEvidencePreviewUrl(item)"
                     :alt="item.title"
                     class="evidence-image"
                     loading="lazy"
                   />
-                  <a :href="item.resourceUrl" target="_blank" rel="noopener noreferrer" class="case-link">
+                  <a
+                    :href="item.resourceUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="case-link"
+                    @click.prevent="openEvidenceFile(item)"
+                  >
                     {{ item.type === 'Link' ? 'Open source link' : item.type === 'Image' ? 'Open image' : 'Open document' }}
                     <ExternalLink :size="14" aria-hidden="true" />
                   </a>
@@ -348,13 +356,19 @@ function formatEvidenceSize(sizeBytes: number | null) {
                     <span v-if="item.sizeBytes"> · {{ formatEvidenceSize(item.sizeBytes) }}</span>
                   </p>
                   <img
-                    v-if="item.type === 'Image'"
-                    :src="item.resourceUrl"
+                    v-if="item.type === 'Image' && getEvidencePreviewUrl(item)"
+                    :src="getEvidencePreviewUrl(item)"
                     :alt="item.title"
                     class="evidence-image"
                     loading="lazy"
                   />
-                  <a :href="item.resourceUrl" target="_blank" rel="noopener noreferrer" class="case-link">
+                  <a
+                    :href="item.resourceUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="case-link"
+                    @click.prevent="openEvidenceFile(item)"
+                  >
                     {{ item.type === 'Link' ? 'Open source link' : item.type === 'Image' ? 'Open image' : 'Open document' }}
                     <ExternalLink :size="14" aria-hidden="true" />
                   </a>

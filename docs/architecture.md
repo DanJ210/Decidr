@@ -23,7 +23,7 @@ Decidr is a full-stack single-page application (SPA). The ASP.NET Core backend e
 └────────────┼───────────────────────────────┘
              │ HTTP
 ┌────────────▼───────────────────────────────┐
-│         ASP.NET Core 8 Backend             │
+│         ASP.NET Core 10 Backend            │
 │                                            │
 │  ┌──────────────────────────────────────┐  │
 │  │  Controllers                         │  │
@@ -65,10 +65,17 @@ Users can cast one vote on an `Open` case if they are not one of the case-side p
 ### Side Evidence Attachments
 Each side on an open case can attach supporting evidence as links or uploaded files. Evidence is modeled as side-scoped items and exposed through dedicated evidence endpoints:
 - `GET /api/cases/{id}/evidence`
+- `GET /api/cases/{id}/evidence/{evidenceId}/content`
 - `POST /api/cases/{id}/evidence/link`
 - `POST /api/cases/{id}/evidence/upload`
 
-Uploaded files are stored under `wwwroot/uploads/case-evidence/...` and served as static assets by the ASP.NET Core host. The frontend renders both sides' evidence collections in the case detail view so voters can review materials before voting.
+Uploaded files are stored in the private Azure Blob Storage `case-evidence`
+container. `DefaultAzureCredential` uses the App Service managed identity in
+Azure, and storage keys remain server-side. The API returns an application content
+URL and streams files through an authenticated endpoint; the SPA retrieves the
+bytes with its bearer-authenticated Axios client and creates temporary browser
+object URLs for previews. Development without Blob configuration uses a private
+`App_Data/case-evidence` provider behind the same storage interface.
 
 ### Case Invitation Flow
 Cases are created in a `Pending` state. Only the creator's Side A claim is stored initially. The invited user (`InvitedUserId`) must navigate to the case and either:
@@ -114,11 +121,13 @@ to the remote IP address for anonymous traffic. Responses include anti-sniffing,
 anti-framing, and strict referrer-policy headers, and non-Development deployments
 enable HTTP Strict Transport Security (HSTS).
 
-Uploaded evidence is stored under the local web root during development. Before
-deploying for untrusted users, move uploads to Azure Blob Storage with anonymous
-container access disabled and serve files through an application-controlled
-download path. Production storage should validate file signatures, set explicit
-content types and download dispositions, and enable malware scanning.
+Uploaded evidence uses private Azure Blob Storage outside Development and an
+application-controlled download path. Uploads are limited to 10 MB, validated by
+extension, MIME allowlist, and file signature before storage, and returned with
+explicit content types and download filenames. The container has anonymous access
+disabled and the App Service managed identity has data-plane access only at
+container scope. Malware scanning remains required before treating uploads as
+fully hardened against hostile files.
 
 ### Frontend–Backend Integration
 In production, `dotnet run` serves both the API and the compiled Vue SPA. The backend registers `UseDefaultFiles()`, `UseStaticFiles()`, and `MapFallbackToFile("index.html")` so Vue Router can handle client-side navigation. In development, the Vite dev server handles the frontend and proxies API calls to the .NET backend.

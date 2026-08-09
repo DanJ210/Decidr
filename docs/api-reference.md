@@ -185,8 +185,22 @@ Returns side-scoped supporting materials for a case.
 }
 ```
 Each list contains `CaseEvidenceItem` entries.
+Uploaded-file entries expose an authenticated application content URL rather than
+an Azure Blob URL or internal storage key.
 
 **Response `404 Not Found`** — case does not exist
+
+---
+
+### `GET /api/cases/{id}/evidence/{evidenceId}/content`
+Streams an uploaded evidence file from private storage through the authenticated
+API. External link evidence is not available through this endpoint.
+
+**Response `200 OK`** — binary content with its validated media type and a safe download filename
+
+**Response `401 Unauthorized`** — actor is unavailable or invalid
+
+**Response `404 Not Found`** — case, evidence metadata, or stored object does not exist
 
 ---
 
@@ -196,7 +210,6 @@ Adds a new link evidence item to one side of an open case.
 **Request body**
 ```json
 {
-  "userId": "guid",
   "side": "A" | "B",
   "title": "string",
   "url": "https://example.com/source"
@@ -205,8 +218,7 @@ Adds a new link evidence item to one side of an open case.
 
 **Validation**
 - Case must exist and be `Open`.
-- `userId` must exist.
-- `userId` must match the owner of the targeted side.
+- The authenticated actor must own the targeted side.
 - `title` is required (max 160 chars).
 - `url` must be a valid `http` or `https` URL.
 - Targeted side can hold at most 20 evidence items.
@@ -223,20 +235,24 @@ Uploads a document/image evidence item and attaches it to one side of an open ca
 - `multipart/form-data`
 
 **Form fields**
-- `userId` (`guid`)
 - `side` (`A` or `B`)
 - `title` (`string`, optional; defaults to filename without extension)
 - `file` (`binary`, required)
 
 **Validation**
 - Case must exist and be `Open`.
-- `userId` must exist and own the targeted side.
+- The authenticated actor must own the targeted side.
 - File is required and must be non-empty.
 - Max file size: 10 MB.
 - Allowed extensions/types:
   - Images: `jpg`, `jpeg`, `png`, `webp`, `gif`
   - Documents: `pdf`, `txt`, `doc`, `docx`
+- File bytes must match the claimed file type; DOCX uploads must contain the
+  expected Open XML document structure and text files must be valid UTF-8.
 - Targeted side can hold at most 20 evidence items.
+
+The API stores the object in private evidence storage before writing metadata. If
+the metadata write fails, it deletes the uploaded object as rollback.
 
 **Response `200 OK`** — created `CaseEvidenceItem`  
 **Response `400 Bad Request`** — validation or permission error

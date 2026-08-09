@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - [Node.js 18+](https://nodejs.org/) and npm
 - SQL Server 2022, Azure SQL, or the in-memory fallback
 
@@ -73,6 +73,77 @@ when Entra is configured without persistent SQL Server or Azure SQL storage.
 When running in Development without Entra settings, the app retains the seeded
 selected-user profile picker and in-memory/SQL Server demo behavior. Do not use
 that fallback as an authentication mechanism in a deployed environment.
+
+### Azure Deployment Checkpoint (2026-08-09)
+
+The selected hosting design is a single Azure App Service serving both the Vue
+SPA and ASP.NET Core API, backed by Azure SQL Database and Microsoft Entra
+External ID.
+
+Current identity decisions and progress:
+
+- External tenant: `Decidr Customers`
+- External tenant ID: `a0c3e661-0d19-4339-a560-6483bade2612`
+- External tenant primary domain: `DecidrCustomers.onmicrosoft.com`
+- External tenant authority host: `decidrcustomers.ciamlogin.com`
+- Canonical SPA authority: `https://a0c3e661-0d19-4339-a560-6483bade2612.ciamlogin.com/a0c3e661-0d19-4339-a560-6483bade2612`
+- API registration: `Decidr API` (`c9e1f354-2a8d-46ea-abb6-80a919a7b1d8`)
+- API application ID URI: `api://c9e1f354-2a8d-46ea-abb6-80a919a7b1d8`
+- API delegated scope: `access_as_user`
+- SPA registration: `Decidr SPA` (`0daef16a-8462-4c43-b1c5-80f77556df3a`)
+- SPA delegated permission: `Decidr API/access_as_user`
+- SPA delegated permission consent: granted for `Decidr Customers`
+- Local SPA callback: `http://localhost:5173/auth/callback`
+- Production SPA callback: pending the Azure App Service hostname
+- Customer user flow: `DecidrSignUpSignIn`
+- Customer identity provider: email one-time passcode
+- User flow application: `Decidr SPA`
+- Evidence storage account: `stdecidrdanj210`
+- Evidence Blob service URI: `https://stdecidrdanj210.blob.core.windows.net/`
+- Evidence container: `case-evidence` (private)
+- App Service storage access: `Storage Blob Data Contributor` assigned to
+  the Web App managed identity at container scope
+- Private evidence implementation: complete; uploads use `DefaultAzureCredential`,
+  file signatures are validated, and downloads stream through the authenticated API
+- Web App: `decidr-danj210`
+- Azure SQL server: `sql-decidr-danj210.database.windows.net`
+- Azure SQL database: `decidr`
+- Azure SQL application user: `decidr-danj210` (App Service managed identity)
+
+The `/auth/callback` frontend route completes the MSAL redirect flow and returns
+the user to the route where authentication started. It is distinct from the
+existing backend `/api/auth/me` endpoint, which maps an authenticated token to a
+Decidr profile. Local External ID sign-in, callback handling, token exchange, and
+local profile mapping have been verified end to end.
+
+The API security boundary has also been verified locally: authenticated profile
+requests succeed, anonymous and spoofed-development-header mutations are rejected,
+and API throttling plus baseline response security headers are enabled. Evidence
+uploads now use the private Blob container and an application-controlled download
+endpoint. Malware scanning remains pending before uploads should be considered
+fully hardened against hostile content.
+
+Configure these App Service application settings for private evidence storage:
+
+```text
+EvidenceStorage__BlobServiceUri=https://stdecidrdanj210.blob.core.windows.net/
+EvidenceStorage__ContainerName=case-evidence
+```
+
+These values are identifiers, not credentials. In Azure, `DefaultAzureCredential`
+uses the Web App system-assigned managed identity. Outside Development the app
+fails startup if either setting is missing. In Development, omitting them selects
+the ignored `backend/App_Data/case-evidence` provider; setting them allows local
+Azure testing with a developer identity obtained through standard Azure tooling.
+
+Resume the deployment work in this order:
+
+1. Configure App Service settings and the production SPA callback URI.
+2. Add CI/CD deployment, including controlled production database migrations.
+3. Validate the deployed application and add malware scanning for uploaded evidence.
+
+Keep application client IDs and authority values in ignored local settings or
+Azure App Service configuration. Never commit credentials or connection strings.
 
 ## Running the Backend
 
