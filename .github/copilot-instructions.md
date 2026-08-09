@@ -21,7 +21,7 @@
 ### Prerequisites
 Always verify these are installed before running any commands:
 - **.NET 10 SDK**: Required for backend compilation and running
-- **Node.js 18+**: Required for frontend build and npm package management
+- **Node.js 22+**: Required for frontend build and npm package management
 - **Docker & Docker Compose** (optional but recommended): Simplest way to run SQL Server 2022 locally
 - **SQL Server 2022** (optional alternative): Only needed if NOT using Docker; Azure SQL and the in-memory fallback are also supported
 
@@ -77,7 +77,7 @@ dotnet restore
 cd frontend
 npm install
 ```
-- **Precondition**: Node.js 18+ must be installed
+- **Precondition**: Node.js 22+ must be installed
 - **Postcondition**: `node_modules/` directory is created with all dependencies
 - **Notes**: Run this every time `package.json` is modified. If `package-lock.json` conflicts occur, delete `node_modules/` and re-run
 

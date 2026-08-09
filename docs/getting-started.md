@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- [Node.js 18+](https://nodejs.org/) and npm
+- [Node.js 22+](https://nodejs.org/) and npm
 - SQL Server 2022, Azure SQL, or the in-memory fallback
 
 ## Backend Configuration
