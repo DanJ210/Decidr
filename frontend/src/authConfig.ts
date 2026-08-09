@@ -7,15 +7,25 @@ import type { AccountInfo, SilentRequest } from '@azure/msal-browser'
 const clientId = (import.meta.env.VITE_ENTRA_CLIENT_ID as string | undefined) ?? ''
 const authority = (import.meta.env.VITE_ENTRA_AUTHORITY as string | undefined) ?? ''
 const apiScope = (import.meta.env.VITE_ENTRA_API_SCOPE as string | undefined) ?? ''
+const authorityHost = (() => {
+  if (!authority) return ''
+  try {
+    return new URL(authority).hostname
+  } catch {
+    return ''
+  }
+})()
+const authCallbackPath = '/auth/callback'
+const authenticationReturnPathKey = 'decidr-auth-return-path'
 
-export const entraConfigured = Boolean(clientId && authority && apiScope)
-
+export const entraConfigured = Boolean(clientId && authority && authorityHost && apiScope)
 export const msalInstance = entraConfigured
   ? new PublicClientApplication({
       auth: {
         clientId,
         authority,
-        redirectUri: window.location.origin,
+        knownAuthorities: [authorityHost],
+        redirectUri: `${window.location.origin}${authCallbackPath}`,
         postLogoutRedirectUri: window.location.origin,
       },
       cache: {
@@ -34,6 +44,23 @@ function getAuthenticationError(error: unknown): string {
   return 'Microsoft sign-in did not complete.'
 }
 
+function rememberAuthenticationReturnPath(): void {
+  if (window.location.pathname === authCallbackPath || sessionStorage.getItem(authenticationReturnPathKey)) {
+    return
+  }
+
+  sessionStorage.setItem(
+    authenticationReturnPathKey,
+    `${window.location.pathname}${window.location.search}${window.location.hash}`,
+  )
+}
+
+export function takeAuthenticationReturnPath(): string {
+  const returnPath = sessionStorage.getItem(authenticationReturnPathKey)
+  sessionStorage.removeItem(authenticationReturnPathKey)
+  return returnPath?.startsWith('/') && !returnPath.startsWith('//') ? returnPath : '/'
+}
+
 export async function initializeMsal(): Promise<void> {
   if (!msalInstance) {
     return
@@ -42,7 +69,7 @@ export async function initializeMsal(): Promise<void> {
   initialization ??= msalInstance.initialize()
   await initialization
   try {
-    const result = await msalInstance.handleRedirectPromise()
+    const result = await msalInstance.handleRedirectPromise({ navigateToLoginRequestUrl: false })
     if (result?.account) {
       msalInstance.setActiveAccount(result.account)
     }
@@ -63,6 +90,7 @@ export async function signIn(): Promise<void> {
   }
 
   await initializeMsal()
+  rememberAuthenticationReturnPath()
   await msalInstance.loginRedirect({
     scopes: [apiScope!],
   })
@@ -117,6 +145,7 @@ export async function ensureAccessToken(): Promise<boolean> {
       throw error
     }
 
+    rememberAuthenticationReturnPath()
     await msalInstance.acquireTokenRedirect({ scopes: [apiScope!] })
     return false
   }

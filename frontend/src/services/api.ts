@@ -109,6 +109,13 @@ export async function uploadCaseEvidenceFile(
   return data
 }
 
+export async function fetchCaseEvidenceFile(caseId: string, evidenceId: string): Promise<Blob> {
+  const { data } = await apiClient.get<Blob>(`/cases/${caseId}/evidence/${evidenceId}/content`, {
+    responseType: 'blob',
+  })
+  return data
+}
+
 export async function acceptCaseInvitation(caseId: string, request: AcceptInvitationRequest): Promise<ArgumentCase> {
   const { data } = await apiClient.post<ArgumentCase>(`/cases/${caseId}/accept`, request)
   return data

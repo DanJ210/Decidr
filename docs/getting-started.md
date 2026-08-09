@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - [Node.js 18+](https://nodejs.org/) and npm
 - SQL Server 2022, Azure SQL, or the in-memory fallback
 
@@ -51,9 +51,13 @@ Configure the SPA with a local `frontend/.env.local` file (also ignored by git):
 
 ```dotenv
 VITE_ENTRA_CLIENT_ID=<spa-application-client-id>
-VITE_ENTRA_AUTHORITY=https://<tenant>.ciamlogin.com/<tenant-id>
+VITE_ENTRA_AUTHORITY=https://<tenant-id>.ciamlogin.com/<tenant-id>
 VITE_ENTRA_API_SCOPE=api://<backend-api-application-id>/<scope-name>
 ```
+
+Use the canonical tenant-ID authority for MSAL. The friendly tenant-subdomain
+authority can return discovery metadata whose issuer uses the tenant-ID host;
+MSAL 5 rejects that alias mismatch with `endpoints_resolution_error`.
 
 The SPA signs users in with MSAL and silently attaches an access token when one
 is available. Profile initialization starts an interactive redirect only when
@@ -66,9 +70,154 @@ profile; subsequent requests reuse that profile.
 Entra authentication requires a non-empty `DefaultConnection`. Startup fails
 when Entra is configured without persistent SQL Server or Azure SQL storage.
 
-When running in Development without Entra settings, the app retains the seeded
-selected-user profile picker and in-memory/SQL Server demo behavior. Do not use
-that fallback as an authentication mechanism in a deployed environment.
+### Disable Entra for Local Development
+
+Entra configuration is independent in the backend and SPA, so disable both
+halves before using the selected-user development workflow.
+
+In the ignored `backend/appsettings.Development.local.json`, set both backend
+Entra values to empty strings while preserving any existing connection string:
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "<existing local value, or empty for in-memory storage>"
+  },
+  "Entra": {
+    "Authority": "",
+    "Audience": ""
+  }
+}
+```
+
+In the ignored `frontend/.env.local`, remove the three Entra entries or leave
+them empty:
+
+```dotenv
+VITE_ENTRA_CLIENT_ID=
+VITE_ENTRA_AUTHORITY=
+VITE_ENTRA_API_SCOPE=
+```
+
+Restart both `dotnet run` and `npm run dev` after changing these settings. Vite
+reads its environment variables only at startup. In this mode, the SPA restores
+the seeded/local user selector and sends `X-Dev-User-Id`; the backend accepts that
+header only in Development when Entra is not configured. The conditional
+controller authorization convention is also omitted so this development identity
+flow can reach protected actions.
+
+This fallback is not a deployment authentication mechanism. Non-Development
+startup requires Entra authority and audience settings, and the development user
+header is rejected outside Development or whenever Entra is configured. To
+re-enable Entra locally, restore all five settings and restart both processes.
+
+### Azure Deployment Checkpoint (2026-08-09)
+
+The selected hosting design is a single Azure App Service serving both the Vue
+SPA and ASP.NET Core API, backed by Azure SQL Database and Microsoft Entra
+External ID.
+
+Current identity decisions and progress:
+
+- External tenant: `Decidr Customers`
+- External tenant ID: `a0c3e661-0d19-4339-a560-6483bade2612`
+- External tenant primary domain: `DecidrCustomers.onmicrosoft.com`
+- External tenant authority host: `decidrcustomers.ciamlogin.com`
+- Canonical SPA authority: `https://a0c3e661-0d19-4339-a560-6483bade2612.ciamlogin.com/a0c3e661-0d19-4339-a560-6483bade2612`
+- API registration: `Decidr API` (`c9e1f354-2a8d-46ea-abb6-80a919a7b1d8`)
+- API application ID URI: `api://c9e1f354-2a8d-46ea-abb6-80a919a7b1d8`
+- API delegated scope: `access_as_user`
+- SPA registration: `Decidr SPA` (`0daef16a-8462-4c43-b1c5-80f77556df3a`)
+- SPA delegated permission: `Decidr API/access_as_user`
+- SPA delegated permission consent: granted for `Decidr Customers`
+- Local SPA callback: `http://localhost:5173/auth/callback`
+- Production SPA callback: pending the Azure App Service hostname
+- Customer user flow: `DecidrSignUpSignIn`
+- Customer identity provider: email one-time passcode
+- User flow application: `Decidr SPA`
+- Evidence storage account: `stdecidrdanj210`
+- Evidence Blob service URI: `https://stdecidrdanj210.blob.core.windows.net/`
+- Evidence container: `case-evidence` (private)
+- App Service storage access: `Storage Blob Data Contributor` assigned to
+  the Web App managed identity at container scope
+- Private evidence implementation: complete; uploads use `DefaultAzureCredential`,
+  file signatures are validated, and downloads stream through the authenticated API
+- Evidence malware gate: complete; Azure downloads require Defender's
+  `Malware Scanning scan result` blob index tag to equal `No threats found`
+- Web App: `decidr-danj210`
+- Azure SQL server: `sql-decidr-danj210.database.windows.net`
+- Azure SQL database: `decidr`
+- Azure SQL application user: `decidr-danj210` (App Service managed identity)
+
+The `/auth/callback` frontend route completes the MSAL redirect flow and returns
+the user to the route where authentication started. It is distinct from the
+existing backend `/api/auth/me` endpoint, which maps an authenticated token to a
+Decidr profile. Local External ID sign-in, callback handling, token exchange, and
+local profile mapping have been verified end to end.
+
+The API security boundary has also been verified locally: authenticated profile
+requests succeed, anonymous and spoofed-development-header mutations are rejected,
+controller endpoints require `access_as_user` by default in Entra environments,
+and pending case reads are restricted to participants, invitees, and moderators.
+API throttling plus baseline response security headers are enabled. Evidence
+uploads now use the private Blob container and an application-controlled download
+endpoint. The endpoint fails closed while Defender scanning is pending and for
+malicious, failed, unscanned, or unknown results. The Development-only local file
+provider treats files that pass structural validation as clean so local work does
+not depend on Azure Defender.
+
+Configure these App Service application settings for private evidence storage:
+
+```text
+EvidenceStorage__BlobServiceUri=https://stdecidrdanj210.blob.core.windows.net/
+EvidenceStorage__ContainerName=case-evidence
+```
+
+These values are identifiers, not credentials. In Azure, `DefaultAzureCredential`
+uses the Web App system-assigned managed identity. Outside Development the app
+fails startup if either setting is missing. In Development, omitting them selects
+the ignored `backend/App_Data/case-evidence` provider; setting them allows local
+Azure testing with a developer identity obtained through standard Azure tooling.
+
+### Enable evidence malware scanning
+
+In the Azure portal, open `stdecidrdanj210`, then **Microsoft Defender for Cloud**
+under **Security + networking**. Enable Defender for Storage and **On-upload
+malware scanning** for this account. Keep blob index scan-result tags enabled;
+the API deliberately refuses access when the result tag is absent or is anything
+other than `No threats found`.
+
+Also configure the following operational controls:
+
+1. Confirm the `Microsoft.EventGrid` resource provider is registered. Defender
+  creates an Event Grid system topic that triggers scans; do not delete it.
+2. Set a monthly scan cap appropriate for this test deployment. The service
+  defaults to 10,000 GB and can exceed a configured cap by up to 20 GB.
+3. Enable Defender's built-in soft deletion of malicious blobs and set a retention
+  period suitable for investigation and false-positive recovery.
+4. Keep Defender security alerts enabled. Add Log Analytics or an Event Grid
+  result destination before production if a tamper-resistant audit trail or
+  automated quarantine workflow is required. Blob index tags are an application
+  access gate, but users with tag-write permission can alter them.
+5. Do not add scan exclusions for the `case-evidence/` container. Excluded,
+  oversized, timed-out, or otherwise unscanned files remain unavailable by design.
+
+Validate with one normal allowed file and the standard EICAR test file in a safe
+test case. A new file should initially return HTTP `423`, the normal file should
+become downloadable only after its tag is `No threats found`, and EICAR should
+remain unavailable with HTTP `410`. Confirm the EICAR detection appears in
+Defender for Cloud and that built-in soft deletion remediates the blob. Never use
+real malware for this validation.
+
+Resume the deployment work in this order:
+
+1. Configure App Service settings and the production SPA callback URI.
+2. Add CI/CD deployment, including controlled production database migrations.
+3. Enable Defender for Storage as described above and validate the deployed
+  evidence scan lifecycle.
+
+Keep application client IDs and authority values in ignored local settings or
+Azure App Service configuration. Never commit credentials or connection strings.
 
 ## Running the Backend
 

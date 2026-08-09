@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { ChevronDown, Scale } from '@lucide/vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import BottomNav from './components/BottomNav.vue'
 
 const authStore = useAuthStore()
+const route = useRoute()
 const selectedUserInitial = computed(() => authStore.selectedUser?.displayName.charAt(0).toUpperCase() ?? '?')
 
 function handleUserChange(event: Event) {
@@ -15,7 +17,9 @@ function handleUserChange(event: Event) {
 }
 
 onMounted(() => {
-  void authStore.loadUsers()
+  if (route.name !== 'auth-callback') {
+    void authStore.loadUsers()
+  }
 })
 </script>
 

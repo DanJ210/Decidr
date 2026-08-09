@@ -1,8 +1,10 @@
-import { computed, reactive, ref, watch } from 'vue'
+import axios from 'axios'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   fetchCaseComments,
   fetchCaseEvidence,
+  fetchCaseEvidenceFile,
   fetchCaseVoteStatus,
   postCaseComment,
   postCaseEvidenceLink,
@@ -42,6 +44,7 @@ export function useCaseDetail() {
   const evidenceMutatingSide = ref<CaseSide | null>(null)
   const evidenceMutatingType = ref<'link' | 'file' | null>(null)
   const evidenceError = ref<string | null>(null)
+  const evidencePreviewUrls = reactive<Record<string, string>>({})
   const evidenceDrafts = reactive<Record<CaseSide, SideEvidenceDraft>>({
     A: {
       linkTitle: '',
@@ -110,6 +113,63 @@ export function useCaseDetail() {
     }
   }
 
+  function clearEvidencePreviewUrls() {
+    for (const objectUrl of Object.values(evidencePreviewUrls)) {
+      URL.revokeObjectURL(objectUrl)
+    }
+    for (const evidenceId of Object.keys(evidencePreviewUrls)) {
+      delete evidencePreviewUrls[evidenceId]
+    }
+  }
+
+  async function loadEvidencePreview(item: CaseEvidenceItem, requestId: number) {
+    if (item.type !== 'Image') return
+
+    try {
+      const content = await fetchCaseEvidenceFile(item.caseId, item.id)
+      const objectUrl = URL.createObjectURL(content)
+      if (requestId !== evidenceRequestId || !isViewingCase(item.caseId)) {
+        URL.revokeObjectURL(objectUrl)
+        return
+      }
+      evidencePreviewUrls[item.id] = objectUrl
+    } catch {
+      // The file link remains available if an inline preview cannot be loaded.
+    }
+  }
+
+  function getEvidencePreviewUrl(item: CaseEvidenceItem) {
+    return evidencePreviewUrls[item.id] ?? ''
+  }
+
+  async function openEvidenceFile(item: CaseEvidenceItem) {
+    if (item.type === 'Link') {
+      window.open(item.resourceUrl, '_blank', 'noopener,noreferrer')
+      return
+    }
+
+    evidenceError.value = null
+    try {
+      const content = await fetchCaseEvidenceFile(item.caseId, item.id)
+      const objectUrl = URL.createObjectURL(content)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.target = '_blank'
+      link.rel = 'noopener noreferrer'
+      link.click()
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+    } catch (error) {
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined
+      evidenceError.value = status === 423
+        ? 'This evidence file is still being scanned. Try again shortly.'
+        : status === 410
+          ? 'This evidence file is unavailable because it failed security scanning.'
+          : status === 503
+            ? 'Security scanning could not be completed. Try again later.'
+            : 'Unable to open this evidence file right now.'
+    }
+  }
+
   function isSelectedCaseContext(caseId: string) {
     return isViewingCase(caseId) && caseItem.value?.id === caseId
   }
@@ -136,7 +196,11 @@ export function useCaseDetail() {
     try {
       const loaded = await fetchCaseEvidence(caseId)
       if (isCurrentEvidenceRequest(requestId, caseId)) {
+        clearEvidencePreviewUrls()
         evidence.value = loaded
+        for (const item of [...loaded.sideA, ...loaded.sideB]) {
+          void loadEvidencePreview(item, requestId)
+        }
       }
     } catch {
       if (isCurrentEvidenceRequest(requestId, caseId)) {
@@ -427,6 +491,7 @@ export function useCaseDetail() {
       }
 
       appendEvidenceItem(created)
+      await loadEvidencePreview(created, evidenceRequestId)
       draft.fileTitle = ''
       draft.file = null
     } catch {
@@ -439,6 +504,8 @@ export function useCaseDetail() {
       evidenceMutatingType.value = null
     }
   }
+
+  onBeforeUnmount(clearEvidencePreviewUrls)
 
   async function vote(side: 'A' | 'B') {
     const selectedUser = authStore.selectedUser
@@ -577,6 +644,8 @@ export function useCaseDetail() {
     submitEvidenceLink,
     submitEvidenceFile,
     evidenceFileAccept: EVIDENCE_FILE_ACCEPT,
+    getEvidencePreviewUrl,
+    openEvidenceFile,
     maxEvidenceItemsPerSide: MAX_EVIDENCE_ITEMS_PER_SIDE,
     vote,
     closeCase,

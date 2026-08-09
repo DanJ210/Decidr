@@ -1,5 +1,6 @@
 using backend.Models;
 using backend.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers;
@@ -43,30 +44,37 @@ public class CasesController : ControllerBase
 
     private readonly ICommunityCourtService _courtService;
     private readonly IActorResolver _actorResolver;
-    private readonly IWebHostEnvironment _webHostEnvironment;
+    private readonly ICaseEvidenceStorage _evidenceStorage;
+    private readonly ILogger<CasesController> _logger;
 
     public CasesController(
         ICommunityCourtService courtService,
         IActorResolver actorResolver,
-        IWebHostEnvironment webHostEnvironment)
+        ICaseEvidenceStorage evidenceStorage,
+        ILogger<CasesController> logger)
     {
         _courtService = courtService;
         _actorResolver = actorResolver;
-        _webHostEnvironment = webHostEnvironment;
+        _evidenceStorage = evidenceStorage;
+        _logger = logger;
     }
 
     [HttpGet]
+    [AllowAnonymous]
     public ActionResult<IEnumerable<ArgumentCase>> GetAllCases()
     {
         return Ok(_courtService.GetCases());
     }
 
     [HttpGet("{id:guid}")]
+    [AllowAnonymous]
     public async Task<ActionResult<ArgumentCase>> GetCaseById(Guid id, CancellationToken cancellationToken)
     {
         var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
         var match = _courtService.GetCase(id, actor?.Id);
-        return match is null ? NotFound() : Ok(match);
+        return match is null || !CanViewCase(match, actor)
+            ? NotFound()
+            : Ok(match);
     }
 
     [HttpGet("{id:guid}/vote-status")]
@@ -87,14 +95,81 @@ public class CasesController : ControllerBase
     }
 
     [HttpGet("{id:guid}/evidence")]
-    public ActionResult<CaseEvidenceCollection> GetCaseEvidence(Guid id)
+    [AllowAnonymous]
+    public async Task<ActionResult<CaseEvidenceCollection>> GetCaseEvidence(
+        Guid id,
+        CancellationToken cancellationToken)
     {
-        if (_courtService.GetCase(id) is null)
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        var foundCase = _courtService.GetCase(id, actor?.Id);
+        if (foundCase is null || !CanViewCase(foundCase, actor))
         {
             return NotFound();
         }
 
-        return Ok(_courtService.GetCaseEvidence(id));
+        var evidence = _courtService.GetCaseEvidence(id);
+        return Ok(new CaseEvidenceCollection(
+            evidence.SideA.Select(ToApiEvidenceItem).ToArray(),
+            evidence.SideB.Select(ToApiEvidenceItem).ToArray()));
+    }
+
+    [HttpGet("{id:guid}/evidence/{evidenceId:guid}/content")]
+    public async Task<IActionResult> GetCaseEvidenceContent(
+        Guid id,
+        Guid evidenceId,
+        CancellationToken cancellationToken)
+    {
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null)
+        {
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        }
+
+        var foundCase = _courtService.GetCase(id, actor.Id);
+        if (foundCase is null || !CanViewCase(foundCase, actor))
+        {
+            return NotFound();
+        }
+
+        var caseEvidence = _courtService.GetCaseEvidence(id);
+        var evidence = caseEvidence.SideA
+            .Concat(caseEvidence.SideB)
+            .SingleOrDefault(item => item.Id == evidenceId && item.Type != CaseEvidenceType.Link);
+        if (evidence is null)
+        {
+            return NotFound();
+        }
+
+        var storedContent = await _evidenceStorage.OpenReadAsync(evidence.ResourceUrl, cancellationToken);
+        if (storedContent.Status == EvidenceContentStatus.NotFound)
+        {
+            return NotFound();
+        }
+
+        if (storedContent.Status == EvidenceContentStatus.PendingScan)
+        {
+            return StatusCode(
+                StatusCodes.Status423Locked,
+                "Evidence is awaiting malware scanning.");
+        }
+
+        if (storedContent.Status == EvidenceContentStatus.Malicious)
+        {
+            return StatusCode(
+                StatusCodes.Status410Gone,
+                "Evidence is unavailable because it failed security scanning.");
+        }
+
+        if (storedContent.Status == EvidenceContentStatus.ScanFailed)
+        {
+            return StatusCode(
+                StatusCodes.Status503ServiceUnavailable,
+                "Evidence security scanning did not complete successfully.");
+        }
+
+        var extension = Path.GetExtension(evidence.ResourceUrl);
+        var downloadName = $"{SanitizeDownloadName(evidence.Title)}{extension}";
+        return File(storedContent.Content!, storedContent.ContentType!, downloadName);
     }
 
     [HttpPost]
@@ -134,19 +209,19 @@ public class CasesController : ControllerBase
     }
 
     [HttpGet("{id:guid}/comments")]
-    public ActionResult<IEnumerable<CaseComment>> GetCaseComments(Guid id)
+    [AllowAnonymous]
+    public async Task<ActionResult<IEnumerable<CaseComment>>> GetCaseComments(
+        Guid id,
+        CancellationToken cancellationToken)
     {
-        var comments = _courtService.GetCaseComments(id);
-        if (comments.Count > 0)
-        {
-            return Ok(comments);
-        }
-
-        if (_courtService.GetCase(id) is null)
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        var foundCase = _courtService.GetCase(id, actor?.Id);
+        if (foundCase is null || !CanViewCase(foundCase, actor))
         {
             return NotFound();
         }
 
+        var comments = _courtService.GetCaseComments(id);
         return Ok(comments);
     }
 
@@ -225,6 +300,12 @@ public class CasesController : ControllerBase
             return BadRequest("Unsupported file type. Allowed types are jpg, jpeg, png, webp, gif, pdf, txt, doc, and docx.");
         }
 
+        var extension = Path.GetExtension(request.File.FileName).ToLowerInvariant();
+        if (!await EvidenceFileValidator.IsValidAsync(request.File, extension, cancellationToken))
+        {
+            return BadRequest("Uploaded file contents do not match the selected file type.");
+        }
+
         var evidenceTitle = string.IsNullOrWhiteSpace(request.Title)
             ? Path.GetFileNameWithoutExtension(request.File.FileName)
             : request.Title.Trim();
@@ -244,18 +325,13 @@ public class CasesController : ControllerBase
             return BadRequest(validationError);
         }
 
-        var extension = Path.GetExtension(request.File.FileName).ToLowerInvariant();
-        var safeFileName = $"{Guid.NewGuid():N}{extension}";
-        var caseDirectory = Path.Combine(GetEvidenceUploadRootPath(), id.ToString("N"));
-        Directory.CreateDirectory(caseDirectory);
-
-        var fullPath = Path.Combine(caseDirectory, safeFileName);
-        await using (var stream = System.IO.File.Create(fullPath))
-        {
-            await request.File.CopyToAsync(stream);
-        }
-
-        var publicResourceUrl = $"/uploads/case-evidence/{id:N}/{safeFileName}";
+        await using var uploadStream = request.File.OpenReadStream();
+        var storageKey = await _evidenceStorage.UploadAsync(
+            id,
+            extension,
+            request.File.ContentType,
+            uploadStream,
+            cancellationToken);
 
         var result = _courtService.AddCaseEvidenceFile(
             id,
@@ -264,21 +340,28 @@ public class CasesController : ControllerBase
                 request.Side,
                 evidenceType,
                 evidenceTitle,
-                publicResourceUrl,
+                storageKey,
                 request.File.ContentType,
                 request.File.Length));
 
         if (!result.Success)
         {
-            if (System.IO.File.Exists(fullPath))
+            try
             {
-                System.IO.File.Delete(fullPath);
+                await _evidenceStorage.DeleteAsync(storageKey, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "Unable to delete orphaned evidence object {StorageKey} after metadata validation failed.",
+                    storageKey);
             }
 
             return BadRequest(result.Error);
         }
 
-        return Ok(result.Evidence);
+        return Ok(ToApiEvidenceItem(result.Evidence!));
     }
 
     [HttpPost("{id:guid}/vote")]
@@ -354,10 +437,12 @@ public class CasesController : ControllerBase
     }
 
     [HttpGet("{id:guid}/result")]
-    public ActionResult<object> GetResult(Guid id)
+    [AllowAnonymous]
+    public async Task<ActionResult<object>> GetResult(Guid id, CancellationToken cancellationToken)
     {
-        var found = _courtService.GetCase(id);
-        if (found is null)
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        var found = _courtService.GetCase(id, actor?.Id);
+        if (found is null || !CanViewCase(found, actor))
         {
             return NotFound();
         }
@@ -371,15 +456,41 @@ public class CasesController : ControllerBase
         });
     }
 
-    private string GetEvidenceUploadRootPath()
+    private static CaseEvidenceItem ToApiEvidenceItem(CaseEvidenceItem evidence)
     {
-        var webRootPath = _webHostEnvironment.WebRootPath;
-        if (string.IsNullOrWhiteSpace(webRootPath))
+        if (evidence.Type == CaseEvidenceType.Link)
         {
-            webRootPath = Path.Combine(_webHostEnvironment.ContentRootPath, "wwwroot");
+            return evidence;
         }
 
-        return Path.Combine(webRootPath, "uploads", "case-evidence");
+        return evidence with
+        {
+            ResourceUrl = $"/api/cases/{evidence.CaseId}/evidence/{evidence.Id}/content",
+        };
+    }
+
+    private static bool CanViewCase(ArgumentCase argumentCase, backend.Data.Entities.UserEntity? actor)
+    {
+        if (argumentCase.Status != CaseStatus.Pending)
+        {
+            return true;
+        }
+
+        return actor is not null &&
+            (actor.Role == UserRole.Moderator ||
+             argumentCase.SideA.UserId == actor.Id ||
+             argumentCase.SideB?.UserId == actor.Id ||
+             argumentCase.InvitedUserId == actor.Id);
+    }
+
+    private static string SanitizeDownloadName(string title)
+    {
+        var invalidCharacters = Path.GetInvalidFileNameChars();
+        var sanitized = new string(title
+            .Where(character => !invalidCharacters.Contains(character))
+            .ToArray())
+            .Trim();
+        return string.IsNullOrWhiteSpace(sanitized) ? "evidence" : sanitized;
     }
 
     private static bool TryGetEvidenceType(string fileName, string contentType, out CaseEvidenceType evidenceType)
