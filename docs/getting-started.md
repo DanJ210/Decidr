@@ -111,49 +111,24 @@ startup requires Entra authority and audience settings, and the development user
 header is rejected outside Development or whenever Entra is configured. To
 re-enable Entra locally, restore all five settings and restart both processes.
 
-### Azure Deployment Checkpoint (2026-08-09)
+### Azure Deployment
 
 The selected hosting design is a single Azure App Service serving both the Vue
-SPA and ASP.NET Core API, backed by Azure SQL Database and Microsoft Entra
-External ID. The application is deployed at
-`https://decidr-danj210-f6eeehdzhudhfuef.eastus-01.azurewebsites.net`.
+SPA and ASP.NET Core API, backed by Azure SQL Database, private Blob Storage, and
+Microsoft Entra External ID. Live tenant IDs, application IDs, resource names,
+hostnames, deployment IDs, and migration state are intentionally excluded from
+this public repository. Keep that operational inventory in a private runbook or
+retrieve it from the protected GitHub `production` environment and Azure portal.
 
-Current identity decisions and progress:
+The production environment must provide:
 
-- External tenant: `Decidr Customers`
-- External tenant ID: `a0c3e661-0d19-4339-a560-6483bade2612`
-- External tenant primary domain: `DecidrCustomers.onmicrosoft.com`
-- External tenant authority host: `decidrcustomers.ciamlogin.com`
-- Canonical SPA authority: `https://a0c3e661-0d19-4339-a560-6483bade2612.ciamlogin.com/a0c3e661-0d19-4339-a560-6483bade2612`
-- API registration: `Decidr API` (`c9e1f354-2a8d-46ea-abb6-80a919a7b1d8`)
-- API application ID URI: `api://c9e1f354-2a8d-46ea-abb6-80a919a7b1d8`
-- API delegated scope: `access_as_user`
-- SPA registration: `Decidr SPA` (`0daef16a-8462-4c43-b1c5-80f77556df3a`)
-- SPA delegated permission: `Decidr API/access_as_user`
-- SPA delegated permission consent: granted for `Decidr Customers`
-- Local SPA callback: `http://localhost:5173/auth/callback`
-- Production SPA callback:
-  `https://decidr-danj210-f6eeehdzhudhfuef.eastus-01.azurewebsites.net/auth/callback`
-- Customer user flow: `DecidrSignUpSignIn`
-- Customer identity provider: email one-time passcode
-- User flow application: `Decidr SPA`
-- Evidence storage account: `stdecidrdanj210`
-- Evidence Blob service URI: `https://stdecidrdanj210.blob.core.windows.net/`
-- Evidence container: `case-evidence` (private)
-- App Service storage access: `Storage Blob Data Contributor` plus the custom
-  read-only `Decidr Evidence Scan Tag Reader` role assigned to the Web App
-  managed identity at container scope
-- Private evidence implementation: complete; uploads use `DefaultAzureCredential`,
-  file signatures are validated, and downloads stream through the authenticated API
-- Evidence malware gate: complete; Azure downloads require Defender's
-  `Malware Scanning scan result` blob index tag to equal `No threats found`
-- Web App: `decidr-danj210`
-- Web App deployment ID: `5b6c7b6be1e746e089261e2117cf0f86` (complete)
-- Azure SQL server: `sql-decidr-danj210.database.windows.net`
-- Azure SQL database: `decidr`
-- Azure SQL application user: `decidr-danj210` (App Service managed identity)
-- Applied production migrations: `20260803035717_InitialCreate` and
-  `20260803221601_AddExternalIdentity`
+- an External ID tenant with separate SPA and API registrations;
+- the delegated API scope `access_as_user` granted to the SPA;
+- `https://<app-service-host>/auth/callback` as a production SPA redirect URI;
+- an App Service system-assigned managed identity;
+- an Azure SQL contained user for the App Service identity;
+- a private evidence Blob container; and
+- Defender for Storage on-upload malware scanning with Blob index result tags.
 
 The `/auth/callback` frontend route completes the MSAL redirect flow and returns
 the user to the route where authentication started. It is distinct from the
@@ -172,14 +147,14 @@ malicious, failed, unscanned, or unknown results. The Development-only local fil
 provider treats files that pass structural validation as clean so local work does
 not depend on Azure Defender.
 
-The deployed App Service uses these production settings:
+Configure these App Service production settings with environment-specific values:
 
 ```text
 ASPNETCORE_ENVIRONMENT=Production
-Entra__Authority=https://decidrcustomers.ciamlogin.com/a0c3e661-0d19-4339-a560-6483bade2612/v2.0
-Entra__Audience=c9e1f354-2a8d-46ea-abb6-80a919a7b1d8
-EvidenceStorage__BlobServiceUri=https://stdecidrdanj210.blob.core.windows.net/
-EvidenceStorage__ContainerName=case-evidence
+Entra__Authority=https://<tenant-subdomain>.ciamlogin.com/<tenant-id>/v2.0
+Entra__Audience=<api-application-client-id>
+EvidenceStorage__BlobServiceUri=https://<storage-account>.blob.core.windows.net/
+EvidenceStorage__ContainerName=<private-evidence-container>
 ConnectionStrings__DefaultConnection=<managed-identity Azure SQL connection string>
 ```
 
@@ -191,11 +166,10 @@ Azure testing with a developer identity obtained through standard Azure tooling.
 
 ### Evidence malware scanning
 
-Defender for Storage is enabled on `stdecidrdanj210` with on-upload malware
-scanning, a 20 GB monthly cap, Blob index scan-result tags, and the built-in
-`BlobSoftDelete` response for malicious files. Sensitive-data discovery is
-disabled for this test deployment. The API deliberately refuses access when the
-result tag is absent or is anything other than `No threats found`.
+Enable Defender for Storage with on-upload malware scanning, an appropriate
+monthly cap, Blob index scan-result tags, and a remediation policy for malicious
+files. The API deliberately refuses access when the result tag is absent or is
+anything other than `No threats found`.
 
 Also configure the following operational controls:
 
@@ -212,29 +186,16 @@ Also configure the following operational controls:
 5. Do not add scan exclusions for the `case-evidence/` container. Excluded,
   oversized, timed-out, or otherwise unscanned files remain unavailable by design.
 
-The deployed scan contract was validated with a normal file: Defender applied
-the exact `No threats found` tag required by the application, and the temporary
-validation blob was removed. Windows Defender blocked the standard EICAR test
-file locally before upload, so no EICAR blob reached Azure. Do not weaken endpoint
-protection to force that test. When a controlled test source is available, verify
-that a new file initially returns HTTP `423`, EICAR remains unavailable with HTTP
-`410`, the detection appears in Defender for Cloud, and built-in soft deletion
-remediates the blob. Never use real malware for this validation.
+Validate the scan contract with a normal allowed file. It should initially return
+HTTP `423` and become downloadable only after Defender applies the exact
+`No threats found` tag. Use EICAR only from a controlled test source; do not
+weaken endpoint protection or use real malware. A detected file must remain
+unavailable with HTTP `410` and follow the configured remediation policy.
 
-The storage account now rejects Shared Key authorization, disallows public Blob
-access, requires HTTPS with TLS 1.2 or later, and grants the Web App managed
-identity `Storage Blob Data Contributor` only on the private `case-evidence`
-container. The custom `Decidr Evidence Scan Tag Reader` role adds only the Blob
-`tags/read` data action required to evaluate Defender results; the application
-cannot alter scan tags. After these controls were enabled, the production root
-and public case list returned HTTP `200`, while anonymous `/api/auth/me` returned
-HTTP `401`.
-
-Remaining deployment work:
-
-1. Repeat the authenticated production file selection, upload, Defender scan,
-  and download flow after the scan-tag reader RBAC repair. Production sign-in,
-  profile mapping, friendship, case creation, and link evidence are verified.
+Disable Shared Key authorization and public Blob access, require HTTPS with TLS
+1.2 or later, and scope `Storage Blob Data Contributor` to the private evidence
+container. Add a custom read-only role containing only the Blob `tags/read` data
+action so the application can evaluate Defender results without altering them.
 
 ### CI/CD and controlled migrations
 
@@ -260,13 +221,12 @@ deploys the exact package built earlier, and checks the public root, case list,
 and anonymous authentication boundary. Production jobs are serialized so
 migrations and deployments cannot overlap.
 
-The deployment identity is the `decidr-github-production` Entra application. Its
-federated credential trusts only
-`repo:DanJ210/Decidr:environment:production`. Azure management access is limited
-to `Website Contributor` on `decidr-danj210` and the custom `Decidr SQL Migration
-Firewall Manager` role on `sql-decidr-danj210`. Inside the `decidr` database, its
-contained user has `db_ddladmin`, `db_datareader`, and `db_datawriter`; it is not
-`db_owner`.
+The deployment identity uses a federated credential restricted to this
+repository's `production` environment. Azure management access is limited to
+`Website Contributor` on the target Web App and a custom role containing only
+SQL server/firewall-rule read, write, and delete actions on the target SQL server.
+Inside the production database, its contained user has `db_ddladmin`,
+`db_datareader`, and `db_datawriter`; it is not `db_owner`.
 
 Create every schema change as a reviewed EF Core migration and merge it with the
 application code that consumes it. Production startup never applies migrations.
