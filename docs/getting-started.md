@@ -70,9 +70,46 @@ profile; subsequent requests reuse that profile.
 Entra authentication requires a non-empty `DefaultConnection`. Startup fails
 when Entra is configured without persistent SQL Server or Azure SQL storage.
 
-When running in Development without Entra settings, the app retains the seeded
-selected-user profile picker and in-memory/SQL Server demo behavior. Do not use
-that fallback as an authentication mechanism in a deployed environment.
+### Disable Entra for Local Development
+
+Entra configuration is independent in the backend and SPA, so disable both
+halves before using the selected-user development workflow.
+
+In the ignored `backend/appsettings.Development.local.json`, set both backend
+Entra values to empty strings while preserving any existing connection string:
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "<existing local value, or empty for in-memory storage>"
+  },
+  "Entra": {
+    "Authority": "",
+    "Audience": ""
+  }
+}
+```
+
+In the ignored `frontend/.env.local`, remove the three Entra entries or leave
+them empty:
+
+```dotenv
+VITE_ENTRA_CLIENT_ID=
+VITE_ENTRA_AUTHORITY=
+VITE_ENTRA_API_SCOPE=
+```
+
+Restart both `dotnet run` and `npm run dev` after changing these settings. Vite
+reads its environment variables only at startup. In this mode, the SPA restores
+the seeded/local user selector and sends `X-Dev-User-Id`; the backend accepts that
+header only in Development when Entra is not configured. The conditional
+controller authorization convention is also omitted so this development identity
+flow can reach protected actions.
+
+This fallback is not a deployment authentication mechanism. Non-Development
+startup requires Entra authority and audience settings, and the development user
+header is rejected outside Development or whenever Entra is configured. To
+re-enable Entra locally, restore all five settings and restart both processes.
 
 ### Azure Deployment Checkpoint (2026-08-09)
 
