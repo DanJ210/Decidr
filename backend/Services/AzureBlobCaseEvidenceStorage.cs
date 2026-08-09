@@ -66,6 +66,14 @@ public sealed class AzureBlobCaseEvidenceStorage(
             logger.LogWarning("Case evidence blob {StorageKey} was not found.", storageKey);
             return new StoredEvidenceContent(EvidenceContentStatus.NotFound);
         }
+        catch (RequestFailedException exception) when (exception.Status is StatusCodes.Status401Unauthorized or StatusCodes.Status403Forbidden)
+        {
+            logger.LogError(
+                exception,
+                "Case evidence blob {StorageKey} could not be security-checked because storage access was denied.",
+                storageKey);
+            return new StoredEvidenceContent(EvidenceContentStatus.ScanFailed);
+        }
     }
 
     public async Task DeleteAsync(

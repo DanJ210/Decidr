@@ -318,32 +318,34 @@ The backend uses `InMemoryCommunityCourtService` **only when `ConnectionStrings:
 
 ### Validation & CI Checks
 
-**Currently**: No GitHub Actions workflows are configured. The repository has no automated CI/CD pipeline.
+The `.github/workflows/ci-cd.yml` workflow validates pull requests and pushes to
+`main` with locked dependency restoration, the Vue production build, the .NET
+Release build, backend tests, and a transitive NuGet vulnerability audit.
 
-When CI is added, document the following:
-1. What linters run (e.g., ESLint, Roslyn analyzers)
-2. What builds are triggered (dotnet build, npm run build)
-3. What tests run (when test suite is added)
-4. Expected time to complete the full validation suite
+Pushes to `main` also create an App Service package, an EF Core migration bundle,
+and a reviewable idempotent SQL script. The protected `production` environment
+requires manual approval before its OIDC identity applies migrations and deploys
+the package. Production migrations and deployments are serialized.
 
-**Manual Validation Steps** (to replicate CI when added):
+**Manual Validation Steps** (to replicate CI):
 ```bash
-# Backend: Restore and compile
-cd backend
-dotnet restore
-dotnet build
+# Restore pinned .NET tools and locked dependencies
+dotnet tool restore
+dotnet restore backend.Tests/backend.Tests.csproj --locked-mode
 
-# Frontend: Install and build
+# Frontend: clean install, typecheck, and production build
 cd frontend
-npm install
+npm ci
+npm audit --omit=dev --audit-level=high
 npm run build
+cd ..
 
-# Frontend: TypeScript check
-cd frontend
-npx vue-tsc -b
+# Backend: build and test
+dotnet build backend.Tests/backend.Tests.csproj --configuration Release --no-restore
+dotnet test backend.Tests/backend.Tests.csproj --configuration Release --no-restore --no-build
 
-# Optional: Verify the backend is running (list cases endpoint)
-curl -X GET http://localhost:5066/api/cases
+# Migration artifact validation
+dotnet ef migrations bundle --project backend/backend.csproj --startup-project backend/backend.csproj --configuration Release
 ```
 
 ---

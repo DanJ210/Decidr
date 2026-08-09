@@ -23,6 +23,7 @@ const {
   closePermissionMessage,
   evidenceLoading,
   evidenceError,
+  evidenceNotice,
   evidenceDrafts,
   sideAEvidence,
   sideBEvidence,
@@ -247,9 +248,10 @@ function formatEvidenceSize(sizeBytes: number | null) {
               <p class="status-text">Review each side's supporting materials before you cast a vote.</p>
 
               <p v-if="evidenceLoading" class="notice">Loading side evidence...</p>
-              <p v-else-if="evidenceError" class="notice error">{{ evidenceError }}</p>
+              <p v-if="evidenceError" class="notice error" role="alert">{{ evidenceError }}</p>
+              <p v-if="evidenceNotice" class="notice" aria-live="polite">{{ evidenceNotice }}</p>
 
-              <div v-else class="evidence-grid">
+              <div v-if="!evidenceLoading" class="evidence-grid">
             <section class="evidence-column">
               <h3>
                 Side A · {{ caseItem.sideA.userName }}
@@ -322,6 +324,9 @@ function formatEvidenceSize(sizeBytes: number | null) {
                     Upload File
                     <input :accept="evidenceFileAccept" type="file" @change="setEvidenceFile('A', $event)" />
                   </label>
+                  <p v-if="evidenceDrafts.A.file" class="selected-file">
+                    Selected: <strong>{{ evidenceDrafts.A.file.name }}</strong>
+                  </p>
                   <div class="action-bar">
                     <button
                       type="button"
@@ -408,6 +413,9 @@ function formatEvidenceSize(sizeBytes: number | null) {
                     Upload File
                     <input :accept="evidenceFileAccept" type="file" @change="setEvidenceFile('B', $event)" />
                   </label>
+                  <p v-if="evidenceDrafts.B.file" class="selected-file">
+                    Selected: <strong>{{ evidenceDrafts.B.file.name }}</strong>
+                  </p>
                   <div class="action-bar">
                     <button
                       type="button"

@@ -44,6 +44,7 @@ export function useCaseDetail() {
   const evidenceMutatingSide = ref<CaseSide | null>(null)
   const evidenceMutatingType = ref<'link' | 'file' | null>(null)
   const evidenceError = ref<string | null>(null)
+  const evidenceNotice = ref<string | null>(null)
   const evidencePreviewUrls = reactive<Record<string, string>>({})
   const evidenceDrafts = reactive<Record<CaseSide, SideEvidenceDraft>>({
     A: {
@@ -149,6 +150,7 @@ export function useCaseDetail() {
     }
 
     evidenceError.value = null
+    evidenceNotice.value = null
     try {
       const content = await fetchCaseEvidenceFile(item.caseId, item.id)
       const objectUrl = URL.createObjectURL(content)
@@ -192,6 +194,7 @@ export function useCaseDetail() {
     const requestId = ++evidenceRequestId
     evidenceLoading.value = true
     evidenceError.value = null
+    evidenceNotice.value = null
 
     try {
       const loaded = await fetchCaseEvidence(caseId)
@@ -492,6 +495,7 @@ export function useCaseDetail() {
 
       appendEvidenceItem(created)
       await loadEvidencePreview(created, evidenceRequestId)
+      evidenceNotice.value = 'File uploaded. Security scanning may take a short time before it can be opened.'
       draft.fileTitle = ''
       draft.file = null
     } catch {
@@ -631,6 +635,7 @@ export function useCaseDetail() {
     evidence,
     evidenceLoading,
     evidenceError,
+    evidenceNotice,
     evidenceDrafts,
     sideAEvidence,
     sideBEvidence,

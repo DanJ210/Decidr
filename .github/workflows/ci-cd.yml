@@ -1,0 +1,258 @@
+name: CI/CD
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: decidr-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  NUGET_XMLDOC_MODE: skip
+  VITE_ENTRA_CLIENT_ID: 0daef16a-8462-4c43-b1c5-80f77556df3a
+  VITE_ENTRA_AUTHORITY: https://a0c3e661-0d19-4339-a560-6483bade2612.ciamlogin.com/a0c3e661-0d19-4339-a560-6483bade2612
+  VITE_ENTRA_API_SCOPE: api://c9e1f354-2a8d-46ea-abb6-80a919a7b1d8/access_as_user
+  AZURE_CLIENT_ID: db2b9881-d17c-4d41-8612-a57149e17f4d
+  AZURE_TENANT_ID: 729455e6-ace4-4d8f-8be7-2d4af79e7599
+  AZURE_SUBSCRIPTION_ID: 0095a22a-e93d-4beb-8d77-f5c383cbc7e4
+  AZURE_RESOURCE_GROUP: rg-decidr-test-eus
+  AZURE_SQL_SERVER_NAME: sql-decidr-danj210
+  AZURE_SQL_DATABASE_NAME: decidr
+  AZURE_WEBAPP_NAME: decidr-danj210
+  AZURE_WEBAPP_HOSTNAME: decidr-danj210-f6eeehdzhudhfuef.eastus-01.azurewebsites.net
+
+jobs:
+  validate:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: |
+            backend/packages.lock.json
+            backend.Tests/packages.lock.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Restore dependencies
+        run: |
+          dotnet tool restore
+          dotnet restore backend.Tests/backend.Tests.csproj --locked-mode
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        run: npm --prefix frontend run build
+
+      - name: Audit frontend production dependencies
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build backend
+        run: dotnet build backend.Tests/backend.Tests.csproj --configuration Release --no-restore
+
+      - name: Run backend tests
+        run: dotnet test backend.Tests/backend.Tests.csproj --configuration Release --no-restore --no-build
+
+      - name: Audit NuGet dependencies
+        run: dotnet list backend.Tests/backend.Tests.csproj package --vulnerable --include-transitive
+
+  package:
+    name: Package release
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Validate production build variables
+        shell: bash
+        run: |
+          missing=0
+          for variable in VITE_ENTRA_CLIENT_ID VITE_ENTRA_AUTHORITY VITE_ENTRA_API_SCOPE; do
+            if [ -z "${!variable}" ]; then
+              echo "::error::Workflow variable $variable is required."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Restore dependencies
+        run: |
+          dotnet tool restore
+          dotnet restore backend/backend.csproj --locked-mode
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        run: npm --prefix frontend run build
+
+      - name: Publish application
+        run: |
+          dotnet publish backend/backend.csproj \
+            --configuration Release \
+            --no-restore \
+            --output artifacts/app
+          cd artifacts/app
+          zip --quiet --recurse-paths ../app.zip .
+
+      - name: Build migration artifacts
+        run: |
+          dotnet ef migrations bundle \
+            --project backend/backend.csproj \
+            --startup-project backend/backend.csproj \
+            --configuration Release \
+            --output artifacts/efbundle
+          dotnet ef migrations script \
+            --project backend/backend.csproj \
+            --startup-project backend/backend.csproj \
+            --configuration Release \
+            --idempotent \
+            --output artifacts/migrations.sql
+          chmod +x artifacts/efbundle
+          sha256sum artifacts/app.zip artifacts/efbundle artifacts/migrations.sql > artifacts/SHA256SUMS
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ github.sha }}
+          path: |
+            artifacts/app.zip
+            artifacts/efbundle
+            artifacts/migrations.sql
+            artifacts/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
+
+  production:
+    name: Migrate and deploy production
+    if: github.event_name != 'pull_request'
+    needs: package
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ 'production' }}
+      url: https://decidr-danj210-f6eeehdzhudhfuef.eastus-01.azurewebsites.net
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: decidr-production
+      cancel-in-progress: false
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-${{ github.sha }}
+          path: artifacts
+
+      - name: Verify release artifacts
+        working-directory: artifacts
+        run: sha256sum --check SHA256SUMS
+
+      - name: Sign in to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Validate deployment variables
+        shell: bash
+        run: |
+          missing=0
+          for variable in AZURE_RESOURCE_GROUP AZURE_SQL_SERVER_NAME AZURE_SQL_DATABASE_NAME AZURE_WEBAPP_NAME AZURE_WEBAPP_HOSTNAME; do
+            if [ -z "${!variable}" ]; then
+              echo "::error::Workflow variable $variable is required."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Allow migration runner through SQL firewall
+        id: firewall
+        shell: bash
+        run: |
+          runner_ip=$(curl --fail --silent --show-error https://api.ipify.org)
+          rule_name="github-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          az sql server firewall-rule create \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --server "$AZURE_SQL_SERVER_NAME" \
+            --name "$rule_name" \
+            --start-ip-address "$runner_ip" \
+            --end-ip-address "$runner_ip" \
+            --output none
+          echo "rule_name=$rule_name" >> "$GITHUB_OUTPUT"
+
+      - name: Apply EF Core migrations
+        shell: bash
+        run: |
+          chmod +x artifacts/efbundle
+          connection="Server=tcp:${AZURE_SQL_SERVER_NAME}.database.windows.net,1433;Initial Catalog=${AZURE_SQL_DATABASE_NAME};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;Authentication=Active Directory Default;"
+          artifacts/efbundle --connection "$connection"
+
+      - name: Remove migration firewall rule
+        if: always() && steps.firewall.outputs.rule_name != ''
+        env:
+          FIREWALL_RULE_NAME: ${{ steps.firewall.outputs.rule_name }}
+        run: |
+          az sql server firewall-rule delete \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --server "$AZURE_SQL_SERVER_NAME" \
+            --name "$FIREWALL_RULE_NAME" \
+            --output none
+
+      - name: Deploy application
+        run: |
+          az webapp deploy \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_WEBAPP_NAME" \
+            --src-path artifacts/app.zip \
+            --type zip \
+            --clean true \
+            --restart true \
+            --output none
+
+      - name: Verify production health
+        run: |
+          base_url="https://${AZURE_WEBAPP_HOSTNAME}"
+          curl --fail --location --retry 12 --retry-delay 10 --retry-all-errors "$base_url/" > /dev/null
+          curl --fail --location --retry 5 --retry-delay 5 --retry-all-errors "$base_url/api/cases" > /dev/null
+          auth_status=$(curl --silent --output /dev/null --write-out '%{http_code}' "$base_url/api/auth/me")
+          test "$auth_status" = "401"
