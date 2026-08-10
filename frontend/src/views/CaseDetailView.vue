@@ -493,7 +493,7 @@ function canPreviewEvidence(item: { type: string; mimeType: string | null }) {
                 <p class="eyebrow">Evidence preview</p>
                 <h2>{{ evidenceViewer.item.title }}</h2>
               </div>
-              <button type="button" class="icon-button" title="Close preview" @click="closeEvidenceViewer">
+<button type="button" class="icon-button" title="Close preview" aria-label="Close preview" @click="closeEvidenceViewer">
                 <X :size="20" aria-hidden="true" />
               </button>
             </header>
