@@ -216,10 +216,28 @@ export function useCaseDetail() {
       if (response.status === 'Clean' && item.type === 'Image' && !evidencePreviewUrls[item.id]) {
         await loadEvidencePreview(item, requestId)
       }
-    } catch {
-      if (requestId === evidenceRequestId && isViewingCase(item.caseId)) {
-        scheduleEvidenceStatusRefresh(item, requestId)
+    } catch (error) {
+      if (requestId !== evidenceRequestId || !isViewingCase(item.caseId)) return
+
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined
+      if (status === 404) {
+        evidenceStatuses[item.id] = 'NotFound'
+        evidenceStatusTimers.delete(item.id)
+        return
       }
+
+      const isNonRetryableClientError = status !== undefined
+        && status >= 400
+        && status < 500
+        && status !== 408
+        && status !== 429
+      if (isNonRetryableClientError) {
+        evidenceStatuses[item.id] = 'ScanFailed'
+        evidenceStatusTimers.delete(item.id)
+        return
+      }
+
+      scheduleEvidenceStatusRefresh(item, requestId)
     }
   }
 
