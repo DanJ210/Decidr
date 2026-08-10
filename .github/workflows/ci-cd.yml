@@ -140,7 +140,8 @@ jobs:
             --idempotent \
             --output artifacts/migrations.sql
           chmod +x artifacts/efbundle
-          sha256sum artifacts/app.zip artifacts/efbundle artifacts/migrations.sql > artifacts/SHA256SUMS
+          cd artifacts
+          sha256sum app.zip efbundle migrations.sql > SHA256SUMS
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
