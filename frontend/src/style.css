@@ -1410,6 +1410,25 @@ textarea {
   margin: 0;
 }
 
+.icon-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  color: var(--ink);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: var(--surface-muted);
+}
+
 .evidence-viewer > footer {
   justify-content: flex-end;
   border-top: 1px solid var(--line);
