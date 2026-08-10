@@ -1,3 +1,5 @@
+using backend.Models;
+
 namespace backend.Services;
 
 public sealed class LocalCaseEvidenceStorage(
@@ -52,6 +54,16 @@ public sealed class LocalCaseEvidenceStorage(
             EvidenceContentStatus.Clean,
             content,
             contentType));
+    }
+
+    public Task<EvidenceContentStatus> GetStatusAsync(
+        string storageKey,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(
+            File.Exists(GetFullPath(storageKey))
+                ? EvidenceContentStatus.Clean
+                : EvidenceContentStatus.NotFound);
     }
 
     public Task DeleteAsync(

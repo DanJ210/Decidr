@@ -5,6 +5,7 @@ import {
   fetchCaseComments,
   fetchCaseEvidence,
   fetchCaseEvidenceFile,
+  fetchCaseEvidenceStatus,
   fetchCaseVoteStatus,
   postCaseComment,
   postCaseEvidenceLink,
@@ -12,10 +13,17 @@ import {
 } from '../services/api'
 import { useAuthStore } from '../stores/auth'
 import { useCourtStore } from '../stores/court'
-import type { CaseComment, CaseEvidenceCollection, CaseEvidenceItem, CaseSide } from '../types'
+import type {
+  CaseComment,
+  CaseEvidenceCollection,
+  CaseEvidenceItem,
+  CaseSide,
+  EvidenceContentStatus,
+} from '../types'
 
 const MAX_EVIDENCE_ITEMS_PER_SIDE = 20
 const EVIDENCE_FILE_ACCEPT = '.jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.doc,.docx'
+const EVIDENCE_STATUS_POLL_INTERVAL_MS = 3_000
 
 interface SideEvidenceDraft {
   linkTitle: string
@@ -47,6 +55,9 @@ export function useCaseDetail() {
   const evidenceError = ref<string | null>(null)
   const evidenceNotice = ref<string | null>(null)
   const evidencePreviewUrls = reactive<Record<string, string>>({})
+  const evidenceStatuses = reactive<Record<string, EvidenceContentStatus>>({})
+  const evidenceViewer = ref<{ item: CaseEvidenceItem; url: string } | null>(null)
+  const evidenceViewerLoadingId = ref<string | null>(null)
   const evidenceDrafts = reactive<Record<CaseSide, SideEvidenceDraft>>({
     A: {
       linkTitle: '',
@@ -64,6 +75,7 @@ export function useCaseDetail() {
   let caseStateRequestId = 0
   let voteStatusRequestId = 0
   let evidenceRequestId = 0
+  const evidenceStatusTimers = new Map<string, number>()
 
   const caseItem = computed(() => courtStore.selectedCase)
   const activeUser = computed(() => authStore.selectedUser)
@@ -124,6 +136,20 @@ export function useCaseDetail() {
     }
   }
 
+  function clearEvidenceStatusTimers() {
+    for (const timer of evidenceStatusTimers.values()) {
+      window.clearTimeout(timer)
+    }
+    evidenceStatusTimers.clear()
+  }
+
+  function clearEvidenceStatuses() {
+    clearEvidenceStatusTimers()
+    for (const evidenceId of Object.keys(evidenceStatuses)) {
+      delete evidenceStatuses[evidenceId]
+    }
+  }
+
   async function loadEvidencePreview(item: CaseEvidenceItem, requestId: number) {
     if (item.type !== 'Image') return
 
@@ -144,27 +170,109 @@ export function useCaseDetail() {
     return evidencePreviewUrls[item.id] ?? ''
   }
 
-  async function openEvidenceFile(item: CaseEvidenceItem) {
-    if (item.type === 'Link') {
-      window.open(item.resourceUrl, '_blank', 'noopener,noreferrer')
-      return
-    }
+  function getEvidenceStatus(item: CaseEvidenceItem): EvidenceContentStatus {
+    return item.type === 'Link' ? 'Clean' : (evidenceStatuses[item.id] ?? 'PendingScan')
+  }
 
-    evidenceError.value = null
-    evidenceNotice.value = null
-    const popup = window.open('', '_blank', 'noopener,noreferrer')
-    if (!popup) {
-      evidenceError.value = 'Unable to open a new tab. Please allow pop-ups for this site and try again.'
-      return
+  function getEvidenceStatusLabel(item: CaseEvidenceItem) {
+    const status = getEvidenceStatus(item)
+    if (status === 'Clean') return 'Ready'
+    if (status === 'PendingScan') return 'Security review'
+    if (status === 'Malicious') return 'Blocked'
+    if (status === 'ScanFailed') return 'Review failed'
+    return 'Unavailable'
+  }
+
+  function isEvidenceReady(item: CaseEvidenceItem) {
+    return getEvidenceStatus(item) === 'Clean'
+  }
+
+  function scheduleEvidenceStatusRefresh(item: CaseEvidenceItem, requestId: number) {
+    const currentTimer = evidenceStatusTimers.get(item.id)
+    if (currentTimer !== undefined) {
+      window.clearTimeout(currentTimer)
     }
+    const timer = window.setTimeout(() => {
+      evidenceStatusTimers.delete(item.id)
+      void refreshEvidenceStatus(item, requestId)
+    }, EVIDENCE_STATUS_POLL_INTERVAL_MS)
+    evidenceStatusTimers.set(item.id, timer)
+  }
+
+  async function refreshEvidenceStatus(item: CaseEvidenceItem, requestId: number) {
+    if (item.type === 'Link') return
 
     try {
-      const content = await fetchCaseEvidenceFile(item.caseId, item.id)
-      const objectUrl = URL.createObjectURL(content)
-      popup.location.href = objectUrl
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+      const response = await fetchCaseEvidenceStatus(item.caseId, item.id)
+      if (requestId !== evidenceRequestId || !isViewingCase(item.caseId)) return
+
+      evidenceStatuses[item.id] = response.status
+      if (response.status === 'PendingScan') {
+        scheduleEvidenceStatusRefresh(item, requestId)
+        return
+      }
+
+      evidenceStatusTimers.delete(item.id)
+      if (response.status === 'Clean' && item.type === 'Image' && !evidencePreviewUrls[item.id]) {
+        await loadEvidencePreview(item, requestId)
+      }
     } catch (error) {
-      popup.close()
+      if (requestId !== evidenceRequestId || !isViewingCase(item.caseId)) return
+
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined
+      if (status === 404) {
+        evidenceStatuses[item.id] = 'NotFound'
+        evidenceStatusTimers.delete(item.id)
+        return
+      }
+
+      const isNonRetryableClientError = status !== undefined
+        && status >= 400
+        && status < 500
+        && status !== 408
+        && status !== 429
+      if (isNonRetryableClientError) {
+        evidenceStatuses[item.id] = 'ScanFailed'
+        evidenceStatusTimers.delete(item.id)
+        return
+      }
+
+      scheduleEvidenceStatusRefresh(item, requestId)
+    }
+  }
+
+  function closeEvidenceViewer() {
+    if (evidenceViewer.value) {
+      URL.revokeObjectURL(evidenceViewer.value.url)
+      evidenceViewer.value = null
+    }
+  }
+
+  function downloadEvidenceFile() {
+    const viewer = evidenceViewer.value
+    if (!viewer) return
+
+    const anchor = document.createElement('a')
+    anchor.href = viewer.url
+    anchor.download = viewer.item.title
+    anchor.click()
+  }
+
+  async function openEvidenceFile(item: CaseEvidenceItem) {
+    evidenceError.value = null
+    evidenceNotice.value = null
+    if (!isEvidenceReady(item)) {
+      evidenceError.value = 'This evidence file is not ready yet. Its status will update automatically.'
+      return
+    }
+
+    evidenceViewerLoadingId.value = item.id
+    try {
+      const content = await fetchCaseEvidenceFile(item.caseId, item.id)
+      closeEvidenceViewer()
+      const objectUrl = URL.createObjectURL(content)
+      evidenceViewer.value = { item, url: objectUrl }
+    } catch (error) {
       const status = axios.isAxiosError(error) ? error.response?.status : undefined
       evidenceError.value = status === 423
         ? 'This evidence file is still being scanned. Try again shortly.'
@@ -173,6 +281,8 @@ export function useCaseDetail() {
           : status === 503
             ? 'Security scanning could not be completed. Try again later.'
             : 'Unable to open this evidence file right now.'
+    } finally {
+      evidenceViewerLoadingId.value = null
     }
   }
 
@@ -205,10 +315,14 @@ export function useCaseDetail() {
       const loaded = await fetchCaseEvidence(caseId)
       if (isCurrentEvidenceRequest(requestId, caseId)) {
         clearEvidencePreviewUrls()
+        clearEvidenceStatuses()
         evidence.value = loaded
         evidenceLoaded.value = true
         for (const item of [...loaded.sideA, ...loaded.sideB]) {
-          void loadEvidencePreview(item, requestId)
+          if (item.type !== 'Link') {
+            evidenceStatuses[item.id] = 'PendingScan'
+            void refreshEvidenceStatus(item, requestId)
+          }
         }
       }
     } catch {
@@ -503,8 +617,9 @@ export function useCaseDetail() {
       }
 
       appendEvidenceItem(created)
-      await loadEvidencePreview(created, evidenceRequestId)
-      evidenceNotice.value = 'File uploaded. Security scanning may take a short time before it can be opened.'
+      evidenceStatuses[created.id] = 'PendingScan'
+      void refreshEvidenceStatus(created, evidenceRequestId)
+      evidenceNotice.value = 'Upload complete. Security review is in progress; this page will update when the file is ready.'
       draft.fileTitle = ''
       draft.file = null
     } catch {
@@ -518,7 +633,11 @@ export function useCaseDetail() {
     }
   }
 
-  onBeforeUnmount(clearEvidencePreviewUrls)
+  onBeforeUnmount(() => {
+    clearEvidencePreviewUrls()
+    clearEvidenceStatusTimers()
+    closeEvidenceViewer()
+  })
 
   async function vote(side: 'A' | 'B') {
     const selectedUser = authStore.selectedUser
@@ -660,7 +779,14 @@ export function useCaseDetail() {
     submitEvidenceFile,
     evidenceFileAccept: EVIDENCE_FILE_ACCEPT,
     getEvidencePreviewUrl,
+    getEvidenceStatus,
+    getEvidenceStatusLabel,
+    isEvidenceReady,
+    evidenceViewer,
+    evidenceViewerLoadingId,
     openEvidenceFile,
+    closeEvidenceViewer,
+    downloadEvidenceFile,
     maxEvidenceItemsPerSide: MAX_EVIDENCE_ITEMS_PER_SIDE,
     vote,
     closeCase,

@@ -1,6 +1,7 @@
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using backend.Models;
 
 namespace backend.Services;
 
@@ -42,8 +43,7 @@ public sealed class AzureBlobCaseEvidenceStorage(
         try
         {
             var blobClient = containerClient.GetBlobClient(storageKey);
-            var tagsResponse = await blobClient.GetTagsAsync(cancellationToken: cancellationToken);
-            var scanStatus = GetEvidenceContentStatus(tagsResponse.Value.Tags);
+            var scanStatus = await GetStatusAsync(storageKey, cancellationToken);
             if (scanStatus != EvidenceContentStatus.Clean)
             {
                 logger.LogWarning(
@@ -73,6 +73,41 @@ public sealed class AzureBlobCaseEvidenceStorage(
                 "Case evidence blob {StorageKey} could not be security-checked because storage access was denied.",
                 storageKey);
             return new StoredEvidenceContent(EvidenceContentStatus.ScanFailed);
+        }
+    }
+
+    public async Task<EvidenceContentStatus> GetStatusAsync(
+        string storageKey,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var tagsResponse = await containerClient
+                .GetBlobClient(storageKey)
+                .GetTagsAsync(cancellationToken: cancellationToken);
+            return GetEvidenceContentStatus(tagsResponse.Value.Tags);
+        }
+        catch (RequestFailedException exception) when (exception.Status == StatusCodes.Status404NotFound)
+        {
+            return EvidenceContentStatus.NotFound;
+        }
+        catch (RequestFailedException exception) when (exception.Status is StatusCodes.Status401Unauthorized or StatusCodes.Status403Forbidden)
+        {
+            logger.LogError(
+                exception,
+                "Case evidence blob {StorageKey} could not be security-checked because storage access was denied.",
+                storageKey);
+            return EvidenceContentStatus.ScanFailed;
+        }
+        catch (RequestFailedException exception)
+        {
+            logger.LogError(
+                exception,
+                "Case evidence blob {StorageKey} could not be security-checked because storage failed with status {StorageStatus} and error code {StorageErrorCode}.",
+                storageKey,
+                exception.Status,
+                exception.ErrorCode);
+            return EvidenceContentStatus.ScanFailed;
         }
     }
 

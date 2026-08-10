@@ -1,5 +1,8 @@
 using System.Security.Claims;
 using System.Text;
+using Azure;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using backend.Controllers;
 using backend.Data.Entities;
 using backend.Models;
@@ -34,6 +37,33 @@ public sealed class CasesControllerEvidenceTests
         var status = AzureBlobCaseEvidenceStorage.GetEvidenceContentStatus(tags);
 
         Assert.Equal(expectedStatus, status);
+    }
+
+    [Fact]
+    public async Task Storage_status_maps_unexpected_azure_failure_to_scan_failed()
+    {
+        const string storageKey = "case-id/private-object.pdf";
+        var blobClient = new Mock<BlobClient>();
+        blobClient
+            .Setup(client => client.GetTagsAsync(
+                It.IsAny<BlobRequestConditions>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestFailedException(
+                StatusCodes.Status503ServiceUnavailable,
+                "Storage unavailable",
+                "ServerBusy",
+                null));
+        var containerClient = new Mock<BlobContainerClient>();
+        containerClient
+            .Setup(client => client.GetBlobClient(storageKey))
+            .Returns(blobClient.Object);
+        var storage = new AzureBlobCaseEvidenceStorage(
+            containerClient.Object,
+            Mock.Of<ILogger<AzureBlobCaseEvidenceStorage>>());
+
+        var status = await storage.GetStatusAsync(storageKey, CancellationToken.None);
+
+        Assert.Equal(EvidenceContentStatus.ScanFailed, status);
     }
 
     [Fact]
@@ -279,6 +309,33 @@ public sealed class CasesControllerEvidenceTests
             CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Theory]
+    [InlineData(EvidenceContentStatus.PendingScan)]
+    [InlineData(EvidenceContentStatus.Clean)]
+    [InlineData(EvidenceContentStatus.Malicious)]
+    [InlineData(EvidenceContentStatus.ScanFailed)]
+    [InlineData(EvidenceContentStatus.NotFound)]
+    public async Task Status_endpoint_returns_current_storage_status(EvidenceContentStatus storageStatus)
+    {
+        var fixture = CreateFixture();
+        var evidence = CreateEvidence(fixture.CaseId, "private/blob-key.pdf");
+        fixture.CourtService
+            .Setup(service => service.GetCaseEvidence(fixture.CaseId))
+            .Returns(new CaseEvidenceCollection([evidence], []));
+        fixture.Storage
+            .Setup(storage => storage.GetStatusAsync(evidence.ResourceUrl, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(storageStatus);
+
+        var result = await fixture.Controller.GetCaseEvidenceStatus(
+            fixture.CaseId,
+            evidence.Id,
+            CancellationToken.None);
+
+        var response = Assert.IsType<CaseEvidenceStatusResponse>(
+            Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(storageStatus, response.Status);
     }
 
     [Fact]

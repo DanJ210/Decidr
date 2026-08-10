@@ -7,6 +7,7 @@ import type {
   ArgumentCase,
   CaseEvidenceCollection,
   CaseEvidenceItem,
+  CaseEvidenceStatusResponse,
   CaseSide,
   CaseVoteStatus,
   CaseComment,
@@ -113,6 +114,16 @@ export async function fetchCaseEvidenceFile(caseId: string, evidenceId: string):
   const { data } = await apiClient.get<Blob>(`/cases/${caseId}/evidence/${evidenceId}/content`, {
     responseType: 'blob',
   })
+  return data
+}
+
+export async function fetchCaseEvidenceStatus(
+  caseId: string,
+  evidenceId: string
+): Promise<CaseEvidenceStatusResponse> {
+  const { data } = await apiClient.get<CaseEvidenceStatusResponse>(
+    `/cases/${caseId}/evidence/${evidenceId}/status`
+  )
   return data
 }
 

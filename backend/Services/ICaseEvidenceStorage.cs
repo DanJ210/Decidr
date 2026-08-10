@@ -1,13 +1,6 @@
-namespace backend.Services;
+using backend.Models;
 
-public enum EvidenceContentStatus
-{
-    Clean,
-    PendingScan,
-    Malicious,
-    ScanFailed,
-    NotFound
-}
+namespace backend.Services;
 
 public sealed record StoredEvidenceContent(
     EvidenceContentStatus Status,
@@ -21,6 +14,10 @@ public interface ICaseEvidenceStorage
         string fileExtension,
         string contentType,
         Stream content,
+        CancellationToken cancellationToken);
+
+    Task<EvidenceContentStatus> GetStatusAsync(
+        string storageKey,
         CancellationToken cancellationToken);
 
     Task<StoredEvidenceContent> OpenReadAsync(

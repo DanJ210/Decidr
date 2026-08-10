@@ -44,6 +44,7 @@ export interface CaseComment {
 }
 
 export type CaseEvidenceType = 'Link' | 'Image' | 'Document'
+export type EvidenceContentStatus = 'Clean' | 'PendingScan' | 'Malicious' | 'ScanFailed' | 'NotFound'
 
 export interface CaseEvidenceItem {
   id: string
@@ -62,6 +63,10 @@ export interface CaseEvidenceItem {
 export interface CaseEvidenceCollection {
   sideA: CaseEvidenceItem[]
   sideB: CaseEvidenceItem[]
+}
+
+export interface CaseEvidenceStatusResponse {
+  status: EvidenceContentStatus
 }
 
 export interface ArgumentCase {
