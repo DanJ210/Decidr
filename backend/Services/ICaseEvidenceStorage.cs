@@ -23,6 +23,10 @@ public interface ICaseEvidenceStorage
         Stream content,
         CancellationToken cancellationToken);
 
+    Task<EvidenceContentStatus> GetStatusAsync(
+        string storageKey,
+        CancellationToken cancellationToken);
+
     Task<StoredEvidenceContent> OpenReadAsync(
         string storageKey,
         CancellationToken cancellationToken);

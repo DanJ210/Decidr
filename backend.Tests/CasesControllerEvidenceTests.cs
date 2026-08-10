@@ -281,6 +281,33 @@ public sealed class CasesControllerEvidenceTests
         Assert.IsType<NotFoundResult>(result);
     }
 
+    [Theory]
+    [InlineData(EvidenceContentStatus.PendingScan)]
+    [InlineData(EvidenceContentStatus.Clean)]
+    [InlineData(EvidenceContentStatus.Malicious)]
+    [InlineData(EvidenceContentStatus.ScanFailed)]
+    [InlineData(EvidenceContentStatus.NotFound)]
+    public async Task Status_endpoint_returns_current_storage_status(EvidenceContentStatus storageStatus)
+    {
+        var fixture = CreateFixture();
+        var evidence = CreateEvidence(fixture.CaseId, "private/blob-key.pdf");
+        fixture.CourtService
+            .Setup(service => service.GetCaseEvidence(fixture.CaseId))
+            .Returns(new CaseEvidenceCollection([evidence], []));
+        fixture.Storage
+            .Setup(storage => storage.GetStatusAsync(evidence.ResourceUrl, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(storageStatus);
+
+        var result = await fixture.Controller.GetCaseEvidenceStatus(
+            fixture.CaseId,
+            evidence.Id,
+            CancellationToken.None);
+
+        var response = Assert.IsType<CaseEvidenceStatusResponse>(
+            Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(storageStatus, response.Status);
+    }
+
     [Fact]
     public async Task Content_endpoint_rejects_unresolved_actor()
     {

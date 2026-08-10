@@ -156,6 +156,37 @@ public class CasesController : ControllerBase
         return File(storedContent.Content!, storedContent.ContentType!, downloadName);
     }
 
+    [HttpGet("{id:guid}/evidence/{evidenceId:guid}/status")]
+    public async Task<ActionResult<CaseEvidenceStatusResponse>> GetCaseEvidenceStatus(
+        Guid id,
+        Guid evidenceId,
+        CancellationToken cancellationToken)
+    {
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null)
+        {
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        }
+
+        var foundCase = _courtService.GetCase(id, actor.Id);
+        if (foundCase is null || !CanViewCase(foundCase, actor))
+        {
+            return NotFound();
+        }
+
+        var caseEvidence = _courtService.GetCaseEvidence(id);
+        var evidence = caseEvidence.SideA
+            .Concat(caseEvidence.SideB)
+            .SingleOrDefault(item => item.Id == evidenceId && item.Type != CaseEvidenceType.Link);
+        if (evidence is null)
+        {
+            return NotFound();
+        }
+
+        var status = await _evidenceStorage.GetStatusAsync(evidence.ResourceUrl, cancellationToken);
+        return Ok(new CaseEvidenceStatusResponse(status));
+    }
+
     [HttpPost]
     public async Task<ActionResult<ArgumentCase>> CreateCase([FromBody] CreateCaseRequest request, CancellationToken cancellationToken)
     {

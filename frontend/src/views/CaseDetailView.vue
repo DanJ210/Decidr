@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ArrowLeft, ChevronDown, ExternalLink, FileText, MessageCircle, Trophy } from '@lucide/vue'
+import { ArrowLeft, ChevronDown, Download, ExternalLink, FileText, LoaderCircle, MessageCircle, Trophy, X } from '@lucide/vue'
 import { useCaseDetail } from '../composables/useCaseDetail'
 
 const {
@@ -39,7 +39,14 @@ const {
   submitEvidenceFile,
   evidenceFileAccept,
   getEvidencePreviewUrl,
+  getEvidenceStatus,
+  getEvidenceStatusLabel,
+  isEvidenceReady,
+  evidenceViewer,
+  evidenceViewerLoadingId,
   openEvidenceFile,
+  closeEvidenceViewer,
+  downloadEvidenceFile,
   maxEvidenceItemsPerSide,
   vote,
   closeCase,
@@ -73,6 +80,10 @@ function formatEvidenceSize(sizeBytes: number | null) {
     return `${(sizeBytes / 1024).toFixed(1)} KB`
   }
   return `${sizeBytes} B`
+}
+
+function canPreviewEvidence(item: { type: string; mimeType: string | null }) {
+  return item.type === 'Image' || item.mimeType === 'application/pdf' || item.mimeType === 'text/plain'
 }
 </script>
 
@@ -272,6 +283,15 @@ function formatEvidenceSize(sizeBytes: number | null) {
                     Added by @{{ item.addedByUserName }} · {{ new Date(item.createdAtUtc).toLocaleString() }}
                     <span v-if="item.sizeBytes"> · {{ formatEvidenceSize(item.sizeBytes) }}</span>
                   </p>
+                  <p v-if="item.type !== 'Link'" class="evidence-processing-status" aria-live="polite">
+                    <span class="evidence-status-dot" :class="`evidence-status-${getEvidenceStatus(item).toLowerCase()}`"></span>
+                    <LoaderCircle v-if="getEvidenceStatus(item) === 'PendingScan'" :size="14" class="spin" aria-hidden="true" />
+                    <strong>{{ getEvidenceStatusLabel(item) }}</strong>
+                    <span v-if="getEvidenceStatus(item) === 'PendingScan'">Checking this file for safe viewing.</span>
+                    <span v-else-if="getEvidenceStatus(item) === 'Malicious'">This file cannot be opened.</span>
+                    <span v-else-if="getEvidenceStatus(item) === 'ScanFailed'">Security review could not be completed.</span>
+                    <span v-else-if="getEvidenceStatus(item) === 'NotFound'">The stored file could not be found.</span>
+                  </p>
                   <img
                     v-if="item.type === 'Image' && getEvidencePreviewUrl(item)"
                     :src="getEvidencePreviewUrl(item)"
@@ -280,15 +300,26 @@ function formatEvidenceSize(sizeBytes: number | null) {
                     loading="lazy"
                   />
                   <a
+                    v-if="item.type === 'Link'"
                     :href="item.resourceUrl"
                     target="_blank"
                     rel="noopener noreferrer"
                     class="case-link"
-                    @click.prevent="openEvidenceFile(item)"
                   >
-                    {{ item.type === 'Link' ? 'Open source link' : item.type === 'Image' ? 'Open image' : 'Open document' }}
+                    Open source link
                     <ExternalLink :size="14" aria-hidden="true" />
                   </a>
+                  <button
+                    v-else
+                    type="button"
+                    class="case-link evidence-open-button"
+                    :disabled="!isEvidenceReady(item) || evidenceViewerLoadingId === item.id"
+                    @click="openEvidenceFile(item)"
+                  >
+                    <LoaderCircle v-if="evidenceViewerLoadingId === item.id" :size="14" class="spin" aria-hidden="true" />
+                    <FileText v-else :size="14" aria-hidden="true" />
+                    {{ evidenceViewerLoadingId === item.id ? 'Preparing file...' : item.type === 'Image' ? 'View image' : 'View document' }}
+                  </button>
                 </li>
               </ul>
 
@@ -335,7 +366,7 @@ function formatEvidenceSize(sizeBytes: number | null) {
                       :disabled="isEvidenceFileSubmitting('A') || !evidenceDrafts.A.file"
                       @click="submitEvidenceFile('A')"
                     >
-                      Upload File
+                      {{ isEvidenceFileSubmitting('A') ? 'Uploading...' : 'Upload File' }}
                     </button>
                   </div>
                 </div>
@@ -361,6 +392,15 @@ function formatEvidenceSize(sizeBytes: number | null) {
                     Added by @{{ item.addedByUserName }} · {{ new Date(item.createdAtUtc).toLocaleString() }}
                     <span v-if="item.sizeBytes"> · {{ formatEvidenceSize(item.sizeBytes) }}</span>
                   </p>
+                  <p v-if="item.type !== 'Link'" class="evidence-processing-status" aria-live="polite">
+                    <span class="evidence-status-dot" :class="`evidence-status-${getEvidenceStatus(item).toLowerCase()}`"></span>
+                    <LoaderCircle v-if="getEvidenceStatus(item) === 'PendingScan'" :size="14" class="spin" aria-hidden="true" />
+                    <strong>{{ getEvidenceStatusLabel(item) }}</strong>
+                    <span v-if="getEvidenceStatus(item) === 'PendingScan'">Checking this file for safe viewing.</span>
+                    <span v-else-if="getEvidenceStatus(item) === 'Malicious'">This file cannot be opened.</span>
+                    <span v-else-if="getEvidenceStatus(item) === 'ScanFailed'">Security review could not be completed.</span>
+                    <span v-else-if="getEvidenceStatus(item) === 'NotFound'">The stored file could not be found.</span>
+                  </p>
                   <img
                     v-if="item.type === 'Image' && getEvidencePreviewUrl(item)"
                     :src="getEvidencePreviewUrl(item)"
@@ -369,15 +409,26 @@ function formatEvidenceSize(sizeBytes: number | null) {
                     loading="lazy"
                   />
                   <a
+                    v-if="item.type === 'Link'"
                     :href="item.resourceUrl"
                     target="_blank"
                     rel="noopener noreferrer"
                     class="case-link"
-                    @click.prevent="openEvidenceFile(item)"
                   >
-                    {{ item.type === 'Link' ? 'Open source link' : item.type === 'Image' ? 'Open image' : 'Open document' }}
+                    Open source link
                     <ExternalLink :size="14" aria-hidden="true" />
                   </a>
+                  <button
+                    v-else
+                    type="button"
+                    class="case-link evidence-open-button"
+                    :disabled="!isEvidenceReady(item) || evidenceViewerLoadingId === item.id"
+                    @click="openEvidenceFile(item)"
+                  >
+                    <LoaderCircle v-if="evidenceViewerLoadingId === item.id" :size="14" class="spin" aria-hidden="true" />
+                    <FileText v-else :size="14" aria-hidden="true" />
+                    {{ evidenceViewerLoadingId === item.id ? 'Preparing file...' : item.type === 'Image' ? 'View image' : 'View document' }}
+                  </button>
                 </li>
               </ul>
 
@@ -424,7 +475,7 @@ function formatEvidenceSize(sizeBytes: number | null) {
                       :disabled="isEvidenceFileSubmitting('B') || !evidenceDrafts.B.file"
                       @click="submitEvidenceFile('B')"
                     >
-                      Upload File
+                      {{ isEvidenceFileSubmitting('B') ? 'Uploading...' : 'Upload File' }}
                     </button>
                   </div>
                 </div>
@@ -434,6 +485,41 @@ function formatEvidenceSize(sizeBytes: number | null) {
             </div>
           </details>
         </section>
+
+        <div v-if="evidenceViewer" class="evidence-viewer-backdrop" @click.self="closeEvidenceViewer">
+          <section class="evidence-viewer" role="dialog" aria-modal="true" :aria-label="evidenceViewer.item.title">
+            <header>
+              <div>
+                <p class="eyebrow">Evidence preview</p>
+                <h2>{{ evidenceViewer.item.title }}</h2>
+              </div>
+              <button type="button" class="icon-button" title="Close preview" @click="closeEvidenceViewer">
+                <X :size="20" aria-hidden="true" />
+              </button>
+            </header>
+            <div class="evidence-viewer-content">
+              <img
+                v-if="evidenceViewer.item.type === 'Image'"
+                :src="evidenceViewer.url"
+                :alt="evidenceViewer.item.title"
+              />
+              <iframe
+                v-else-if="canPreviewEvidence(evidenceViewer.item)"
+                :src="evidenceViewer.url"
+                :title="evidenceViewer.item.title"
+              ></iframe>
+              <div v-else class="evidence-download-prompt">
+                <FileText :size="36" aria-hidden="true" />
+                <p>This document format is ready but cannot be previewed in the browser.</p>
+              </div>
+            </div>
+            <footer>
+              <button type="button" class="action-btn" @click="downloadEvidenceFile">
+                <Download :size="16" aria-hidden="true" /> Download file
+              </button>
+            </footer>
+          </section>
+        </div>
 
       </template>
 

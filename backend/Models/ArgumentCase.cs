@@ -1,3 +1,5 @@
+using backend.Services;
+
 namespace backend.Models;
 
 public enum CaseSide
@@ -97,6 +99,10 @@ public record CaseEvidenceItem(
 public record CaseEvidenceCollection(
     IReadOnlyList<CaseEvidenceItem> SideA,
     IReadOnlyList<CaseEvidenceItem> SideB
+);
+
+public record CaseEvidenceStatusResponse(
+    EvidenceContentStatus Status
 );
 
 public record RewardBadge(

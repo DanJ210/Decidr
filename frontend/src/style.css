@@ -1319,6 +1319,148 @@ textarea {
   border: 1px solid #d8d5cf;
 }
 
+.evidence-processing-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.65rem 0;
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+}
+
+.evidence-status-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #687078;
+}
+
+.evidence-status-clean {
+  background: #287a4b;
+}
+
+.evidence-status-pendingscan {
+  background: #b26a00;
+}
+
+.evidence-status-malicious,
+.evidence-status-scanfailed,
+.evidence-status-notfound {
+  background: #b42318;
+}
+
+.spin {
+  animation: evidence-spin 0.9s linear infinite;
+}
+
+@keyframes evidence-spin {
+  to { transform: rotate(360deg); }
+}
+
+.evidence-open-button {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.evidence-open-button:disabled {
+  color: #7c8288;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.evidence-viewer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(19 24 29 / 72%);
+}
+
+.evidence-viewer {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(62rem, 100%);
+  height: min(48rem, calc(100vh - 2rem));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 24px 70px rgb(0 0 0 / 32%);
+}
+
+.evidence-viewer > header,
+.evidence-viewer > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.evidence-viewer > header h2,
+.evidence-viewer > header p {
+  margin: 0;
+}
+
+.evidence-viewer > footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+}
+
+.evidence-viewer-content {
+  display: grid;
+  min-height: 0;
+  overflow: auto;
+  background: #eef0f1;
+}
+
+.evidence-viewer-content > img {
+  max-width: 100%;
+  max-height: 100%;
+  margin: auto;
+  object-fit: contain;
+}
+
+.evidence-viewer-content > iframe {
+  width: 100%;
+  height: 100%;
+  min-height: 24rem;
+  border: 0;
+  background: #fff;
+}
+
+.evidence-download-prompt {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.75rem;
+  padding: 2rem;
+  text-align: center;
+  color: var(--ink-muted);
+}
+
+@media (max-width: 640px) {
+  .evidence-viewer-backdrop {
+    padding: 0;
+  }
+
+  .evidence-viewer {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+  }
+}
+
 .evidence-add-panel {
   margin-top: 1rem;
   border-top: 1px solid #e5e3dd;

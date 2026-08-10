@@ -54,6 +54,16 @@ public sealed class LocalCaseEvidenceStorage(
             contentType));
     }
 
+    public Task<EvidenceContentStatus> GetStatusAsync(
+        string storageKey,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(
+            File.Exists(GetFullPath(storageKey))
+                ? EvidenceContentStatus.Clean
+                : EvidenceContentStatus.NotFound);
+    }
+
     public Task DeleteAsync(
         string storageKey,
         CancellationToken cancellationToken)
