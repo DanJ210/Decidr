@@ -226,8 +226,17 @@ jobs:
       - name: Apply EF Core migrations
         shell: bash
         run: |
+          token_file="${RUNNER_TEMP}/decidr-migration-oidc-token"
+          trap 'rm -f "$token_file"' EXIT
+          umask 077
+          curl --fail --silent --show-error \
+            --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api%3A%2F%2FAzureADTokenExchange" \
+            | jq --exit-status --raw-output '.value' > "$token_file"
+          export AZURE_FEDERATED_TOKEN_FILE="$token_file"
+
           chmod +x artifacts/efbundle
-          connection="Server=tcp:${AZURE_SQL_SERVER_NAME}.database.windows.net,1433;Initial Catalog=${AZURE_SQL_DATABASE_NAME};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;Authentication=Active Directory Default;"
+          connection="Server=tcp:${AZURE_SQL_SERVER_NAME}.database.windows.net,1433;Initial Catalog=${AZURE_SQL_DATABASE_NAME};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;Authentication=Active Directory Workload Identity;"
           artifacts/efbundle --connection "$connection"
 
       - name: Remove migration firewall rule
