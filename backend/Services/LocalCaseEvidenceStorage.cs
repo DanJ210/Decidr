@@ -1,3 +1,5 @@
+using backend.Models;
+
 namespace backend.Services;
 
 public sealed class LocalCaseEvidenceStorage(

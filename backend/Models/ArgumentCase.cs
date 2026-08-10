@@ -1,5 +1,3 @@
-using backend.Services;
-
 namespace backend.Models;
 
 public enum CaseSide
@@ -20,6 +18,15 @@ public enum CaseEvidenceType
     Link,
     Image,
     Document
+}
+
+public enum EvidenceContentStatus
+{
+    Clean,
+    PendingScan,
+    Malicious,
+    ScanFailed,
+    NotFound
 }
 
 public enum UserRole

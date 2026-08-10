@@ -1,13 +1,6 @@
-namespace backend.Services;
+using backend.Models;
 
-public enum EvidenceContentStatus
-{
-    Clean,
-    PendingScan,
-    Malicious,
-    ScanFailed,
-    NotFound
-}
+namespace backend.Services;
 
 public sealed record StoredEvidenceContent(
     EvidenceContentStatus Status,

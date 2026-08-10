@@ -1,6 +1,7 @@
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using backend.Models;
 
 namespace backend.Services;
 
@@ -96,6 +97,16 @@ public sealed class AzureBlobCaseEvidenceStorage(
                 exception,
                 "Case evidence blob {StorageKey} could not be security-checked because storage access was denied.",
                 storageKey);
+            return EvidenceContentStatus.ScanFailed;
+        }
+        catch (RequestFailedException exception)
+        {
+            logger.LogError(
+                exception,
+                "Case evidence blob {StorageKey} could not be security-checked because storage failed with status {StorageStatus} and error code {StorageErrorCode}.",
+                storageKey,
+                exception.Status,
+                exception.ErrorCode);
             return EvidenceContentStatus.ScanFailed;
         }
     }
