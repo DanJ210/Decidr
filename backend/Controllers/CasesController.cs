@@ -438,10 +438,8 @@ public class CasesController : ControllerBase
             }
         }
 
-        if (!_courtService.RemoveCaseEvidence(id, evidenceId))
-        {
-            return NotFound();
-        }
+        _courtService.RemoveCaseEvidence(id, evidenceId);
+        return NoContent();
 
         return NoContent();
     }
