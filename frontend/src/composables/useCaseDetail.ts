@@ -8,6 +8,7 @@ import {
   fetchCaseEvidenceFile,
   fetchCaseEvidenceStatus,
   fetchCaseVoteStatus,
+  fetchPlayerRecord,
   postCaseComment,
   postCaseEvidenceLink,
   uploadCaseEvidenceFile,
@@ -20,6 +21,7 @@ import type {
   CaseEvidenceItem,
   CaseSide,
   EvidenceContentStatus,
+  PlayerRecord
 } from '../types'
 
 const MAX_EVIDENCE_ITEMS_PER_SIDE = 20
@@ -61,6 +63,8 @@ export function useCaseDetail() {
   const evidenceViewer = ref<{ item: CaseEvidenceItem; url: string } | null>(null)
   const evidenceViewerLoadingId = ref<string | null>(null)
   const evidenceRemovingId = ref<string | null>(null)
+  const sideARecord = ref<PlayerRecord | null>(null)
+  const sideBRecord = ref<PlayerRecord | null>(null)
   const evidenceDrafts = reactive<Record<CaseSide, SideEvidenceDraft>>({
     A: {
       linkTitle: '',
@@ -168,7 +172,7 @@ export function useCaseDetail() {
       const objectUrl = URL.createObjectURL(content)
       if (requestId !== evidenceRequestId || !isViewingCase(item.caseId) || !hasEvidenceItem(item.id)) {
         URL.revokeObjectURL(objectUrl)
-        return
+        return true
       }
       evidencePreviewUrls[item.id] = objectUrl
       evidencePreviewAttempts.delete(item.id)
@@ -461,13 +465,33 @@ export function useCaseDetail() {
       checkingVoteStatus.value = false
       commentsLoading.value = false
       evidenceLoading.value = false
+      sideARecord.value = null
+      sideBRecord.value = null
       return
     }
+
+    const recordRequest = loaded.status === 'Closed' && loaded.sideB
+      ? Promise.all([
+          fetchPlayerRecord(loaded.sideA.userId),
+          fetchPlayerRecord(loaded.sideB.userId),
+        ]).then(([sideA, sideB]) => {
+          if (isCurrentCaseStateRequest(requestId, id)) {
+            sideARecord.value = sideA
+            sideBRecord.value = sideB
+          }
+        }).catch(() => {
+          if (isCurrentCaseStateRequest(requestId, id)) {
+            sideARecord.value = null
+            sideBRecord.value = null
+          }
+        })
+      : Promise.resolve()
 
     await Promise.all([
       refreshVoteStatus(),
       loadComments(id),
       loadEvidence(id),
+      recordRequest,
     ])
   }
 
@@ -481,6 +505,8 @@ export function useCaseDetail() {
       evidenceError.value = null
       evidence.value = { sideA: [], sideB: [] }
       evidenceLoaded.value = false
+      sideARecord.value = null
+      sideBRecord.value = null
       resetAllEvidenceDrafts()
       if (typeof id === 'string') {
         void loadCaseState(id)
@@ -840,6 +866,8 @@ export function useCaseDetail() {
     evidenceDrafts,
     sideAEvidence,
     sideBEvidence,
+    sideARecord,
+    sideBRecord,
     canAddEvidenceSideA,
     canAddEvidenceSideB,
     sideAEvidenceAtLimit,

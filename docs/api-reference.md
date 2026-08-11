@@ -297,6 +297,22 @@ Returns all registered users.
 
 ---
 
+### `GET /api/users/records`
+Returns public player records. Qualified players are ranked first; provisional
+players follow.
+
+**Response `200 OK`** — `PlayerRecord[]`
+
+---
+
+### `GET /api/users/{id}/record`
+Returns one user's public player record.
+
+**Response `200 OK`** — `PlayerRecord`  
+**Response `404 Not Found`** — user does not exist
+
+---
+
 ### `GET /api/users/{id}/rewards`
 Returns reward badges earned by a user.
 
