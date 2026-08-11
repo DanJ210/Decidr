@@ -339,6 +339,76 @@ public sealed class CasesControllerEvidenceTests
     }
 
     [Fact]
+    public async Task Evidence_owner_can_remove_file_metadata_and_storage_object()
+    {
+        var fixture = CreateFixture();
+        var evidence = CreateEvidence(fixture.CaseId, "private/blob-key.pdf", fixture.UserId);
+        fixture.CourtService
+            .Setup(service => service.GetCaseEvidence(fixture.CaseId))
+            .Returns(new CaseEvidenceCollection([evidence], []));
+        fixture.CourtService
+            .Setup(service => service.RemoveCaseEvidence(fixture.CaseId, evidence.Id))
+            .Returns(true);
+
+        var result = await fixture.Controller.RemoveCaseEvidence(
+            fixture.CaseId,
+            evidence.Id,
+            CancellationToken.None);
+
+        Assert.IsType<NoContentResult>(result);
+        fixture.Storage.Verify(
+            storage => storage.DeleteAsync(evidence.ResourceUrl, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Evidence_removal_rejects_non_owner()
+    {
+        var fixture = CreateFixture();
+        var evidence = CreateEvidence(fixture.CaseId, "private/blob-key.pdf", Guid.NewGuid());
+        fixture.CourtService
+            .Setup(service => service.GetCaseEvidence(fixture.CaseId))
+            .Returns(new CaseEvidenceCollection([evidence], []));
+
+        var result = await fixture.Controller.RemoveCaseEvidence(
+            fixture.CaseId,
+            evidence.Id,
+            CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result);
+        fixture.CourtService.Verify(
+            service => service.RemoveCaseEvidence(It.IsAny<Guid>(), It.IsAny<Guid>()),
+            Times.Never);
+        fixture.Storage.Verify(
+            storage => storage.DeleteAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Evidence_removal_retains_metadata_when_storage_delete_fails()
+    {
+        var fixture = CreateFixture();
+        var evidence = CreateEvidence(fixture.CaseId, "private/blob-key.pdf", fixture.UserId);
+        fixture.CourtService
+            .Setup(service => service.GetCaseEvidence(fixture.CaseId))
+            .Returns(new CaseEvidenceCollection([evidence], []));
+        fixture.Storage
+            .Setup(storage => storage.DeleteAsync(evidence.ResourceUrl, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("Storage unavailable."));
+
+        var result = await fixture.Controller.RemoveCaseEvidence(
+            fixture.CaseId,
+            evidence.Id,
+            CancellationToken.None);
+
+        var unavailable = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, unavailable.StatusCode);
+        fixture.CourtService.Verify(
+            service => service.RemoveCaseEvidence(It.IsAny<Guid>(), It.IsAny<Guid>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task Content_endpoint_rejects_unresolved_actor()
     {
         var fixture = CreateFixture();
@@ -409,11 +479,11 @@ public sealed class CasesControllerEvidenceTests
         DateTime.UtcNow,
         null);
 
-    private static CaseEvidenceItem CreateEvidence(Guid caseId, string storageKey) => new(
+    private static CaseEvidenceItem CreateEvidence(Guid caseId, string storageKey, Guid? addedByUserId = null) => new(
         Guid.NewGuid(),
         caseId,
         CaseSide.A,
-        Guid.NewGuid(),
+        addedByUserId ?? Guid.NewGuid(),
         "alex_t",
         CaseEvidenceType.Document,
         "Evidence",

@@ -128,6 +128,10 @@ export async function fetchCaseEvidenceStatus(
   return data
 }
 
+export async function deleteCaseEvidence(caseId: string, evidenceId: string): Promise<void> {
+  await apiClient.delete(`/cases/${caseId}/evidence/${evidenceId}`)
+}
+
 export async function acceptCaseInvitation(caseId: string, request: AcceptInvitationRequest): Promise<ArgumentCase> {
   const { data } = await apiClient.post<ArgumentCase>(`/cases/${caseId}/accept`, request)
   return data

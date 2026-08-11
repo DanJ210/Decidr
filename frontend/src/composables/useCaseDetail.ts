@@ -2,6 +2,7 @@ import axios from 'axios'
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
+  deleteCaseEvidence,
   fetchCaseComments,
   fetchCaseEvidence,
   fetchCaseEvidenceFile,
@@ -26,6 +27,7 @@ import type {
 const MAX_EVIDENCE_ITEMS_PER_SIDE = 20
 const EVIDENCE_FILE_ACCEPT = '.jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.doc,.docx'
 const EVIDENCE_STATUS_POLL_INTERVAL_MS = 3_000
+const EVIDENCE_PREVIEW_MAX_ATTEMPTS = 3
 
 interface SideEvidenceDraft {
   linkTitle: string
@@ -60,6 +62,7 @@ export function useCaseDetail() {
   const evidenceStatuses = reactive<Record<string, EvidenceContentStatus>>({})
   const evidenceViewer = ref<{ item: CaseEvidenceItem; url: string } | null>(null)
   const evidenceViewerLoadingId = ref<string | null>(null)
+  const evidenceRemovingId = ref<string | null>(null)
   const sideARecord = ref<PlayerRecord | null>(null)
   const sideBRecord = ref<PlayerRecord | null>(null)
   const evidenceDrafts = reactive<Record<CaseSide, SideEvidenceDraft>>({
@@ -80,6 +83,7 @@ export function useCaseDetail() {
   let voteStatusRequestId = 0
   let evidenceRequestId = 0
   const evidenceStatusTimers = new Map<string, number>()
+  const evidencePreviewAttempts = new Map<string, number>()
 
   const caseItem = computed(() => courtStore.selectedCase)
   const activeUser = computed(() => authStore.selectedUser)
@@ -131,6 +135,11 @@ export function useCaseDetail() {
     }
   }
 
+  function hasEvidenceItem(evidenceId: string) {
+    return evidence.value.sideA.some(item => item.id === evidenceId)
+      || evidence.value.sideB.some(item => item.id === evidenceId)
+  }
+
   function clearEvidencePreviewUrls() {
     for (const objectUrl of Object.values(evidencePreviewUrls)) {
       URL.revokeObjectURL(objectUrl)
@@ -138,6 +147,7 @@ export function useCaseDetail() {
     for (const evidenceId of Object.keys(evidencePreviewUrls)) {
       delete evidencePreviewUrls[evidenceId]
     }
+    evidencePreviewAttempts.clear()
   }
 
   function clearEvidenceStatusTimers() {
@@ -155,18 +165,22 @@ export function useCaseDetail() {
   }
 
   async function loadEvidencePreview(item: CaseEvidenceItem, requestId: number) {
-    if (item.type !== 'Image') return
+    if (item.type !== 'Image') return false
 
     try {
       const content = await fetchCaseEvidenceFile(item.caseId, item.id)
       const objectUrl = URL.createObjectURL(content)
-      if (requestId !== evidenceRequestId || !isViewingCase(item.caseId)) {
+      if (requestId !== evidenceRequestId || !isViewingCase(item.caseId) || !hasEvidenceItem(item.id)) {
         URL.revokeObjectURL(objectUrl)
-        return
+        return true
       }
       evidencePreviewUrls[item.id] = objectUrl
+      evidencePreviewAttempts.delete(item.id)
+      return true
     } catch {
-      // The file link remains available if an inline preview cannot be loaded.
+      const attempts = evidencePreviewAttempts.get(item.id) ?? 0
+      evidencePreviewAttempts.set(item.id, attempts + 1)
+      return false
     }
   }
 
@@ -208,7 +222,7 @@ export function useCaseDetail() {
 
     try {
       const response = await fetchCaseEvidenceStatus(item.caseId, item.id)
-      if (requestId !== evidenceRequestId || !isViewingCase(item.caseId)) return
+      if (requestId !== evidenceRequestId || !isViewingCase(item.caseId) || !hasEvidenceItem(item.id)) return
 
       evidenceStatuses[item.id] = response.status
       if (response.status === 'PendingScan') {
@@ -218,10 +232,17 @@ export function useCaseDetail() {
 
       evidenceStatusTimers.delete(item.id)
       if (response.status === 'Clean' && item.type === 'Image' && !evidencePreviewUrls[item.id]) {
-        await loadEvidencePreview(item, requestId)
+        const loaded = await loadEvidencePreview(item, requestId)
+        if (
+          !loaded
+          && hasEvidenceItem(item.id)
+          && (evidencePreviewAttempts.get(item.id) ?? 0) < EVIDENCE_PREVIEW_MAX_ATTEMPTS
+        ) {
+          scheduleEvidenceStatusRefresh(item, requestId)
+        }
       }
     } catch (error) {
-      if (requestId !== evidenceRequestId || !isViewingCase(item.caseId)) return
+      if (requestId !== evidenceRequestId || !isViewingCase(item.caseId) || !hasEvidenceItem(item.id)) return
 
       const status = axios.isAxiosError(error) ? error.response?.status : undefined
       if (status === 404) {
@@ -275,6 +296,10 @@ export function useCaseDetail() {
       const content = await fetchCaseEvidenceFile(item.caseId, item.id)
       closeEvidenceViewer()
       const objectUrl = URL.createObjectURL(content)
+      if (!isSelectedCaseContext(item.caseId) || !hasEvidenceItem(item.id)) {
+        URL.revokeObjectURL(objectUrl)
+        return
+      }
       evidenceViewer.value = { item, url: objectUrl }
     } catch (error) {
       const status = axios.isAxiosError(error) ? error.response?.status : undefined
@@ -287,6 +312,53 @@ export function useCaseDetail() {
             : 'Unable to open this evidence file right now.'
     } finally {
       evidenceViewerLoadingId.value = null
+    }
+  }
+
+  function canRemoveEvidence(item: CaseEvidenceItem) {
+    return caseItem.value?.status === 'Open' && activeUser.value?.id === item.addedByUserId
+  }
+
+  async function removeEvidence(item: CaseEvidenceItem) {
+    if (!canRemoveEvidence(item) || evidenceRemovingId.value) return
+    if (!window.confirm(`Remove “${item.title}” from this case?`)) return
+
+    evidenceRemovingId.value = item.id
+    evidenceError.value = null
+    evidenceNotice.value = null
+    try {
+      await deleteCaseEvidence(item.caseId, item.id)
+      if (!isSelectedCaseContext(item.caseId)) return
+
+      const timer = evidenceStatusTimers.get(item.id)
+      if (timer !== undefined) {
+        window.clearTimeout(timer)
+        evidenceStatusTimers.delete(item.id)
+      }
+      const previewUrl = evidencePreviewUrls[item.id]
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl)
+        delete evidencePreviewUrls[item.id]
+      }
+      evidencePreviewAttempts.delete(item.id)
+      delete evidenceStatuses[item.id]
+      if (evidenceViewer.value?.item.id === item.id) {
+        closeEvidenceViewer()
+      }
+
+      evidence.value = item.side === 'A'
+        ? { ...evidence.value, sideA: evidence.value.sideA.filter(candidate => candidate.id !== item.id) }
+        : { ...evidence.value, sideB: evidence.value.sideB.filter(candidate => candidate.id !== item.id) }
+      evidenceNotice.value = 'Evidence removed.'
+    } catch (error) {
+      if (isSelectedCaseContext(item.caseId)) {
+        const status = axios.isAxiosError(error) ? error.response?.status : undefined
+        evidenceError.value = status === 403
+          ? 'Only the owner of this evidence can remove it.'
+          : 'Unable to remove this evidence right now.'
+      }
+    } finally {
+      evidenceRemovingId.value = null
     }
   }
 
@@ -812,9 +884,12 @@ export function useCaseDetail() {
     isEvidenceReady,
     evidenceViewer,
     evidenceViewerLoadingId,
+    evidenceRemovingId,
     openEvidenceFile,
     closeEvidenceViewer,
     downloadEvidenceFile,
+    canRemoveEvidence,
+    removeEvidence,
     maxEvidenceItemsPerSide: MAX_EVIDENCE_ITEMS_PER_SIDE,
     vote,
     closeCase,

@@ -379,6 +379,71 @@ public class CasesController : ControllerBase
         return Ok(ToApiEvidenceItem(result.Evidence!));
     }
 
+    [HttpDelete("{id:guid}/evidence/{evidenceId:guid}")]
+    public async Task<IActionResult> RemoveCaseEvidence(
+        Guid id,
+        Guid evidenceId,
+        CancellationToken cancellationToken)
+    {
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null)
+        {
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        }
+
+        var foundCase = _courtService.GetCase(id, actor.Id);
+        if (foundCase is null)
+        {
+            return NotFound();
+        }
+
+        if (foundCase.Status != CaseStatus.Open)
+        {
+            return BadRequest("Evidence can only be removed while a case is open.");
+        }
+
+        var caseEvidence = _courtService.GetCaseEvidence(id);
+        var evidence = caseEvidence.SideA
+            .Concat(caseEvidence.SideB)
+            .SingleOrDefault(item => item.Id == evidenceId);
+        if (evidence is null)
+        {
+            return NotFound();
+        }
+
+        if (evidence.AddedByUserId != actor.Id)
+        {
+            return Forbid();
+        }
+
+        if (evidence.Type != CaseEvidenceType.Link)
+        {
+            try
+            {
+                await _evidenceStorage.DeleteAsync(evidence.ResourceUrl, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(
+                    exception,
+                    "Unable to delete evidence object {StorageKey}; metadata was retained for retry.",
+                    evidence.ResourceUrl);
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    "Unable to remove this evidence right now. Try again later.");
+            }
+        }
+
+        _courtService.RemoveCaseEvidence(id, evidenceId);
+        return NoContent();
+
+        return NoContent();
+    }
+
     [HttpPost("{id:guid}/vote")]
     public async Task<ActionResult<ArgumentCase>> CastVote(Guid id, [FromBody] CastVoteRequest request, CancellationToken cancellationToken)
     {

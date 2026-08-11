@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ArrowLeft, ChevronDown, Download, ExternalLink, FileText, LoaderCircle, MessageCircle, Trophy, X } from '@lucide/vue'
+import { ArrowLeft, ChevronDown, Download, ExternalLink, FileText, LoaderCircle, MessageCircle, Trash2, Trophy, X } from '@lucide/vue'
 import { useCaseDetail } from '../composables/useCaseDetail'
 
 const {
@@ -46,9 +46,12 @@ const {
   isEvidenceReady,
   evidenceViewer,
   evidenceViewerLoadingId,
+  evidenceRemovingId,
   openEvidenceFile,
   closeEvidenceViewer,
   downloadEvidenceFile,
+  canRemoveEvidence,
+  removeEvidence,
   maxEvidenceItemsPerSide,
   vote,
   closeCase,
@@ -290,8 +293,22 @@ function canPreviewEvidence(item: { type: string; mimeType: string | null }) {
                 <li v-for="item in sideAEvidence" :key="item.id" class="evidence-item">
                   <div class="evidence-item-top">
                     <strong>{{ item.title }}</strong>
-                    <span class="status-pill" :class="item.type === 'Link' ? 'status-open' : 'status-closed'">
-                      {{ item.type }}
+                    <span class="evidence-item-actions">
+                      <span class="status-pill" :class="item.type === 'Link' ? 'status-open' : 'status-closed'">
+                        {{ item.type }}
+                      </span>
+                      <button
+                        v-if="canRemoveEvidence(item)"
+                        type="button"
+                        class="evidence-remove-button"
+                        :disabled="evidenceRemovingId === item.id"
+                        :title="`Remove ${item.title}`"
+                        :aria-label="`Remove ${item.title}`"
+                        @click="removeEvidence(item)"
+                      >
+                        <LoaderCircle v-if="evidenceRemovingId === item.id" :size="16" class="spin" aria-hidden="true" />
+                        <Trash2 v-else :size="16" aria-hidden="true" />
+                      </button>
                     </span>
                   </div>
                   <p class="status-text">
@@ -399,8 +416,22 @@ function canPreviewEvidence(item: { type: string; mimeType: string | null }) {
                 <li v-for="item in sideBEvidence" :key="item.id" class="evidence-item">
                   <div class="evidence-item-top">
                     <strong>{{ item.title }}</strong>
-                    <span class="status-pill" :class="item.type === 'Link' ? 'status-open' : 'status-closed'">
-                      {{ item.type }}
+                    <span class="evidence-item-actions">
+                      <span class="status-pill" :class="item.type === 'Link' ? 'status-open' : 'status-closed'">
+                        {{ item.type }}
+                      </span>
+                      <button
+                        v-if="canRemoveEvidence(item)"
+                        type="button"
+                        class="evidence-remove-button"
+                        :disabled="evidenceRemovingId === item.id"
+                        :title="`Remove ${item.title}`"
+                        :aria-label="`Remove ${item.title}`"
+                        @click="removeEvidence(item)"
+                      >
+                        <LoaderCircle v-if="evidenceRemovingId === item.id" :size="16" class="spin" aria-hidden="true" />
+                        <Trash2 v-else :size="16" aria-hidden="true" />
+                      </button>
                     </span>
                   </div>
                   <p class="status-text">
