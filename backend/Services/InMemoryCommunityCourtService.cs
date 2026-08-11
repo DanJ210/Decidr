@@ -363,6 +363,21 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         }
     }
 
+    public bool RemoveCaseEvidence(Guid caseId, Guid evidenceId)
+    {
+        lock (_syncRoot)
+        {
+            var index = _caseEvidence.FindIndex(item => item.CaseId == caseId && item.Id == evidenceId);
+            if (index < 0)
+            {
+                return false;
+            }
+
+            _caseEvidence.RemoveAt(index);
+            return true;
+        }
+    }
+
     public (bool Success, string? Error, ArgumentCase? UpdatedCase) CastVote(Guid caseId, Guid actorUserId, CastVoteRequest request)
     {
         lock (_syncRoot)
