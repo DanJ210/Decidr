@@ -2,12 +2,12 @@
 
 ## High-Level Overview
 
-**Decidr** is a community debate platform where users submit two-sided arguments and vote on winners. The app awards reward badges for participation and voting. It's a full-stack single-page application (SPA) with an ASP.NET Core 8 backend API and a Vue 3 + TypeScript frontend.
+**Decidr** is a community debate platform where users submit two-sided arguments and vote on winners. The app awards reward badges for participation and voting. It's a full-stack single-page application (SPA) with an ASP.NET Core 10 backend API and a Vue 3 + TypeScript frontend.
 
 ### Repository Size & Structure
 - **Size**: Small to medium (~500 KB codebase)
 - **Type**: Full-stack web application
-- **Backend**: ASP.NET Core 8 (C#, .NET 8 SDK required)
+- **Backend**: ASP.NET Core 10 (C#, .NET 10 SDK required)
 - **Frontend**: Vue 3, TypeScript, Vite build tool
 - **Database**: Azure SQL / SQL Server 2022 (optional; in-memory fallback available)
 - **State Management**: Pinia
@@ -20,7 +20,7 @@
 
 ### Prerequisites
 Always verify these are installed before running any commands:
-- **.NET 8 SDK**: Required for backend compilation and running
+- **.NET 10 SDK**: Required for backend compilation and running
 - **Node.js 18+**: Required for frontend build and npm package management
 - **Docker & Docker Compose** (optional but recommended): Simplest way to run SQL Server 2022 locally
 - **SQL Server 2022** (optional alternative): Only needed if NOT using Docker; Azure SQL and the in-memory fallback are also supported
@@ -68,7 +68,7 @@ docker-compose down
 cd backend
 dotnet restore
 ```
-- **Precondition**: .NET 8 SDK must be installed
+- **Precondition**: .NET 10 SDK must be installed
 - **Postcondition**: NuGet packages are restored; `bin` and `obj` directories are populated
 - **Notes**: Always run this after changes to `.csproj` file or when dependencies are added
 
@@ -113,7 +113,7 @@ dotnet run
 - **URL**: `http://localhost:5066` (default `http` profile) or `https://localhost:7277` (HTTPS profile)
 - **Swagger UI**: Available at `http://localhost:5066/swagger` (development only)
 - **Time to Start**: ~5 seconds
-- **Precondition**: .NET 8 SDK installed, `dotnet restore` run
+- **Precondition**: .NET 10 SDK installed, `dotnet restore` run
 - **Notes**: On first run, EF Core migrations are applied automatically. If `ConnectionStrings:DefaultConnection` is empty or whitespace, in-memory storage is used with seeded test data. If it is non-empty and SQL Server is unavailable, startup will fail.
 
 #### Run Frontend (Development)
@@ -266,7 +266,7 @@ The backend uses `InMemoryCommunityCourtService` **only when `ConnectionStrings:
 ### Root Directory Structure
 ```
 .
-├── backend/                    # ASP.NET Core 8 application
+├── backend/                    # ASP.NET Core 10 application
 │   ├── Controllers/            # REST endpoints
 │   ├── Data/                   # EF Core DbContext
 │   ├── Models/                 # C# records and enums
@@ -318,39 +318,41 @@ The backend uses `InMemoryCommunityCourtService` **only when `ConnectionStrings:
 
 ### Validation & CI Checks
 
-**Currently**: No GitHub Actions workflows are configured. The repository has no automated CI/CD pipeline.
+The `.github/workflows/ci-cd.yml` workflow validates pull requests and pushes to
+`main` with locked dependency restoration, the Vue production build, the .NET
+Release build, backend tests, and a transitive NuGet vulnerability audit.
 
-When CI is added, document the following:
-1. What linters run (e.g., ESLint, Roslyn analyzers)
-2. What builds are triggered (dotnet build, npm run build)
-3. What tests run (when test suite is added)
-4. Expected time to complete the full validation suite
+Pushes to `main` also create an App Service package, an EF Core migration bundle,
+and a reviewable idempotent SQL script. The protected `production` environment
+requires manual approval before its OIDC identity applies migrations and deploys
+the package. Production migrations and deployments are serialized.
 
-**Manual Validation Steps** (to replicate CI when added):
+**Manual Validation Steps** (to replicate CI):
 ```bash
-# Backend: Restore and compile
-cd backend
-dotnet restore
-dotnet build
+# Restore pinned .NET tools and locked dependencies
+dotnet tool restore
+dotnet restore backend.Tests/backend.Tests.csproj --locked-mode
 
-# Frontend: Install and build
+# Frontend: clean install, typecheck, and production build
 cd frontend
-npm install
+npm ci
+npm audit --omit=dev --audit-level=high
 npm run build
+cd ..
 
-# Frontend: TypeScript check
-cd frontend
-npx vue-tsc -b
+# Backend: build and test
+dotnet build backend.Tests/backend.Tests.csproj --configuration Release --no-restore
+dotnet test backend.Tests/backend.Tests.csproj --configuration Release --no-restore --no-build
 
-# Optional: Verify the backend is running (list cases endpoint)
-curl -X GET http://localhost:5066/api/cases
+# Migration artifact validation
+dotnet ef migrations bundle --project backend/backend.csproj --startup-project backend/backend.csproj --configuration Release
 ```
 
 ---
 
 ## Architecture Highlights
 
-### Backend (ASP.NET Core 8)
+### Backend (ASP.NET Core 10)
 
 **Controllers** expose REST endpoints:
 - `CasesController` → `GET /api/cases`, `POST /api/cases`, etc.
@@ -397,10 +399,10 @@ curl -X GET http://localhost:5066/api/cases
 ## Dependencies & Versions
 
 ### Backend
-- **Framework**: .NET 8.0
-- **Microsoft.EntityFrameworkCore**: 8.0.27
-- **Microsoft.EntityFrameworkCore.SqlServer**: 8.0.27
-- **Swashbuckle.AspNetCore**: 6.6.2 (Swagger/OpenAPI)
+- **Framework**: .NET 10.0
+- **Microsoft.EntityFrameworkCore**: 10.0.10
+- **Microsoft.EntityFrameworkCore.SqlServer**: 10.0.10
+- **Swashbuckle.AspNetCore**: 10.2.3 (Swagger/OpenAPI)
 
 ### Frontend
 - **Vue**: 3.5.34

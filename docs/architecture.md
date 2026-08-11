@@ -23,7 +23,7 @@ Decidr is a full-stack single-page application (SPA). The ASP.NET Core backend e
 └────────────┼───────────────────────────────┘
              │ HTTP
 ┌────────────▼───────────────────────────────┐
-│         ASP.NET Core 8 Backend             │
+│         ASP.NET Core 10 Backend            │
 │                                            │
 │  ┌──────────────────────────────────────┐  │
 │  │  Controllers                         │  │
@@ -65,10 +65,17 @@ Users can cast one vote on an `Open` case if they are not one of the case-side p
 ### Side Evidence Attachments
 Each side on an open case can attach supporting evidence as links or uploaded files. Evidence is modeled as side-scoped items and exposed through dedicated evidence endpoints:
 - `GET /api/cases/{id}/evidence`
+- `GET /api/cases/{id}/evidence/{evidenceId}/content`
 - `POST /api/cases/{id}/evidence/link`
 - `POST /api/cases/{id}/evidence/upload`
 
-Uploaded files are stored under `wwwroot/uploads/case-evidence/...` and served as static assets by the ASP.NET Core host. The frontend renders both sides' evidence collections in the case detail view so voters can review materials before voting.
+Uploaded files are stored in the private Azure Blob Storage `case-evidence`
+container. `DefaultAzureCredential` uses the App Service managed identity in
+Azure, and storage keys remain server-side. The API returns an application content
+URL and streams files through an authenticated endpoint; the SPA retrieves the
+bytes with its bearer-authenticated Axios client and creates temporary browser
+object URLs for previews. Development without Blob configuration uses a private
+`App_Data/case-evidence` provider behind the same storage interface.
 
 ### Case Invitation Flow
 Cases are created in a `Pending` state. Only the creator's Side A claim is stored initially. The invited user (`InvitedUserId`) must navigate to the case and either:
@@ -109,6 +116,13 @@ sign-in creates a local Member profile. Authenticated API operations require the
 delegated `access_as_user` scope. Entra configuration also requires persistent
 SQL storage so external identities cannot be provisioned into transient memory.
 
+Controller endpoints are secure by default when Entra is configured: the
+`AccessAsUser` policy is attached to the controller endpoint convention, so new
+actions require a valid scoped token unless they explicitly opt into anonymous
+access. The public case feed, detail, comments, evidence metadata, and result
+actions are the only anonymous API surfaces. This convention is conditional so
+Development without Entra can retain its selected-user header workflow.
+
 Write endpoints resolve the acting user from the authenticated claims. Actor IDs
 are not accepted from request bodies. Request IDs remain only when they identify a
 target user, case, friend request, or other resource. User-scoped private reads
@@ -116,9 +130,32 @@ also require the authenticated local user to match the route ID. Vote status and
 per-viewer case state derive the viewer from the authenticated actor rather than
 accepting a user ID from the caller.
 
+Object authorization also applies to anonymous case reads. `Open` and `Closed`
+cases are public, while a `Pending` case and its comments, evidence metadata, and
+result are visible only to Side A, the invited/Side B user, or a moderator.
+
 Development without Entra configuration retains the seeded selected-user fallback
 for local demos. This fallback is intentionally unavailable as an authentication
 mode outside Development.
+
+API endpoints are rate limited per authenticated Entra object ID, falling back
+to the remote IP address for anonymous traffic. Responses include anti-sniffing,
+anti-framing, and strict referrer-policy headers, and non-Development deployments
+enable HTTP Strict Transport Security (HSTS).
+
+Uploaded evidence uses private Azure Blob Storage outside Development and an
+application-controlled download path. Uploads are limited to 10 MB, validated by
+extension, MIME allowlist, and file signature before storage, and returned with
+explicit content types and download filenames. The container has anonymous access
+disabled and the App Service managed identity has data-plane access only at
+container scope. In Azure, the download path checks the
+Defender for Storage `Malware Scanning scan result` blob index tag and streams
+content only when the value is exactly `No threats found`. Missing or unknown
+results are pending, and malicious, failed, or unscanned results fail closed.
+Production operations should additionally enable Defender's malicious-blob soft
+delete and use security alerts, Event Grid, or Log Analytics for tamper-resistant
+response and audit workflows because blob index tags can be modified by principals
+with tag-write permission.
 
 ### Frontend–Backend Integration
 In production, `dotnet run` serves both the API and the compiled Vue SPA. The backend registers `UseDefaultFiles()`, `UseStaticFiles()`, and `MapFallbackToFile("index.html")` so Vue Router can handle client-side navigation. In development, the Vite dev server handles the frontend and proxies API calls to the .NET backend.

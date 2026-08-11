@@ -301,6 +301,7 @@ Defined in `services/api.ts`. All functions use a shared Axios instance with `ba
 | `postCaseComment(caseId, request)` | `POST` | `/cases/{id}/comments` | Add a case-level comment |
 | `postCaseEvidenceLink(caseId, request)` | `POST` | `/cases/{id}/evidence/link` | Add link evidence to one side |
 | `uploadCaseEvidenceFile(caseId, request)` | `POST` | `/cases/{id}/evidence/upload` | Upload document/image evidence to one side |
+| `fetchCaseEvidenceFile(caseId, evidenceId)` | `GET` | `/cases/{id}/evidence/{evidenceId}/content` | Fetch private evidence as an authenticated Blob response |
 | `acceptCaseInvitation(caseId, request)` | `POST` | `/cases/{id}/accept` | Accept invitation and provide Side B claim |
 | `declineCaseInvitation(caseId)` | `POST` | `/cases/{id}/decline` | Decline an invitation |
 | `fetchUsers()` | `GET` | `/users` | Get all users |

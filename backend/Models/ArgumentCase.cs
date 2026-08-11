@@ -20,6 +20,15 @@ public enum CaseEvidenceType
     Document
 }
 
+public enum EvidenceContentStatus
+{
+    Clean,
+    PendingScan,
+    Malicious,
+    ScanFailed,
+    NotFound
+}
+
 public enum UserRole
 {
     Member,
@@ -110,6 +119,10 @@ public record CaseEvidenceItem(
 public record CaseEvidenceCollection(
     IReadOnlyList<CaseEvidenceItem> SideA,
     IReadOnlyList<CaseEvidenceItem> SideB
+);
+
+public record CaseEvidenceStatusResponse(
+    EvidenceContentStatus Status
 );
 
 public record RewardBadge(

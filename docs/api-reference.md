@@ -9,6 +9,11 @@ Authenticated requests require a valid Entra v2 access token with the delegated
 that token. In Development only, when Entra is not configured, `X-Dev-User-Id`
 may identify a seeded local actor.
 
+When Entra is configured, controller endpoints require `access_as_user` by
+default. Only the case feed, case detail, comments, evidence metadata, and result
+actions explicitly allow anonymous access. Pending cases and their related public
+read surfaces remain visible only to Side A, the invited/Side B user, or a moderator.
+
 ---
 
 ## Cases
@@ -21,11 +26,12 @@ Returns all `Open` and `Closed` cases ordered by creation date descending. `Pend
 ---
 
 ### `GET /api/cases/{id}`
-Returns a single case by GUID (any status, including `Pending`). When an actor is
-available, `currentUserVote` is populated for that actor.
+Returns an `Open` or `Closed` case by GUID. A `Pending` case is returned only when
+the resolved actor is Side A, the invited/Side B user, or a moderator. When an
+actor is available, `currentUserVote` is populated for that actor.
 
 **Response `200 OK`** — `ArgumentCase`  
-**Response `404 Not Found`** — case does not exist
+**Response `404 Not Found`** — case does not exist or a pending case is not visible to the caller
 
 ---
 
@@ -147,6 +153,8 @@ Closes a case and determines the winner.
 
 ### `GET /api/cases/{id}/comments`
 Returns all comments for a case in chronological order. Comments are case-level (one shared pool), not side-specific.
+Pending-case comments use the same participant/invitee/moderator visibility rule
+as case detail.
 
 **Response `200 OK`** — `CaseComment[]`  
 **Response `404 Not Found`** — case does not exist
@@ -176,6 +184,8 @@ Adds a new case-level comment to the shared comment pool.
 
 ### `GET /api/cases/{id}/evidence`
 Returns side-scoped supporting materials for a case.
+Pending-case evidence metadata uses the same participant/invitee/moderator
+visibility rule as case detail.
 
 **Response `200 OK`**
 ```json
@@ -185,8 +195,22 @@ Returns side-scoped supporting materials for a case.
 }
 ```
 Each list contains `CaseEvidenceItem` entries.
+Uploaded-file entries expose an authenticated application content URL rather than
+an Azure Blob URL or internal storage key.
 
 **Response `404 Not Found`** — case does not exist
+
+---
+
+### `GET /api/cases/{id}/evidence/{evidenceId}/content`
+Streams an uploaded evidence file from private storage through the authenticated
+API. External link evidence is not available through this endpoint.
+
+**Response `200 OK`** — binary content with its validated media type and a safe download filename
+
+**Response `401 Unauthorized`** — actor is unavailable or invalid
+
+**Response `404 Not Found`** — case, evidence metadata, or stored object does not exist
 
 ---
 
@@ -196,7 +220,6 @@ Adds a new link evidence item to one side of an open case.
 **Request body**
 ```json
 {
-  "userId": "guid",
   "side": "A" | "B",
   "title": "string",
   "url": "https://example.com/source"
@@ -205,8 +228,7 @@ Adds a new link evidence item to one side of an open case.
 
 **Validation**
 - Case must exist and be `Open`.
-- `userId` must exist.
-- `userId` must match the owner of the targeted side.
+- The authenticated actor must own the targeted side.
 - `title` is required (max 160 chars).
 - `url` must be a valid `http` or `https` URL.
 - Targeted side can hold at most 20 evidence items.
@@ -223,20 +245,24 @@ Uploads a document/image evidence item and attaches it to one side of an open ca
 - `multipart/form-data`
 
 **Form fields**
-- `userId` (`guid`)
 - `side` (`A` or `B`)
 - `title` (`string`, optional; defaults to filename without extension)
 - `file` (`binary`, required)
 
 **Validation**
 - Case must exist and be `Open`.
-- `userId` must exist and own the targeted side.
+- The authenticated actor must own the targeted side.
 - File is required and must be non-empty.
 - Max file size: 10 MB.
 - Allowed extensions/types:
   - Images: `jpg`, `jpeg`, `png`, `webp`, `gif`
   - Documents: `pdf`, `txt`, `doc`, `docx`
+- File bytes must match the claimed file type; DOCX uploads must contain the
+  expected Open XML document structure and text files must be valid UTF-8.
 - Targeted side can hold at most 20 evidence items.
+
+The API stores the object in private evidence storage before writing metadata. If
+the metadata write fails, it deletes the uploaded object as rollback.
 
 **Response `200 OK`** — created `CaseEvidenceItem`  
 **Response `400 Bad Request`** — validation or permission error

@@ -1,0 +1,30 @@
+using backend.Models;
+
+namespace backend.Services;
+
+public sealed record StoredEvidenceContent(
+    EvidenceContentStatus Status,
+    Stream? Content = null,
+    string? ContentType = null);
+
+public interface ICaseEvidenceStorage
+{
+    Task<string> UploadAsync(
+        Guid caseId,
+        string fileExtension,
+        string contentType,
+        Stream content,
+        CancellationToken cancellationToken);
+
+    Task<EvidenceContentStatus> GetStatusAsync(
+        string storageKey,
+        CancellationToken cancellationToken);
+
+    Task<StoredEvidenceContent> OpenReadAsync(
+        string storageKey,
+        CancellationToken cancellationToken);
+
+    Task DeleteAsync(
+        string storageKey,
+        CancellationToken cancellationToken);
+}

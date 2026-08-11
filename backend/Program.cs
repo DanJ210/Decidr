@@ -1,5 +1,9 @@
 using System.IO.Compression;
+using System.Threading.RateLimiting;
 using System.Text.Json.Serialization;
+using Azure.Core;
+using Azure.Identity;
+using Azure.Storage.Blobs;
 using backend.Data;
 using backend.Services;
 using Microsoft.EntityFrameworkCore;
@@ -40,6 +44,24 @@ builder.Services.Configure<GzipCompressionProviderOptions>(options =>
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("api", context =>
+    {
+        var partitionKey = context.User.FindFirst("oid")?.Value
+            ?? context.Connection.RemoteIpAddress?.ToString()
+            ?? "unknown";
+
+        return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 120,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        });
+    });
+});
 
 var entraAuthority = builder.Configuration["Entra:Authority"];
 var entraAudience = builder.Configuration["Entra:Audience"];
@@ -95,6 +117,42 @@ else
 }
 builder.Services.AddScoped<IActorResolver, ActorResolver>();
 
+var evidenceBlobServiceUri = builder.Configuration["EvidenceStorage:BlobServiceUri"];
+var evidenceContainerName = builder.Configuration["EvidenceStorage:ContainerName"];
+if (!string.IsNullOrWhiteSpace(evidenceBlobServiceUri) && !string.IsNullOrWhiteSpace(evidenceContainerName))
+{
+    builder.Services.AddSingleton<TokenCredential>(_ => new DefaultAzureCredential());
+    builder.Services.AddSingleton(serviceProvider =>
+    {
+        var options = new BlobClientOptions
+        {
+            Retry =
+            {
+                Mode = Azure.Core.RetryMode.Exponential,
+                MaxRetries = 5,
+                Delay = TimeSpan.FromSeconds(0.8),
+                MaxDelay = TimeSpan.FromSeconds(8),
+                NetworkTimeout = TimeSpan.FromSeconds(100),
+            },
+        };
+        var serviceClient = new BlobServiceClient(
+            new Uri(evidenceBlobServiceUri),
+            serviceProvider.GetRequiredService<TokenCredential>(),
+            options);
+        return serviceClient.GetBlobContainerClient(evidenceContainerName);
+    });
+    builder.Services.AddSingleton<ICaseEvidenceStorage, AzureBlobCaseEvidenceStorage>();
+}
+else if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddSingleton<ICaseEvidenceStorage, LocalCaseEvidenceStorage>();
+}
+else
+{
+    throw new InvalidOperationException(
+        "EvidenceStorage:BlobServiceUri and EvidenceStorage:ContainerName must be configured outside Development.");
+}
+
 var app = builder.Build();
 
 // Apply EF Core migrations and seed data when a database connection is configured.
@@ -112,9 +170,20 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    app.UseHsts();
+}
 
 app.UseHttpsRedirection();
 app.UseResponseCompression();
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    await next();
+});
 
 if (entraConfigured)
 {
@@ -122,7 +191,12 @@ if (entraConfigured)
     app.UseAuthorization();
 }
 
-app.MapControllers();
+app.UseRateLimiter();
+var controllerEndpoints = app.MapControllers().RequireRateLimiting("api");
+if (entraConfigured)
+{
+    controllerEndpoints.RequireAuthorization(AuthorizationPolicies.AccessAsUser);
+}
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
