@@ -15,6 +15,7 @@ public interface ICommunityCourtService
     (bool Success, string? Error, CaseComment? Comment) AddCaseComment(Guid caseId, Guid actorUserId, CreateCaseCommentRequest request);
     (bool Success, string? Error, CaseEvidenceItem? Evidence) AddCaseEvidenceLink(Guid caseId, Guid actorUserId, AddCaseEvidenceLinkRequest request);
     (bool Success, string? Error, CaseEvidenceItem? Evidence) AddCaseEvidenceFile(Guid caseId, Guid actorUserId, AddCaseEvidenceFileRequest request);
+    bool RemoveCaseEvidence(Guid caseId, Guid evidenceId);
     (bool Success, string? Error, ArgumentCase? UpdatedCase) CastVote(Guid caseId, Guid actorUserId, CastVoteRequest request);
     (bool Success, string? Error, ArgumentCase? UpdatedCase) CloseCase(Guid caseId, Guid actorUserId);
     IReadOnlyList<UserRewardView> GetUserRewards(Guid userId);

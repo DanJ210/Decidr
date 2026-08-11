@@ -304,6 +304,20 @@ public class EfCoreCourtService : ICommunityCourtService
         return (true, null, MapCaseEvidence(entity));
     }
 
+    public bool RemoveCaseEvidence(Guid caseId, Guid evidenceId)
+    {
+        var entity = _db.CaseEvidence
+            .SingleOrDefault(item => item.CaseId == caseId && item.Id == evidenceId);
+        if (entity is null)
+        {
+            return false;
+        }
+
+        _db.CaseEvidence.Remove(entity);
+        _db.SaveChanges();
+        return true;
+    }
+
     // -------------------------------------------------------------------------
     // Votes
     // -------------------------------------------------------------------------

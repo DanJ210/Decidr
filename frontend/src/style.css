@@ -1309,6 +1309,41 @@ textarea {
   gap: 0.5rem;
 }
 
+.evidence-item-top > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.evidence-item-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.evidence-remove-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid #d7aaa7;
+  border-radius: 6px;
+  color: #9d2e2a;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.evidence-remove-button:hover {
+  background: var(--side-b-soft);
+}
+
+.evidence-remove-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .evidence-image {
   display: block;
   width: 100%;
