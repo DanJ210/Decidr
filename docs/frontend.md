@@ -30,6 +30,7 @@ frontend/src/
 │   ├── CaseDetailView.vue# Single case view — handles Pending/Open/Closed states + side evidence review/add flows
 │   ├── CreateCaseView.vue# Form to start a new case and invite a connected Side B friend
 │   ├── FriendsView.vue   # Friend search, incoming requests, add/remove friend
+│   ├── LeaderboardView.vue # Court Standing spectrum, ranked records, and provisional players
 │   └── RewardsView.vue   # Badge/reward display for the current user
 └── components/
     └── HelloWorld.vue    # (Scaffold placeholder)
@@ -184,6 +185,7 @@ Defined in `router/index.ts`. Uses `createWebHistory` (HTML5 mode).
 | `/cases/new` | `case-create` | `CreateCaseView` | New case form |
 | `/rewards` | `rewards` | `RewardsView` | Rewards for selected user |
 | `/friends` | `friends` | `FriendsView` | Friend management |
+| `/standings` | `standings` | `LeaderboardView` | Public player records and Court Standing spectrum |
 
 ---
 

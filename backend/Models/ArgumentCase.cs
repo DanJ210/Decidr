@@ -49,6 +49,19 @@ public record AppUser(
     UserRole Role
 );
 
+public record PlayerRecord(
+    Guid UserId,
+    string UserName,
+    string DisplayName,
+    int Wins,
+    int Losses,
+    int Ties,
+    int CompletedCases,
+    double WinRate,
+    bool IsQualified,
+    int? Rank
+);
+
 public record ArgumentPost(
     CaseSide Side,
     Guid UserId,

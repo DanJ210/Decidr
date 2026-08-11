@@ -13,6 +13,23 @@ namespace backend.Tests;
 public sealed class UsersControllerTests
 {
     [Fact]
+    public void Records_are_public()
+    {
+        var userId = Guid.NewGuid();
+        var record = new PlayerRecord(userId, "alex", "Alex", 3, 1, 1, 5, 0.75, true, 1);
+        var courtService = new Mock<ICommunityCourtService>();
+        courtService.Setup(service => service.GetPlayerRecords()).Returns([record]);
+        courtService.Setup(service => service.GetPlayerRecord(userId)).Returns(record);
+        var controller = CreateController(courtService, new Mock<IActorResolver>());
+
+        var standings = controller.GetPlayerRecords();
+        var individual = controller.GetPlayerRecord(userId);
+
+        Assert.IsType<OkObjectResult>(standings.Result);
+        Assert.IsType<OkObjectResult>(individual.Result);
+    }
+
+    [Fact]
     public async Task Private_read_allows_resolved_actor_matching_route_user()
     {
         var userId = Guid.NewGuid();

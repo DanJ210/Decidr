@@ -25,6 +25,19 @@ public class UsersController : ControllerBase
         return Ok(_courtService.GetUsers());
     }
 
+    [HttpGet("records")]
+    public ActionResult<IEnumerable<PlayerRecord>> GetPlayerRecords()
+    {
+        return Ok(_courtService.GetPlayerRecords());
+    }
+
+    [HttpGet("{id:guid}/record")]
+    public ActionResult<PlayerRecord> GetPlayerRecord(Guid id)
+    {
+        var record = _courtService.GetPlayerRecord(id);
+        return record is null ? NotFound() : Ok(record);
+    }
+
     [HttpGet("{id:guid}/rewards")]
     public async Task<ActionResult<IEnumerable<UserRewardView>>> GetRewards(Guid id, CancellationToken cancellationToken)
     {

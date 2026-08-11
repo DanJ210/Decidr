@@ -15,6 +15,7 @@ import type {
   CreateCaseRequest,
   CreateCaseCommentRequest,
   FriendRequest,
+  PlayerRecord,
   UserRewardView,
 } from '../types'
 
@@ -142,6 +143,16 @@ export async function declineCaseInvitation(caseId: string): Promise<void> {
 
 export async function fetchUsers(): Promise<AppUser[]> {
   const { data } = await apiClient.get<AppUser[]>('/users')
+  return data
+}
+
+export async function fetchPlayerRecords(): Promise<PlayerRecord[]> {
+  const { data } = await apiClient.get<PlayerRecord[]>('/users/records')
+  return data
+}
+
+export async function fetchPlayerRecord(userId: string): Promise<PlayerRecord> {
+  const { data } = await apiClient.get<PlayerRecord>(`/users/${userId}/record`)
   return data
 }
 

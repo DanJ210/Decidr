@@ -139,6 +139,23 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         }
     }
 
+    public IReadOnlyList<PlayerRecord> GetPlayerRecords()
+    {
+        lock (_syncRoot)
+        {
+            return PlayerRecordCalculator.Calculate(_users, _cases);
+        }
+    }
+
+    public PlayerRecord? GetPlayerRecord(Guid userId)
+    {
+        lock (_syncRoot)
+        {
+            return PlayerRecordCalculator.Calculate(_users, _cases)
+                .FirstOrDefault(record => record.UserId == userId);
+        }
+    }
+
     public IReadOnlyList<ArgumentCase> GetCases()
     {
         lock (_syncRoot)
