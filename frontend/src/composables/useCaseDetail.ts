@@ -172,7 +172,7 @@ export function useCaseDetail() {
       const objectUrl = URL.createObjectURL(content)
       if (requestId !== evidenceRequestId || !isViewingCase(item.caseId) || !hasEvidenceItem(item.id)) {
         URL.revokeObjectURL(objectUrl)
-        return
+        return true
       }
       evidencePreviewUrls[item.id] = objectUrl
       evidencePreviewAttempts.delete(item.id)
