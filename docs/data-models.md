@@ -248,6 +248,19 @@ API-facing reward shape returned by `GET /api/users/{id}/rewards`.
 
 ## Request DTOs
 
+### `CaseMediaUploadResponse`
+Returned by the case media upload endpoint. The `Url` is what gets persisted as
+the side's `MediaUrl`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Url` | `string` | Playback URL to persist on the case |
+| `DurationSeconds` | `int` | Validated clip length |
+| `SizeBytes` | `long` | Stored file size |
+| `ContentType` | `string` | Resolved video MIME type |
+
+---
+
 ### `CreateCaseRequest`
 Creates a new `Pending` case. Side B is filled in when the invited user accepts.
 The Side A poster is the authenticated actor and is never taken from the request body.

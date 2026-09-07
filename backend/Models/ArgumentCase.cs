@@ -129,6 +129,13 @@ public record CaseEvidenceStatusResponse(
     EvidenceContentStatus Status
 );
 
+public record CaseMediaUploadResponse(
+    string Url,
+    int DurationSeconds,
+    long SizeBytes,
+    string ContentType
+);
+
 public record RewardBadge(
     string Code,
     string Label,

@@ -8,6 +8,7 @@ import type {
   CaseEvidenceCollection,
   CaseEvidenceItem,
   CaseEvidenceStatusResponse,
+  CaseMediaUploadResponse,
   CaseSide,
   CaseVoteStatus,
   CaseComment,
@@ -90,6 +91,18 @@ export async function postCaseComment(caseId: string, request: CreateCaseComment
 
 export async function fetchCaseEvidence(caseId: string): Promise<CaseEvidenceCollection> {
   const { data } = await apiClient.get<CaseEvidenceCollection>(`/cases/${caseId}/evidence`)
+  return data
+}
+
+export async function uploadCaseMedia(clip: { blob: Blob; durationSeconds: number }): Promise<CaseMediaUploadResponse> {
+  const extension = clip.blob.type.includes('mp4') ? 'mp4' : 'webm'
+  const formData = new FormData()
+  formData.append('durationSeconds', String(clip.durationSeconds))
+  formData.append('file', clip.blob, `clip.${extension}`)
+
+  const { data } = await apiClient.post<CaseMediaUploadResponse>('/cases/media', formData, {
+    timeout: 120_000,
+  })
   return data
 }
 

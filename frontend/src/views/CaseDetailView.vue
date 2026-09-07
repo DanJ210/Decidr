@@ -8,6 +8,7 @@ const {
   courtStore,
   sideBClaim,
   sideBRecording,
+  uploadingMedia,
   commentMessage,
   comments,
   commentsLoading,
@@ -152,10 +153,10 @@ function canPreviewEvidence(item: { type: string; mimeType: string | null }) {
             <button
               type="button"
               class="action-btn"
-              :disabled="!sideBClaim.trim() || courtStore.mutating"
+              :disabled="!sideBClaim.trim() || courtStore.mutating || uploadingMedia"
               @click="acceptInvitation"
             >
-              Accept &amp; Go Live
+              {{ uploadingMedia ? 'Uploading video...' : 'Accept & Go Live' }}
             </button>
             <button
               type="button"

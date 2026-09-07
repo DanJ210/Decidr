@@ -10,8 +10,18 @@ namespace backend.Controllers;
 public class CasesController : ControllerBase
 {
     private const long MaxEvidenceFileSizeBytes = 10 * 1024 * 1024;
+    private const long MaxCaseMediaSizeBytes = 64 * 1024 * 1024;
+    private const int MaxCaseMediaDurationSeconds = 30;
     private const int MaxEvidenceItemsPerSide = 20;
     private const int MaxEvidenceTitleLength = 160;
+    private static readonly IReadOnlyDictionary<string, string> AllowedCaseMediaTypes =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        [".mp4"] = "video/mp4",
+        [".m4v"] = "video/mp4",
+        [".mov"] = "video/quicktime",
+        [".webm"] = "video/webm",
+    };
     private static readonly IReadOnlyDictionary<string, (string MimeType, CaseEvidenceType EvidenceType)> AllowedEvidenceTypes =
         new Dictionary<string, (string MimeType, CaseEvidenceType EvidenceType)>(StringComparer.OrdinalIgnoreCase)
     {
@@ -284,6 +294,88 @@ public class CasesController : ControllerBase
 
         return Ok(result.Evidence);
     }
+
+    [HttpPost("media")]
+    [RequestSizeLimit(MaxCaseMediaSizeBytes + (1024 * 1024))]
+    public async Task<ActionResult<CaseMediaUploadResponse>> UploadCaseMedia(
+        [FromForm] UploadCaseMediaForm request,
+        CancellationToken cancellationToken)
+    {
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null)
+        {
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        }
+
+        if (request.File is null || request.File.Length == 0)
+        {
+            return BadRequest("A video file is required.");
+        }
+
+        if (request.File.Length > MaxCaseMediaSizeBytes)
+        {
+            return BadRequest($"Video cannot exceed {MaxCaseMediaSizeBytes} bytes.");
+        }
+
+        var extension = Path.GetExtension(request.File.FileName).ToLowerInvariant();
+        if (!AllowedCaseMediaTypes.TryGetValue(extension, out var contentType))
+        {
+            return BadRequest("Unsupported video type. Allowed types are mp4, m4v, mov, and webm.");
+        }
+
+        if (!await VideoFileValidator.IsValidAsync(request.File, extension, cancellationToken))
+        {
+            return BadRequest("Uploaded file contents do not match the selected video type.");
+        }
+
+        if (request.DurationSeconds is < 1 or > MaxCaseMediaDurationSeconds)
+        {
+            return BadRequest($"Video duration must be between 1 and {MaxCaseMediaDurationSeconds} seconds.");
+        }
+
+        // Media is uploaded before the case exists, so it is partitioned by uploader rather than case.
+        await using var content = request.File.OpenReadStream();
+        var storageKey = await _evidenceStorage.UploadAsync(
+            actor.Id,
+            extension,
+            contentType,
+            content,
+            cancellationToken);
+
+        var fileName = Path.GetFileName(storageKey);
+        return Ok(new CaseMediaUploadResponse(
+            $"/api/cases/media/{actor.Id:N}/{fileName}",
+            request.DurationSeconds,
+            request.File.Length,
+            contentType));
+    }
+
+    [HttpGet("media/{ownerId}/{fileName}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetCaseMedia(
+        string ownerId,
+        string fileName,
+        CancellationToken cancellationToken)
+    {
+        var extension = Path.GetExtension(fileName);
+        if (!IsHexIdentifier(ownerId)
+            || !IsHexIdentifier(Path.GetFileNameWithoutExtension(fileName))
+            || !AllowedCaseMediaTypes.TryGetValue(extension, out var contentType))
+        {
+            return NotFound();
+        }
+
+        var storedContent = await _evidenceStorage.OpenReadAsync($"{ownerId}/{fileName}", cancellationToken);
+        if (storedContent.Status != EvidenceContentStatus.Clean || storedContent.Content is null)
+        {
+            return NotFound();
+        }
+
+        return File(storedContent.Content, contentType, enableRangeProcessing: true);
+    }
+
+    private static bool IsHexIdentifier(string value) =>
+        value.Length == 32 && value.All(Uri.IsHexDigit);
 
     [HttpPost("{id:guid}/evidence/upload")]
     [RequestSizeLimit(MaxEvidenceFileSizeBytes + (1024 * 1024))]
@@ -628,6 +720,12 @@ public class CasesController : ControllerBase
     {
         public CaseSide Side { get; set; }
         public string? Title { get; set; }
+        public IFormFile? File { get; set; }
+    }
+
+    public sealed class UploadCaseMediaForm
+    {
+        public int DurationSeconds { get; set; }
         public IFormFile? File { get; set; }
     }
 }

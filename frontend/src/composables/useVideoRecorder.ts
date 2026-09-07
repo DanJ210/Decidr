@@ -2,6 +2,7 @@ import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 
 export interface RecordedClip {
   url: string
+  blob: Blob
   durationSeconds: number
   source: 'recorded' | 'uploaded'
 }
@@ -146,6 +147,7 @@ export function useVideoRecorder(maxSeconds: number, onCaptured: (clip: Recorded
       releaseStream()
       onCaptured({
         url: clipUrl.value,
+        blob,
         durationSeconds: Math.max(1, elapsedSeconds.value),
         source: 'recorded',
       })
@@ -199,7 +201,7 @@ export function useVideoRecorder(maxSeconds: number, onCaptured: (clip: Recorded
     clipUrl.value = url
     elapsedSeconds.value = duration
     phase.value = 'captured'
-    onCaptured({ url, durationSeconds: Math.max(1, duration), source: 'uploaded' })
+    onCaptured({ url, blob: file, durationSeconds: Math.max(1, duration), source: 'uploaded' })
   }
 
   async function retake() {

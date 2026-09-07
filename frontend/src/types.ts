@@ -85,6 +85,13 @@ export interface CaseEvidenceStatusResponse {
   status: EvidenceContentStatus
 }
 
+export interface CaseMediaUploadResponse {
+  url: string
+  durationSeconds: number
+  sizeBytes: number
+  contentType: string
+}
+
 export interface ArgumentCase {
   id: string
   title: string

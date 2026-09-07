@@ -12,6 +12,7 @@ import {
   postCaseComment,
   postCaseEvidenceLink,
   uploadCaseEvidenceFile,
+  uploadCaseMedia,
 } from '../services/api'
 import { useAuthStore } from '../stores/auth'
 import { useCourtStore } from '../stores/court'
@@ -45,6 +46,7 @@ export function useCaseDetail() {
 
   const sideBClaim = ref('')
   const sideBRecording = ref<RecordedClip | null>(null)
+  const uploadingMedia = ref(false)
   const commentMessage = ref('')
   const comments = ref<CaseComment[]>([])
   const commentsLoading = ref(false)
@@ -792,9 +794,22 @@ export function useCaseDetail() {
     const user = activeUser.value
     if (!selectedCase || !user || !sideBClaim.value.trim()) return
 
+    let media: { url: string; durationSeconds: number } | null = null
+    if (sideBRecording.value) {
+      uploadingMedia.value = true
+      try {
+        media = await uploadCaseMedia(sideBRecording.value)
+      } catch {
+        courtStore.error = 'Your video could not be uploaded. Try recording it again.'
+        return
+      } finally {
+        uploadingMedia.value = false
+      }
+    }
+
     const result = await courtStore.acceptInvitation(selectedCase.id, sideBClaim.value.trim(), {
-      sideBRecordUrl: sideBRecording.value?.url ?? null,
-      sideBDurationSeconds: sideBRecording.value?.durationSeconds ?? null,
+      sideBRecordUrl: media?.url ?? null,
+      sideBDurationSeconds: media?.durationSeconds ?? null,
     })
     if (!isViewingCase(selectedCase.id)) {
       return
@@ -848,6 +863,7 @@ export function useCaseDetail() {
     courtStore,
     sideBClaim,
     sideBRecording,
+    uploadingMedia,
     commentMessage,
     comments,
     commentsLoading,

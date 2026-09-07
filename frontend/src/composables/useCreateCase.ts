@@ -1,5 +1,6 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { uploadCaseMedia } from '../services/api'
 import { useAuthStore } from '../stores/auth'
 import { useCourtStore } from '../stores/court'
 import { useFriendsStore } from '../stores/friends'
@@ -20,6 +21,7 @@ export function useCreateCase() {
   })
 
   const sideARecording = ref<RecordedClip | null>(null)
+  const uploadingMedia = ref(false)
 
   async function loadData() {
     if (!authStore.users.length) {
@@ -58,14 +60,27 @@ export function useCreateCase() {
   async function submit() {
     if (!authStore.selectedUser?.id || !form.invitedUserId) return
 
+    let media: { url: string; durationSeconds: number } | null = null
+    if (sideARecording.value) {
+      uploadingMedia.value = true
+      try {
+        media = await uploadCaseMedia(sideARecording.value)
+      } catch {
+        courtStore.error = 'Your video could not be uploaded. Try recording it again.'
+        return
+      } finally {
+        uploadingMedia.value = false
+      }
+    }
+
     const created = await courtStore.createCase({
       title: form.title,
       category: form.category,
       summary: form.summary,
       sideAClaim: form.sideAClaim,
       invitedUserId: form.invitedUserId,
-      sideARecordUrl: sideARecording.value?.url ?? null,
-      sideADurationSeconds: sideARecording.value?.durationSeconds ?? null,
+      sideARecordUrl: media?.url ?? null,
+      sideADurationSeconds: media?.durationSeconds ?? null,
     })
 
     if (created) {
@@ -78,6 +93,7 @@ export function useCreateCase() {
     courtStore,
     form,
     sideARecording,
+    uploadingMedia,
     inviteCandidates,
     submit,
   }

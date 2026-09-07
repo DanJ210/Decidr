@@ -53,6 +53,43 @@ Returns whether the authenticated actor has already voted on a case.
 
 ---
 
+### `POST /api/cases/media`
+Uploads a case video and returns the URL to store on the case. Called before
+creating a case or accepting an invitation, so the clip is partitioned by
+uploader rather than by case.
+
+**Request** — `multipart/form-data`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `file` | file | The video clip |
+| `durationSeconds` | number | Measured clip length |
+
+**Validation**
+- The authenticated actor must resolve to a Decidr profile.
+- Extension must be `.mp4`, `.m4v`, `.mov`, or `.webm`.
+- File contents must match the extension's signature.
+- Size cannot exceed 64 MB.
+- `durationSeconds` must be between 1 and 30.
+
+**Response `200 OK`** — `CaseMediaUploadResponse`  
+**Response `400 Bad Request`** — validation failure message  
+**Response `401 Unauthorized`** — unresolved actor
+
+---
+
+### `GET /api/cases/media/{ownerId}/{fileName}`
+Streams an uploaded case video. Anonymous, because cases are publicly viewable,
+and range requests are enabled so clips can seek.
+
+Both segments must be 32-character hex identifiers with an allowed video
+extension; anything else returns `404` without touching storage.
+
+**Response `200 OK`** — video stream  
+**Response `404 Not Found`** — unknown or malformed key
+
+---
+
 ### `POST /api/cases`
 Creates a new debate case in `Pending` status. Side B is not set yet — the invited user must accept to add their claim and make the case `Open`.
 
