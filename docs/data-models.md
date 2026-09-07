@@ -86,6 +86,20 @@ One side's opening argument in a case.
 | `MediaUrl` | `string?` | Playback URL for the side's video, or `null` for a text-only argument |
 | `ThumbnailUrl` | `string?` | Poster image for the video |
 | `DurationSeconds` | `int?` | Clip length in seconds |
+| `MediaStatus` | `MediaStatus` | Readiness of this side's video |
+
+---
+
+### `MediaStatus`
+Readiness of one side's video. A case is held out of the public feed while either
+side is `Pending` or `Failed`.
+
+| Value | Meaning |
+|-------|---------|
+| `None` | Text-only argument; never blocks publication |
+| `Pending` | Upload or processing has not finished |
+| `Ready` | Playable |
+| `Failed` | Upload or processing failed |
 
 ---
 

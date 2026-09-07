@@ -2,6 +2,7 @@ export type CaseSide = 'A' | 'B'
 export type CaseStatus = 'Pending' | 'Open' | 'Closed'
 export type UserRole = 'Member' | 'Moderator'
 export type FriendRequestStatus = 'Pending' | 'Accepted' | 'Declined'
+export type MediaStatus = 'None' | 'Pending' | 'Ready' | 'Failed'
 
 export interface AppUser {
   id: string
@@ -32,6 +33,7 @@ export interface ArgumentPost {
   mediaUrl?: string | null
   thumbnailUrl?: string | null
   durationSeconds?: number | null
+  mediaStatus: MediaStatus
 }
 
 export interface CommunityVerdict {

@@ -162,6 +162,7 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         {
             return _cases
                 .Where(c => c.Status != CaseStatus.Pending)
+                .Where(CaseMediaGate.IsFeedReady)
                 .OrderByDescending(c => c.CreatedAtUtc)
                 .Select(RefreshVerdict)
                 .ToList();
@@ -216,6 +217,7 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                 MediaUrl = request.SideARecordUrl,
                 ThumbnailUrl = request.SideAThumbnailUrl,
                 DurationSeconds = request.SideADurationSeconds,
+                MediaStatus = CaseMediaGate.ResolveStatus(request.SideARecordUrl),
             };
 
             var created = new ArgumentCase(
@@ -721,6 +723,7 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                 MediaUrl = request.SideBRecordUrl,
                 ThumbnailUrl = request.SideBThumbnailUrl,
                 DurationSeconds = request.SideBDurationSeconds,
+                MediaStatus = CaseMediaGate.ResolveStatus(request.SideBRecordUrl),
             };
 
             var opened = foundCase with { SideB = sideB, Status = CaseStatus.Open, InvitedUserId = null };

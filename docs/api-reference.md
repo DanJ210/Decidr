@@ -58,6 +58,10 @@ Uploads a case video and returns the URL to store on the case. Called before
 creating a case or accepting an invitation, so the clip is partitioned by
 uploader rather than by case.
 
+Media supplied on creation or acceptance is recorded as `Ready`; sides with no
+media stay `None`. The public feed excludes cases where either side is `Pending`
+or `Failed`, so text-only cases remain visible.
+
 **Request** — `multipart/form-data`
 
 | Field | Type | Description |

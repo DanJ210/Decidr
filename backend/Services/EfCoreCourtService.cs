@@ -71,6 +71,8 @@ public class EfCoreCourtService : ICommunityCourtService
     {
         var caseEntities = _db.Cases
             .Where(c => c.Status != CaseStatus.Pending)
+            .Where(c => c.SideAMediaStatus != MediaStatus.Pending && c.SideAMediaStatus != MediaStatus.Failed)
+            .Where(c => c.SideBMediaStatus != MediaStatus.Pending && c.SideBMediaStatus != MediaStatus.Failed)
             .OrderByDescending(c => c.CreatedAtUtc)
             .ToList();
 
@@ -157,6 +159,7 @@ public class EfCoreCourtService : ICommunityCourtService
             SideAMediaUrl = request.SideARecordUrl,
             SideAThumbnailUrl = request.SideAThumbnailUrl,
             SideADurationSeconds = request.SideADurationSeconds,
+            SideAMediaStatus = CaseMediaGate.ResolveStatus(request.SideARecordUrl),
             SideAPostedAtUtc = createdAt,
             InvitedUserId = request.InvitedUserId,
             Status = CaseStatus.Pending,
@@ -702,6 +705,7 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
         caseEntity.SideBMediaUrl = request.SideBRecordUrl;
         caseEntity.SideBThumbnailUrl = request.SideBThumbnailUrl;
         caseEntity.SideBDurationSeconds = request.SideBDurationSeconds;
+        caseEntity.SideBMediaStatus = CaseMediaGate.ResolveStatus(request.SideBRecordUrl);
         caseEntity.SideBPostedAtUtc = acceptedAt;
         caseEntity.Status = CaseStatus.Open;
         caseEntity.InvitedUserId = null;
@@ -862,6 +866,7 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
             MediaUrl = e.SideAMediaUrl,
             ThumbnailUrl = e.SideAThumbnailUrl,
             DurationSeconds = e.SideADurationSeconds,
+            MediaStatus = e.SideAMediaStatus,
         };
 
         ArgumentPost? sideB = e.SideBUserId is not null
@@ -870,6 +875,7 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
                 MediaUrl = e.SideBMediaUrl,
                 ThumbnailUrl = e.SideBThumbnailUrl,
                 DurationSeconds = e.SideBDurationSeconds,
+                MediaStatus = e.SideBMediaStatus,
             }
             : null;
 

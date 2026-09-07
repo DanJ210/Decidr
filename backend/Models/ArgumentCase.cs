@@ -35,6 +35,14 @@ public enum UserRole
     Moderator
 }
 
+public enum MediaStatus
+{
+    None,
+    Pending,
+    Ready,
+    Failed
+}
+
 public enum FriendRequestStatus
 {
     Pending,
@@ -72,6 +80,7 @@ public record ArgumentPost(
     public string? MediaUrl { get; init; }
     public string? ThumbnailUrl { get; init; }
     public int? DurationSeconds { get; init; }
+    public MediaStatus MediaStatus { get; init; } = MediaStatus.None;
 }
 
 public record CommunityVerdict(
