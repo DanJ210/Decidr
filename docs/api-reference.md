@@ -63,7 +63,10 @@ Creates a new debate case in `Pending` status. Side B is not set yet — the inv
   "category": "string",
   "summary": "string",
   "sideAClaim": "string",
-  "invitedUserId": "guid"
+  "invitedUserId": "guid",
+  "sideARecordUrl": "string | null",
+  "sideAThumbnailUrl": "string | null",
+  "sideADurationSeconds": "number | null"
 }
 ```
 
@@ -72,6 +75,7 @@ Creates a new debate case in `Pending` status. Side B is not set yet — the inv
 - The authenticated actor and `invitedUserId` must be different.
 - The invited user must exist.
 - The authenticated actor and invited user must be connected as accepted friends.
+- The media fields are optional and are stored as supplied.
 
 **Response `201 Created`** — `ArgumentCase` (status `Pending`) with `Location` header  
 **Response `400 Bad Request`** — validation failure message
@@ -84,7 +88,10 @@ The invited user accepts the invitation and provides their Side B claim. The cas
 **Request body**
 ```json
 {
-  "claim": "string"
+  "claim": "string",
+  "sideBRecordUrl": "string | null",
+  "sideBThumbnailUrl": "string | null",
+  "sideBDurationSeconds": "number | null"
 }
 ```
 
@@ -92,6 +99,7 @@ The invited user accepts the invitation and provides their Side B claim. The cas
 - Case must exist and be `Pending`.
 - The authenticated actor must match `invitedUserId` on the case.
 - `claim` must be non-empty.
+- The media fields are optional and are stored as supplied.
 
 **Response `200 OK`** — updated `ArgumentCase` (status `Open`)  
 **Response `400 Bad Request`** — error message

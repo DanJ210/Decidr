@@ -1,8 +1,9 @@
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useCourtStore } from '../stores/court'
 import { useFriendsStore } from '../stores/friends'
+import type { RecordedClip } from './useVideoRecorder'
 
 export function useCreateCase() {
   const courtStore = useCourtStore()
@@ -16,10 +17,9 @@ export function useCreateCase() {
     summary: '',
     sideAClaim: '',
     invitedUserId: '',
-    sideARecordUrl: '',
-    sideAThumbnailUrl: '',
-    sideADurationSeconds: '',
   })
+
+  const sideARecording = ref<RecordedClip | null>(null)
 
   async function loadData() {
     if (!authStore.users.length) {
@@ -64,9 +64,8 @@ export function useCreateCase() {
       summary: form.summary,
       sideAClaim: form.sideAClaim,
       invitedUserId: form.invitedUserId,
-      sideARecordUrl: form.sideARecordUrl || null,
-      sideAThumbnailUrl: form.sideAThumbnailUrl || null,
-      sideADurationSeconds: form.sideADurationSeconds ? Number(form.sideADurationSeconds) : null,
+      sideARecordUrl: sideARecording.value?.url ?? null,
+      sideADurationSeconds: sideARecording.value?.durationSeconds ?? null,
     })
 
     if (created) {
@@ -78,6 +77,7 @@ export function useCreateCase() {
     authStore,
     courtStore,
     form,
+    sideARecording,
     inviteCandidates,
     submit,
   }

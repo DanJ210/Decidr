@@ -33,6 +33,8 @@ frontend/src/
 │   ├── LeaderboardView.vue # Court Standing spectrum, ranked records, and provisional players
 │   └── RewardsView.vue   # Badge/reward display for the current user
 └── components/
+    ├── BottomNav.vue     # Persistent mobile bottom navigation
+    ├── VideoRecorder.vue # 30-second camera recorder with preview, retake, and file fallback
     └── HelloWorld.vue    # (Scaffold placeholder)
 ```
 
@@ -89,6 +91,7 @@ Used by `CaseDetailView`. Loads the case on mount from the URL param, then deriv
 |----------|------|-------------|
 | `courtStore` | `CourtStore` | Direct store reference (loading/mutating/error state) |
 | `sideBClaim` | `Ref<string>` | Two-way bound text for the Side B invitation response |
+| `sideBRecording` | `Ref<RecordedClip \| null>` | Captured Side B video clip, or `null` for a text-only response |
 | `commentMessage` | `Ref<string>` | Two-way bound text for posting a case-level comment |
 | `comments` | `Ref<CaseComment[]>` | Shared case comment pool (not side-specific) |
 | `sideAEvidence` | `ComputedRef<CaseEvidenceItem[]>` | Side A supporting materials shown before voting |
@@ -126,8 +129,32 @@ Used by `CreateCaseView`. Owns the reactive form, loads prerequisite data, keeps
 | `authStore` | `AuthStore` | Used to display the active user's name in the template |
 | `courtStore` | `CourtStore` | Exposes `mutating` and `error` for the submit button and error message |
 | `form` | `Reactive` | Form fields: `title`, `category`, `summary`, `sideAClaim`, `invitedUserId` |
+| `sideARecording` | `Ref<RecordedClip \| null>` | Captured Side A video clip, or `null` for a text-only claim |
 | `inviteCandidates` | `ComputedRef<AppUser[]>` | Friends eligible to be invited (Side B) |
 | `submit()` | `function` | Creates the case via the store and navigates to the new case page |
+
+---
+
+### `useVideoRecorder` — `composables/useVideoRecorder.ts`
+Used by `VideoRecorder.vue`. Wraps `getUserMedia` and `MediaRecorder`, enforces the
+clip limit, and reports a `RecordedClip` (`url`, `durationSeconds`, `source`) to the caller.
+
+| Returned | Type | Description |
+|----------|------|-------------|
+| `phase` | `Ref<RecorderPhase>` | `idle`, `preview`, `recording`, or `captured` |
+| `error` | `Ref<string \| null>` | Permission, support, or validation message |
+| `elapsedSeconds` | `Ref<number>` | Seconds recorded so far |
+| `remainingSeconds` | `ComputedRef<number>` | Seconds left before the automatic stop |
+| `isSupported` | `ComputedRef<boolean>` | `false` when the browser lacks camera capture or `MediaRecorder` |
+| `setPreviewEl(el)` | `function` | Attaches the live preview `<video>` element |
+| `startPreview()` | `function` | Requests camera and microphone access |
+| `startRecording()` | `function` | Begins capture and the countdown |
+| `stopRecording()` | `function` | Ends capture and emits the clip |
+| `selectFile(file)` | `function` | Fallback path validating an uploaded video's type, size, and duration |
+| `retake()` | `function` | Discards the clip and restarts the preview |
+
+Recording stops automatically at the limit, camera tracks are released once a clip
+is captured, and object URLs are revoked on retake and unmount.
 
 ---
 

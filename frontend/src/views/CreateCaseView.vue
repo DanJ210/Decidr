@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ArrowLeft, ArrowRight, Scale, Send, UserRound } from '@lucide/vue'
+import VideoRecorder from '../components/VideoRecorder.vue'
 import { useCreateCase } from '../composables/useCreateCase'
 
-const { authStore, courtStore, form, inviteCandidates, submit } = useCreateCase()
+const { authStore, courtStore, form, sideARecording, inviteCandidates, submit } = useCreateCase()
 </script>
 
 <template>
@@ -76,14 +77,10 @@ const { authStore, courtStore, form, inviteCandidates, submit } = useCreateCase(
         </label>
 
         <div class="form-row">
-          <label class="field-group field-grow">
-            <span>Video URL (optional)</span>
-            <input v-model="form.sideARecordUrl" placeholder="https://cdn.example.com/side-a.mp4" />
-          </label>
-          <label class="field-group category-field">
-            <span>Duration (seconds)</span>
-            <input v-model="form.sideADurationSeconds" type="number" min="1" max="180" placeholder="30" />
-          </label>
+          <div class="field-group field-grow">
+            <span>Your 30-second video</span>
+            <VideoRecorder v-model="sideARecording" side-label="your opening claim" />
+          </div>
         </div>
       </section>
 

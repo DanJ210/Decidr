@@ -23,6 +23,7 @@ import type {
   EvidenceContentStatus,
   PlayerRecord
 } from '../types'
+import type { RecordedClip } from './useVideoRecorder'
 
 const MAX_EVIDENCE_ITEMS_PER_SIDE = 20
 const EVIDENCE_FILE_ACCEPT = '.jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.doc,.docx'
@@ -43,8 +44,7 @@ export function useCaseDetail() {
   const authStore = useAuthStore()
 
   const sideBClaim = ref('')
-  const sideBRecordUrl = ref('')
-  const sideBDurationSeconds = ref('')
+  const sideBRecording = ref<RecordedClip | null>(null)
   const commentMessage = ref('')
   const comments = ref<CaseComment[]>([])
   const commentsLoading = ref(false)
@@ -793,8 +793,8 @@ export function useCaseDetail() {
     if (!selectedCase || !user || !sideBClaim.value.trim()) return
 
     const result = await courtStore.acceptInvitation(selectedCase.id, sideBClaim.value.trim(), {
-      sideBRecordUrl: sideBRecordUrl.value.trim() || null,
-      sideBDurationSeconds: sideBDurationSeconds.value ? Number(sideBDurationSeconds.value) : null,
+      sideBRecordUrl: sideBRecording.value?.url ?? null,
+      sideBDurationSeconds: sideBRecording.value?.durationSeconds ?? null,
     })
     if (!isViewingCase(selectedCase.id)) {
       return
@@ -806,6 +806,7 @@ export function useCaseDetail() {
       }
       await loadCaseState(selectedCase.id, true)
       sideBClaim.value = ''
+      sideBRecording.value = null
     } else {
       courtStore.error = result.error ?? 'Unable to accept the invitation right now.'
     }
@@ -846,8 +847,7 @@ export function useCaseDetail() {
   return {
     courtStore,
     sideBClaim,
-    sideBRecordUrl,
-    sideBDurationSeconds,
+    sideBRecording,
     commentMessage,
     comments,
     commentsLoading,

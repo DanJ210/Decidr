@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ArrowLeft, ChevronDown, Download, ExternalLink, FileText, LoaderCircle, MessageCircle, Trash2, Trophy, X } from '@lucide/vue'
+import VideoRecorder from '../components/VideoRecorder.vue'
 import { useCaseDetail } from '../composables/useCaseDetail'
 
 const {
   courtStore,
   sideBClaim,
-  sideBRecordUrl,
-  sideBDurationSeconds,
+  sideBRecording,
   commentMessage,
   comments,
   commentsLoading,
@@ -140,14 +140,10 @@ function canPreviewEvidence(item: { type: string; mimeType: string | null }) {
                 <textarea v-model="sideBClaim" rows="4" placeholder="State your opposing argument…" required />
               </label>
               <div class="form-row">
-                <label class="field-group field-grow">
-                  <span>Defense video URL (optional)</span>
-                  <input v-model="sideBRecordUrl" placeholder="https://cdn.example.com/side-b.mp4" />
-                </label>
-                <label class="field-group category-field">
-                  <span>Duration (seconds)</span>
-                  <input v-model="sideBDurationSeconds" type="number" min="1" max="180" placeholder="30" />
-                </label>
+                <div class="field-group field-grow">
+                  <span>Your 30-second defense video</span>
+                  <VideoRecorder v-model="sideBRecording" side-label="your defense" />
+                </div>
               </div>
             </section>
           </div>
@@ -199,6 +195,14 @@ function canPreviewEvidence(item: { type: string; mimeType: string | null }) {
               <span class="argument-side-label">Side A</span>
               <strong>@{{ caseItem.sideA.userName }}</strong>
             </header>
+            <video
+              v-if="caseItem.sideA.mediaUrl"
+              class="argument-video"
+              :src="caseItem.sideA.mediaUrl"
+              controls
+              playsinline
+              preload="metadata"
+            />
             <blockquote>{{ caseItem.sideA.claim }}</blockquote>
           </section>
           <section class="argument-panel argument-side-b">
@@ -206,6 +210,14 @@ function canPreviewEvidence(item: { type: string; mimeType: string | null }) {
               <span class="argument-side-label">Side B</span>
               <strong>@{{ caseItem.sideB?.userName }}</strong>
             </header>
+            <video
+              v-if="caseItem.sideB?.mediaUrl"
+              class="argument-video"
+              :src="caseItem.sideB.mediaUrl"
+              controls
+              playsinline
+              preload="metadata"
+            />
             <blockquote>{{ caseItem.sideB?.claim }}</blockquote>
           </section>
         </div>
