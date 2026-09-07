@@ -25,6 +25,31 @@ Always verify these are installed before running any commands:
 - **Docker & Docker Compose** (optional but recommended): Simplest way to run SQL Server 2022 locally
 - **SQL Server 2022** (optional alternative): Only needed if NOT using Docker; Azure SQL and the in-memory fallback are also supported
 
+### Terminal Output Hygiene (agents)
+
+The commands below are verbose — `npm run build` prints 40+ asset lines and
+`dotnet` prints full restore/host output. Piping the full dump into an agent
+session is expensive: it stays in context and is re-sent on every later tool
+call. Always truncate. In PowerShell (the default shell on this repo's dev
+machines):
+
+```powershell
+npm run build 2>&1 | Select-Object -Last 15
+dotnet test backend.Tests/backend.Tests.csproj 2>&1 | Select-Object -Last 20
+npx vue-tsc -b 2>&1 | Select-Object -Last 15
+```
+
+When you only care about failures, filter instead of tailing:
+
+```powershell
+dotnet build backend/backend.csproj 2>&1 | Select-String -Pattern 'error|warning|FAILED' -Context 0,2
+```
+
+Other rules:
+- Prefer `npx vue-tsc -b` while iterating; run the full `npm run build` once at the end.
+- Don't re-run the same full build repeatedly in one session to re-check unrelated output.
+- The unfiltered forms documented in the rest of this file are the canonical commands; the truncation is a wrapper, not a different command.
+
 ### Bootstrap & Setup
 
 #### Database Bootstrap (SQL Server via Docker Compose)
