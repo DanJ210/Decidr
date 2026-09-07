@@ -26,7 +26,7 @@ frontend/src/
 │   ├── useGroupedRewards.ts # Rewards loading + tier-grouped computed for RewardsView
 │   └── useHottestCases.ts   # Sorted case list + invitations loading for HomeView
 ├── views/
-│   ├── HomeView.vue      # Case listing page + My Invitations section
+│   ├── HomeView.vue      # Full-screen, scroll-snapping case-video feed + invitations entry point
 │   ├── CaseDetailView.vue# Single case view — handles Pending/Open/Closed states + side evidence review/add flows
 │   ├── CreateCaseView.vue# Form to start a new case and invite a connected Side B friend
 │   ├── FriendsView.vue   # Friend search, incoming requests, add/remove friend
@@ -59,10 +59,11 @@ Goal: make Decidr feel like a social-first mobile app (Instagram-style) with a c
 
 ### Case feed (home page) experience
 
-- **Feed card hierarchy:** Category pill → title → summary → side participants → vote count → status.
-- **Action row:** “Vote” (if open) and “View Case” as primary/secondary CTAs.
-- **Infinite scroll / pagination:** Replace “top 6 cases” with a paged feed and load-on-scroll.
-- **Optional media:** Reserve space for a thumbnail (even if placeholder) to create a social feed feel.
+- **Full-screen feed:** Home presents one case per vertically scroll-snapped viewport. The current case starts on Side A and its playback moves to Side B when Side A completes.
+- **Media loading:** The feed attaches video media only for the current case and its immediate neighbors; it pauses inactive videos during navigation.
+- **Voting:** Rightward swipes select Side A and leftward swipes select Side B. Equivalent visible buttons provide the keyboard and non-gesture path. Existing participant and single-vote restrictions still apply.
+- **Verdict visibility:** Live community totals and the split meter stay hidden until the current user votes. A returned vote response updates the case and reveals its results.
+- **Case detail:** Playback, mute, side selection, and the detail route remain available from the active feed item. Pending invitations are exposed through the header badge.
 
 ### Case detail and social layers
 
