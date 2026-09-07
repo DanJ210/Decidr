@@ -147,8 +147,10 @@ Backend regression tests are in `backend.Tests/` and can be run with:
 dotnet test backend.Tests/backend.Tests.csproj
 ```
 
-The current suite covers authenticated actor precedence and the Development-only
-selected-user header boundary.
+The suite covers actor resolution and authenticated-identity precedence, the
+Development-only selected-user header boundary, case authorization, evidence
+upload/validation/removal, player-record calculation, and the users endpoints.
+Run the suite after any change to a controller, service, or model contract.
 
 ### Database & Persistence
 
@@ -294,13 +296,14 @@ The backend uses `InMemoryCommunityCourtService` **only when `ConnectionStrings:
 ├── .github/
 │   └── agents/                 # Custom Copilot agents (dotnet-vue-scaffolder)
 │
-├── docs/                       # Project documentation
+├── docs/                       # Project documentation (source of truth for behavior)
 │   ├── README.md               # Overview and tech stack
 │   ├── architecture.md         # Detailed system design
 │   ├── getting-started.md      # Local setup guide
 │   ├── api-reference.md        # REST endpoints and schemas
 │   ├── data-models.md          # C# ↔ TypeScript model mapping
-│   └── frontend.md             # Frontend structure and UX
+│   ├── frontend.md             # Frontend structure and UX
+│   └── video-implementation-plan.md  # Active video-first product plan
 │
 ├── docker-compose.yml          # SQL Server service for development
 └── .gitignore                  # Excludes node_modules, appsettings.*.local.json, etc.
@@ -352,16 +355,18 @@ dotnet ef migrations bundle --project backend/backend.csproj --startup-project b
 
 ## Architecture Highlights
 
+> Endpoint shapes, request/response schemas, and model definitions are owned by
+> [docs/api-reference.md](../docs/api-reference.md), [docs/data-models.md](../docs/data-models.md),
+> and [docs/architecture.md](../docs/architecture.md). The summary below is for
+> navigation only — consult those documents before relying on any detail here.
+
 ### Backend (ASP.NET Core 10)
 
 **Controllers** expose REST endpoints:
-- `CasesController` → `GET /api/cases`, `POST /api/cases`, etc.
-- `UsersController` → `GET /api/users` (list all), `GET /api/users/{id}/rewards`, `GET /api/users/{id}/friends`, `GET /api/users/{id}/friend-requests`, `GET /api/users/{id}/sent-requests`, `GET /api/users/{id}/invitations`
-- `FriendsController` routes:
-  - `POST /api/friends/request`
-  - `POST /api/friends/{requestId}/accept`
-  - `POST /api/friends/{requestId}/decline`
-  - `POST /api/friends/remove`
+- `AuthController` → `GET /api/auth/me` (requires the `access_as_user` policy)
+- `CasesController` → case listing and detail, creation, accept/decline, voting and vote status, close, results, comments, and evidence link/upload/content/status/delete. Public reads (`GET` list, detail, comments, evidence, result) are `[AllowAnonymous]`.
+- `UsersController` → user directory, `records` and `{id}/record` player records, plus `{id}/rewards`, `{id}/friends`, `{id}/friend-requests`, `{id}/sent-requests`, `{id}/invitations`
+- `FriendsController` → `request`, `{requestId}/accept`, `{requestId}/decline`, `remove`
 
 **Services** contain business logic:
 - `ICommunityCourtService` interface defines operations
@@ -371,6 +376,10 @@ dotnet ef migrations bundle --project backend/backend.csproj --startup-project b
 **Database** (EF Core):
 - Entities: `UserEntity`, `CaseEntity`, `CaseVoteEntity`, `UserRewardEntity`, `FriendRequestEntity`
 - Migrations in `Data/Migrations/` (auto-applied on startup)
+
+**Authentication**: `IActorResolver` resolves the acting user from the validated
+token, falling back to the Development-only header. Never read a caller-supplied
+user id from a request body or query string to establish identity.
 
 **Response Compression**: Brotli and Gzip enabled for JSON and static files.
 
@@ -421,7 +430,15 @@ dotnet ef migrations bundle --project backend/backend.csproj --startup-project b
 
 ## Critical Design Notes
 
-1. **No Authentication Layer**: The frontend stores `selectedUserId` in `localStorage`. Backend requests include `userId` in the body (POST/PUT) or as a query parameter (GET). The backend validates user existence.
+1. **Authentication**: The app uses Microsoft Entra External ID. The SPA signs in
+   with MSAL and sends a bearer token; ASP.NET Core validates it via JWT bearer
+   and controller endpoints require the `access_as_user` policy by default, with
+   selected public reads marked `[AllowAnonymous]`. The acting user is always
+   resolved server-side by `ActorResolver` — never from a client-supplied id.
+   The `X-Dev-User-Id` header is honored **only** in Development when Entra is
+   not configured; it is rejected outside Development or whenever Entra is set.
+   Entra requires a non-empty `DefaultConnection`. See
+   [docs/getting-started.md](../docs/getting-started.md) to disable it locally.
 
 2. **Verdict Computation**: Vote counts are recalculated on each case read (not stored). This ensures consistency.
 
@@ -438,7 +455,8 @@ dotnet ef migrations bundle --project backend/backend.csproj --startup-project b
 ## Trust These Instructions
 
 When working on Decidr:
-- **Trust these instructions first**: They document the exact build steps, dependencies, and workarounds
-- **Search the codebase only if**: The information here is incomplete, contradicts what you find, or doesn't address your specific task
-- **Always validate changes** by running the full build and startup sequence after making code changes
-- **For new patterns** not documented here, search `docs/` and the relevant source files to understand design intent before implementing
+- **Trust these instructions for build, run, and validation steps**: commands, dependencies, ports, and workarounds
+- **Trust `docs/` for behavior**: API contracts, data models, architecture, and product direction are owned there and win on any conflict
+- **Search the codebase if**: the information here is incomplete, contradicts what you find, or doesn't address your specific task
+- **Always validate changes** by running the frontend build and the backend test suite after making code changes
+- **Keep docs in sync**: when you change a controller, service contract, or model, update the matching file in `docs/` in the same change (see [.github/instructions/docs-consistency.instructions.md](instructions/docs-consistency.instructions.md))
