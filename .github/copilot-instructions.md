@@ -294,7 +294,8 @@ The backend uses `InMemoryCommunityCourtService` **only when `ConnectionStrings:
 │   └── vite.env.d.ts           # Vite env type definitions
 │
 ├── .github/
-│   └── agents/                 # Custom Copilot agents (dotnet-vue-scaffolder)
+│   ├── agents/                 # Custom Copilot agents (dotnet-vue-scaffolder, docs-consistency-auditor)
+│   └── instructions/           # Always-on authoring guardrails (docs-consistency)
 │
 ├── docs/                       # Project documentation (source of truth for behavior)
 │   ├── README.md               # Overview and tech stack
@@ -459,4 +460,4 @@ When working on Decidr:
 - **Trust `docs/` for behavior**: API contracts, data models, architecture, and product direction are owned there and win on any conflict
 - **Search the codebase if**: the information here is incomplete, contradicts what you find, or doesn't address your specific task
 - **Always validate changes** by running the frontend build and the backend test suite after making code changes
-- **Keep docs in sync**: when you change a controller, service contract, or model, update the matching file in `docs/` in the same change (see [.github/instructions/docs-consistency.instructions.md](instructions/docs-consistency.instructions.md))
+- **Keep docs in sync**: when you change a controller, service contract, or model, update the matching file in `docs/` in the same change. The ownership boundary and update rules are in [.github/instructions/docs-consistency.instructions.md](instructions/docs-consistency.instructions.md); for a deliberate drift audit or docs handoff, use the [Docs Consistency Auditor](agents/docs-consistency-auditor.agent.md) agent

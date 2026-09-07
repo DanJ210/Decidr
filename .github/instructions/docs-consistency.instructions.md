@@ -59,6 +59,7 @@ When adding a new document to `docs/`, add it to the index table in
 
 ## Review pass
 
-When asked to check docs for drift, report findings as a table of
-claim / location / actual behavior / suggested fix, and flag any fact that
-appears in more than one owner file as a duplication to collapse into a link.
+A deliberate drift audit or docs handoff is the
+[Docs Consistency Auditor](../agents/docs-consistency-auditor.agent.md) agent's
+job. Invoke it rather than improvising a review; the rules above are what it
+audits against.
