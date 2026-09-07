@@ -440,8 +440,6 @@ public class CasesController : ControllerBase
 
         _courtService.RemoveCaseEvidence(id, evidenceId);
         return NoContent();
-
-        return NoContent();
     }
 
     [HttpPost("{id:guid}/vote")]

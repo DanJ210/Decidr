@@ -67,8 +67,12 @@ public record ArgumentPost(
     Guid UserId,
     string UserName,
     string Claim,
-    DateTime PostedAtUtc
-);
+    DateTime PostedAtUtc)
+{
+    public string? MediaUrl { get; init; }
+    public string? ThumbnailUrl { get; init; }
+    public int? DurationSeconds { get; init; }
+}
 
 public record CommunityVerdict(
     int VotesForSideA,
@@ -162,12 +166,19 @@ public record CreateCaseRequest(
     string Category,
     string Summary,
     string SideAClaim,
-    Guid InvitedUserId
-);
+    Guid InvitedUserId)
+{
+    public string? SideARecordUrl { get; init; }
+    public string? SideAThumbnailUrl { get; init; }
+    public int? SideADurationSeconds { get; init; }
+}
 
-public record AcceptInvitationRequest(
-    string Claim
-);
+public record AcceptInvitationRequest(string Claim)
+{
+    public string? SideBRecordUrl { get; init; }
+    public string? SideBThumbnailUrl { get; init; }
+    public int? SideBDurationSeconds { get; init; }
+}
 
 public record SendFriendRequestDto(
     Guid ToUserId

@@ -43,6 +43,8 @@ export function useCaseDetail() {
   const authStore = useAuthStore()
 
   const sideBClaim = ref('')
+  const sideBRecordUrl = ref('')
+  const sideBDurationSeconds = ref('')
   const commentMessage = ref('')
   const comments = ref<CaseComment[]>([])
   const commentsLoading = ref(false)
@@ -790,7 +792,10 @@ export function useCaseDetail() {
     const user = activeUser.value
     if (!selectedCase || !user || !sideBClaim.value.trim()) return
 
-    const result = await courtStore.acceptInvitation(selectedCase.id, sideBClaim.value.trim())
+    const result = await courtStore.acceptInvitation(selectedCase.id, sideBClaim.value.trim(), {
+      sideBRecordUrl: sideBRecordUrl.value.trim() || null,
+      sideBDurationSeconds: sideBDurationSeconds.value ? Number(sideBDurationSeconds.value) : null,
+    })
     if (!isViewingCase(selectedCase.id)) {
       return
     }
@@ -841,6 +846,8 @@ export function useCaseDetail() {
   return {
     courtStore,
     sideBClaim,
+    sideBRecordUrl,
+    sideBDurationSeconds,
     commentMessage,
     comments,
     commentsLoading,

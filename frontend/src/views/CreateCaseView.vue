@@ -74,6 +74,17 @@ const { authStore, courtStore, form, inviteCandidates, submit } = useCreateCase(
             placeholder="State what you believe and the strongest reason why."
           />
         </label>
+
+        <div class="form-row">
+          <label class="field-group field-grow">
+            <span>Video URL (optional)</span>
+            <input v-model="form.sideARecordUrl" placeholder="https://cdn.example.com/side-a.mp4" />
+          </label>
+          <label class="field-group category-field">
+            <span>Duration (seconds)</span>
+            <input v-model="form.sideADurationSeconds" type="number" min="1" max="180" placeholder="30" />
+          </label>
+        </div>
       </section>
 
       <section class="composer-section opponent-composer">

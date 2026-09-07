@@ -75,6 +75,41 @@ public sealed class PlayerRecordServiceTests
         Assert.Equal((0, 1, 1, 2), (blairRecord.Wins, blairRecord.Losses, blairRecord.Ties, blairRecord.CompletedCases));
     }
 
+    [Fact]
+    public void In_memory_case_creation_and_acceptance_preserve_video_metadata()
+    {
+        var service = new InMemoryCommunityCourtService();
+        var creator = service.GetUsers().First();
+        var invitee = service.GetUsers().Skip(1).First();
+
+        var created = service.CreateCase(creator.Id, new CreateCaseRequest(
+            "Video case",
+            "Culture",
+            "Context",
+            "My opening claim",
+            invitee.Id)
+        {
+            SideARecordUrl = "https://cdn.example.com/side-a.mp4",
+            SideAThumbnailUrl = "https://cdn.example.com/side-a-thumb.jpg",
+            SideADurationSeconds = 22,
+        });
+
+        Assert.Equal("https://cdn.example.com/side-a.mp4", created.SideA.MediaUrl);
+        Assert.Equal(22, created.SideA.DurationSeconds);
+
+        var accepted = service.AcceptCaseInvitation(created.Id, invitee.Id, new AcceptInvitationRequest(
+            "My defense claim")
+        {
+            SideBRecordUrl = "https://cdn.example.com/side-b.mp4",
+            SideBThumbnailUrl = "https://cdn.example.com/side-b-thumb.jpg",
+            SideBDurationSeconds = 18,
+        });
+
+        Assert.True(accepted.Success);
+        Assert.Equal("https://cdn.example.com/side-b.mp4", accepted.UpdatedCase!.SideB!.MediaUrl);
+        Assert.Equal(18, accepted.UpdatedCase.SideB.DurationSeconds);
+    }
+
     private static UserEntity User(string userName, string displayName) =>
         new() { Id = Guid.NewGuid(), UserName = userName, DisplayName = displayName, Role = UserRole.Member };
 

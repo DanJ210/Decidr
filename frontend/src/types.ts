@@ -29,6 +29,9 @@ export interface ArgumentPost {
   userName: string
   claim: string
   postedAtUtc: string
+  mediaUrl?: string | null
+  thumbnailUrl?: string | null
+  durationSeconds?: number | null
 }
 
 export interface CommunityVerdict {
@@ -111,10 +114,16 @@ export interface CreateCaseRequest {
   summary: string
   sideAClaim: string
   invitedUserId: string
+  sideARecordUrl?: string | null
+  sideAThumbnailUrl?: string | null
+  sideADurationSeconds?: number | null
 }
 
 export interface AcceptInvitationRequest {
   claim: string
+  sideBRecordUrl?: string | null
+  sideBThumbnailUrl?: string | null
+  sideBDurationSeconds?: number | null
 }
 
 export interface SendFriendRequestDto {

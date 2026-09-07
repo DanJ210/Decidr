@@ -6,6 +6,8 @@ import { useCaseDetail } from '../composables/useCaseDetail'
 const {
   courtStore,
   sideBClaim,
+  sideBRecordUrl,
+  sideBDurationSeconds,
   commentMessage,
   comments,
   commentsLoading,
@@ -137,6 +139,16 @@ function canPreviewEvidence(item: { type: string; mimeType: string | null }) {
                 Your Claim
                 <textarea v-model="sideBClaim" rows="4" placeholder="State your opposing argument…" required />
               </label>
+              <div class="form-row">
+                <label class="field-group field-grow">
+                  <span>Defense video URL (optional)</span>
+                  <input v-model="sideBRecordUrl" placeholder="https://cdn.example.com/side-b.mp4" />
+                </label>
+                <label class="field-group category-field">
+                  <span>Duration (seconds)</span>
+                  <input v-model="sideBDurationSeconds" type="number" min="1" max="180" placeholder="30" />
+                </label>
+              </div>
             </section>
           </div>
 

@@ -154,6 +154,9 @@ public class EfCoreCourtService : ICommunityCourtService
             SideAUserId = sideAUser.Id,
             SideAUserName = sideAUser.UserName,
             SideAClaim = request.SideAClaim,
+            SideAMediaUrl = request.SideARecordUrl,
+            SideAThumbnailUrl = request.SideAThumbnailUrl,
+            SideADurationSeconds = request.SideADurationSeconds,
             SideAPostedAtUtc = createdAt,
             InvitedUserId = request.InvitedUserId,
             Status = CaseStatus.Pending,
@@ -696,6 +699,9 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
         caseEntity.SideBUserId = sideBUser.Id;
         caseEntity.SideBUserName = sideBUser.UserName;
         caseEntity.SideBClaim = request.Claim;
+        caseEntity.SideBMediaUrl = request.SideBRecordUrl;
+        caseEntity.SideBThumbnailUrl = request.SideBThumbnailUrl;
+        caseEntity.SideBDurationSeconds = request.SideBDurationSeconds;
         caseEntity.SideBPostedAtUtc = acceptedAt;
         caseEntity.Status = CaseStatus.Open;
         caseEntity.InvitedUserId = null;
@@ -851,10 +857,20 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
 
     private static ArgumentCase MapCase(CaseEntity e)
     {
-        var sideA = new ArgumentPost(CaseSide.A, e.SideAUserId, e.SideAUserName, e.SideAClaim, e.SideAPostedAtUtc);
+        var sideA = new ArgumentPost(CaseSide.A, e.SideAUserId, e.SideAUserName, e.SideAClaim, e.SideAPostedAtUtc)
+        {
+            MediaUrl = e.SideAMediaUrl,
+            ThumbnailUrl = e.SideAThumbnailUrl,
+            DurationSeconds = e.SideADurationSeconds,
+        };
 
         ArgumentPost? sideB = e.SideBUserId is not null
             ? new ArgumentPost(CaseSide.B, e.SideBUserId.Value, e.SideBUserName!, e.SideBClaim!, e.SideBPostedAtUtc!.Value)
+            {
+                MediaUrl = e.SideBMediaUrl,
+                ThumbnailUrl = e.SideBThumbnailUrl,
+                DurationSeconds = e.SideBDurationSeconds,
+            }
             : null;
 
         return new ArgumentCase(

@@ -211,12 +211,19 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
             var sideAUser = _users.First(u => u.Id == actorUserId);
             var createdAt = DateTime.UtcNow;
 
+            var sideA = new ArgumentPost(CaseSide.A, sideAUser.Id, sideAUser.UserName, request.SideAClaim, createdAt)
+            {
+                MediaUrl = request.SideARecordUrl,
+                ThumbnailUrl = request.SideAThumbnailUrl,
+                DurationSeconds = request.SideADurationSeconds,
+            };
+
             var created = new ArgumentCase(
                 Guid.NewGuid(),
                 request.Title,
                 request.Category,
                 request.Summary,
-                new ArgumentPost(CaseSide.A, sideAUser.Id, sideAUser.UserName, request.SideAClaim, createdAt),
+                sideA,
                 SideB: null,
                 InvitedUserId: request.InvitedUserId,
                 new CommunityVerdict(0, 0),
@@ -709,7 +716,13 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                 return (false, "User not found.", null);
             }
 
-            var sideB = new ArgumentPost(CaseSide.B, sideBUser.Id, sideBUser.UserName, request.Claim, DateTime.UtcNow);
+            var sideB = new ArgumentPost(CaseSide.B, sideBUser.Id, sideBUser.UserName, request.Claim, DateTime.UtcNow)
+            {
+                MediaUrl = request.SideBRecordUrl,
+                ThumbnailUrl = request.SideBThumbnailUrl,
+                DurationSeconds = request.SideBDurationSeconds,
+            };
+
             var opened = foundCase with { SideB = sideB, Status = CaseStatus.Open, InvitedUserId = null };
             ReplaceCase(opened);
 

@@ -16,6 +16,9 @@ export function useCreateCase() {
     summary: '',
     sideAClaim: '',
     invitedUserId: '',
+    sideARecordUrl: '',
+    sideAThumbnailUrl: '',
+    sideADurationSeconds: '',
   })
 
   async function loadData() {
@@ -61,6 +64,9 @@ export function useCreateCase() {
       summary: form.summary,
       sideAClaim: form.sideAClaim,
       invitedUserId: form.invitedUserId,
+      sideARecordUrl: form.sideARecordUrl || null,
+      sideAThumbnailUrl: form.sideAThumbnailUrl || null,
+      sideADurationSeconds: form.sideADurationSeconds ? Number(form.sideADurationSeconds) : null,
     })
 
     if (created) {
