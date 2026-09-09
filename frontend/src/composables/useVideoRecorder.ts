@@ -29,11 +29,14 @@ function readFileDuration(url: string) {
     const probe = document.createElement('video')
     probe.preload = 'metadata'
     probe.onloadedmetadata = () => {
-      const duration = Number.isFinite(probe.duration) ? Math.round(probe.duration) : 0
+      const duration = Number.isFinite(probe.duration) ? Math.round(probe.duration) : Number.NaN
       probe.src = ''
       resolve(duration)
     }
-    probe.onerror = () => resolve(0)
+    probe.onerror = () => {
+      probe.src = ''
+      resolve(Number.NaN)
+    }
     probe.src = url
   })
 }
