@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ArrowLeft, ChevronDown, Download, ExternalLink, FileText, LoaderCircle, MessageCircle, Trash2, Trophy, X } from '@lucide/vue'
+import VideoRecorder from '../components/VideoRecorder.vue'
 import { useCaseDetail } from '../composables/useCaseDetail'
 
 const {
   courtStore,
   sideBClaim,
+  sideBRecording,
+  uploadingMedia,
   commentMessage,
   comments,
   commentsLoading,
@@ -28,6 +31,8 @@ const {
   evidenceDrafts,
   sideAEvidence,
   sideBEvidence,
+  sideARecord,
+  sideBRecord,
   canAddEvidenceSideA,
   canAddEvidenceSideB,
   sideAEvidenceAtLimit,
@@ -135,6 +140,12 @@ function canPreviewEvidence(item: { type: string; mimeType: string | null }) {
                 Your Claim
                 <textarea v-model="sideBClaim" rows="4" placeholder="State your opposing argument…" required />
               </label>
+              <div class="form-row">
+                <div class="field-group field-grow">
+                  <span>Your 30-second defense video</span>
+                  <VideoRecorder v-model="sideBRecording" side-label="your defense" />
+                </div>
+              </div>
             </section>
           </div>
 
@@ -142,10 +153,10 @@ function canPreviewEvidence(item: { type: string; mimeType: string | null }) {
             <button
               type="button"
               class="action-btn"
-              :disabled="!sideBClaim.trim() || courtStore.mutating"
+              :disabled="!sideBClaim.trim() || courtStore.mutating || uploadingMedia"
               @click="acceptInvitation"
             >
-              Accept &amp; Go Live
+              {{ uploadingMedia ? 'Uploading video...' : 'Accept & Go Live' }}
             </button>
             <button
               type="button"
@@ -185,6 +196,14 @@ function canPreviewEvidence(item: { type: string; mimeType: string | null }) {
               <span class="argument-side-label">Side A</span>
               <strong>@{{ caseItem.sideA.userName }}</strong>
             </header>
+            <video
+              v-if="caseItem.sideA.mediaUrl"
+              class="argument-video"
+              :src="caseItem.sideA.mediaUrl"
+              controls
+              playsinline
+              preload="metadata"
+            />
             <blockquote>{{ caseItem.sideA.claim }}</blockquote>
           </section>
           <section class="argument-panel argument-side-b">
@@ -192,6 +211,14 @@ function canPreviewEvidence(item: { type: string; mimeType: string | null }) {
               <span class="argument-side-label">Side B</span>
               <strong>@{{ caseItem.sideB?.userName }}</strong>
             </header>
+            <video
+              v-if="caseItem.sideB?.mediaUrl"
+              class="argument-video"
+              :src="caseItem.sideB.mediaUrl"
+              controls
+              playsinline
+              preload="metadata"
+            />
             <blockquote>{{ caseItem.sideB?.claim }}</blockquote>
           </section>
         </div>
@@ -247,6 +274,19 @@ function canPreviewEvidence(item: { type: string; mimeType: string | null }) {
             </button>
           </div>
           <p v-else-if="closePermissionMessage" class="status-text close-message">{{ closePermissionMessage }}</p>
+
+          <div v-if="caseItem.status === 'Closed' && sideARecord && sideBRecord" class="case-record-impact">
+            <h3>Updated court records</h3>
+            <p>
+              <strong>@{{ sideARecord.userName }}</strong>
+              {{ sideARecord.wins }}W–{{ sideARecord.losses }}L–{{ sideARecord.ties }}T
+            </p>
+            <p>
+              <strong>@{{ sideBRecord.userName }}</strong>
+              {{ sideBRecord.wins }}W–{{ sideBRecord.losses }}L–{{ sideBRecord.ties }}T
+            </p>
+            <RouterLink to="/standings" class="case-link">View court standings</RouterLink>
+          </div>
         </section>
 
         <section class="detail-section evidence-section">

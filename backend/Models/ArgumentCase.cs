@@ -35,6 +35,14 @@ public enum UserRole
     Moderator
 }
 
+public enum MediaStatus
+{
+    None,
+    Pending,
+    Ready,
+    Failed
+}
+
 public enum FriendRequestStatus
 {
     Pending,
@@ -49,13 +57,31 @@ public record AppUser(
     UserRole Role
 );
 
+public record PlayerRecord(
+    Guid UserId,
+    string UserName,
+    string DisplayName,
+    int Wins,
+    int Losses,
+    int Ties,
+    int CompletedCases,
+    double WinRate,
+    bool IsQualified,
+    int? Rank
+);
+
 public record ArgumentPost(
     CaseSide Side,
     Guid UserId,
     string UserName,
     string Claim,
-    DateTime PostedAtUtc
-);
+    DateTime PostedAtUtc)
+{
+    public string? MediaUrl { get; init; }
+    public string? ThumbnailUrl { get; init; }
+    public int? DurationSeconds { get; init; }
+    public MediaStatus MediaStatus { get; init; } = MediaStatus.None;
+}
 
 public record CommunityVerdict(
     int VotesForSideA,
@@ -112,6 +138,13 @@ public record CaseEvidenceStatusResponse(
     EvidenceContentStatus Status
 );
 
+public record CaseMediaUploadResponse(
+    string Url,
+    int DurationSeconds,
+    long SizeBytes,
+    string ContentType
+);
+
 public record RewardBadge(
     string Code,
     string Label,
@@ -149,12 +182,19 @@ public record CreateCaseRequest(
     string Category,
     string Summary,
     string SideAClaim,
-    Guid InvitedUserId
-);
+    Guid InvitedUserId)
+{
+    public string? SideARecordUrl { get; init; }
+    public string? SideAThumbnailUrl { get; init; }
+    public int? SideADurationSeconds { get; init; }
+}
 
-public record AcceptInvitationRequest(
-    string Claim
-);
+public record AcceptInvitationRequest(string Claim)
+{
+    public string? SideBRecordUrl { get; init; }
+    public string? SideBThumbnailUrl { get; init; }
+    public int? SideBDurationSeconds { get; init; }
+}
 
 public record SendFriendRequestDto(
     Guid ToUserId

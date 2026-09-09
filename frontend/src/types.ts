@@ -2,6 +2,7 @@ export type CaseSide = 'A' | 'B'
 export type CaseStatus = 'Pending' | 'Open' | 'Closed'
 export type UserRole = 'Member' | 'Moderator'
 export type FriendRequestStatus = 'Pending' | 'Accepted' | 'Declined'
+export type MediaStatus = 'None' | 'Pending' | 'Ready' | 'Failed'
 
 export interface AppUser {
   id: string
@@ -10,12 +11,29 @@ export interface AppUser {
   role: UserRole
 }
 
+export interface PlayerRecord {
+  userId: string
+  userName: string
+  displayName: string
+  wins: number
+  losses: number
+  ties: number
+  completedCases: number
+  winRate: number
+  isQualified: boolean
+  rank: number | null
+}
+
 export interface ArgumentPost {
   side: CaseSide
   userId: string
   userName: string
   claim: string
   postedAtUtc: string
+  mediaUrl?: string | null
+  thumbnailUrl?: string | null
+  durationSeconds?: number | null
+  mediaStatus: MediaStatus
 }
 
 export interface CommunityVerdict {
@@ -69,6 +87,13 @@ export interface CaseEvidenceStatusResponse {
   status: EvidenceContentStatus
 }
 
+export interface CaseMediaUploadResponse {
+  url: string
+  durationSeconds: number
+  sizeBytes: number
+  contentType: string
+}
+
 export interface ArgumentCase {
   id: string
   title: string
@@ -98,10 +123,16 @@ export interface CreateCaseRequest {
   summary: string
   sideAClaim: string
   invitedUserId: string
+  sideARecordUrl?: string | null
+  sideAThumbnailUrl?: string | null
+  sideADurationSeconds?: number | null
 }
 
 export interface AcceptInvitationRequest {
   claim: string
+  sideBRecordUrl?: string | null
+  sideBThumbnailUrl?: string | null
+  sideBDurationSeconds?: number | null
 }
 
 export interface SendFriendRequestDto {

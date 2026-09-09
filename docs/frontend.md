@@ -26,12 +26,15 @@ frontend/src/
 │   ├── useGroupedRewards.ts # Rewards loading + tier-grouped computed for RewardsView
 │   └── useHottestCases.ts   # Sorted case list + invitations loading for HomeView
 ├── views/
-│   ├── HomeView.vue      # Case listing page + My Invitations section
+│   ├── HomeView.vue      # Full-screen, scroll-snapping case-video feed + invitations entry point
 │   ├── CaseDetailView.vue# Single case view — handles Pending/Open/Closed states + side evidence review/add flows
 │   ├── CreateCaseView.vue# Form to start a new case and invite a connected Side B friend
 │   ├── FriendsView.vue   # Friend search, incoming requests, add/remove friend
+│   ├── LeaderboardView.vue # Court Standing spectrum, ranked records, and provisional players
 │   └── RewardsView.vue   # Badge/reward display for the current user
 └── components/
+    ├── BottomNav.vue     # Persistent mobile bottom navigation
+    ├── VideoRecorder.vue # 30-second camera recorder with preview, retake, and file fallback
     └── HelloWorld.vue    # (Scaffold placeholder)
 ```
 
@@ -56,10 +59,11 @@ Goal: make Decidr feel like a social-first mobile app (Instagram-style) with a c
 
 ### Case feed (home page) experience
 
-- **Feed card hierarchy:** Category pill → title → summary → side participants → vote count → status.
-- **Action row:** “Vote” (if open) and “View Case” as primary/secondary CTAs.
-- **Infinite scroll / pagination:** Replace “top 6 cases” with a paged feed and load-on-scroll.
-- **Optional media:** Reserve space for a thumbnail (even if placeholder) to create a social feed feel.
+- **Full-screen feed:** Home presents one case per vertically scroll-snapped viewport. The current case starts on Side A and its playback moves to Side B when Side A completes.
+- **Media loading:** The feed attaches video media only for the current case and its immediate neighbors; it pauses inactive videos during navigation.
+- **Voting:** Rightward swipes select Side A and leftward swipes select Side B. Equivalent visible buttons provide the keyboard and non-gesture path. Existing participant and single-vote restrictions still apply.
+- **Verdict visibility:** Live community totals and the split meter stay hidden until the current user votes. A returned vote response updates the case and reveals its results.
+- **Case detail:** Playback, mute, side selection, and the detail route remain available from the active feed item. Pending invitations are exposed through the header badge.
 
 ### Case detail and social layers
 
@@ -88,6 +92,7 @@ Used by `CaseDetailView`. Loads the case on mount from the URL param, then deriv
 |----------|------|-------------|
 | `courtStore` | `CourtStore` | Direct store reference (loading/mutating/error state) |
 | `sideBClaim` | `Ref<string>` | Two-way bound text for the Side B invitation response |
+| `sideBRecording` | `Ref<RecordedClip \| null>` | Captured Side B video clip, or `null` for a text-only response |
 | `commentMessage` | `Ref<string>` | Two-way bound text for posting a case-level comment |
 | `comments` | `Ref<CaseComment[]>` | Shared case comment pool (not side-specific) |
 | `sideAEvidence` | `ComputedRef<CaseEvidenceItem[]>` | Side A supporting materials shown before voting |
@@ -125,8 +130,32 @@ Used by `CreateCaseView`. Owns the reactive form, loads prerequisite data, keeps
 | `authStore` | `AuthStore` | Used to display the active user's name in the template |
 | `courtStore` | `CourtStore` | Exposes `mutating` and `error` for the submit button and error message |
 | `form` | `Reactive` | Form fields: `title`, `category`, `summary`, `sideAClaim`, `invitedUserId` |
+| `sideARecording` | `Ref<RecordedClip \| null>` | Captured Side A video clip, or `null` for a text-only claim |
 | `inviteCandidates` | `ComputedRef<AppUser[]>` | Friends eligible to be invited (Side B) |
 | `submit()` | `function` | Creates the case via the store and navigates to the new case page |
+
+---
+
+### `useVideoRecorder` — `composables/useVideoRecorder.ts`
+Used by `VideoRecorder.vue`. Wraps `getUserMedia` and `MediaRecorder`, enforces the
+clip limit, and reports a `RecordedClip` (`url`, `durationSeconds`, `source`) to the caller.
+
+| Returned | Type | Description |
+|----------|------|-------------|
+| `phase` | `Ref<RecorderPhase>` | `idle`, `preview`, `recording`, or `captured` |
+| `error` | `Ref<string \| null>` | Permission, support, or validation message |
+| `elapsedSeconds` | `Ref<number>` | Seconds recorded so far |
+| `remainingSeconds` | `ComputedRef<number>` | Seconds left before the automatic stop |
+| `isSupported` | `ComputedRef<boolean>` | `false` when the browser lacks camera capture or `MediaRecorder` |
+| `setPreviewEl(el)` | `function` | Attaches the live preview `<video>` element |
+| `startPreview()` | `function` | Requests camera and microphone access |
+| `startRecording()` | `function` | Begins capture and the countdown |
+| `stopRecording()` | `function` | Ends capture and emits the clip |
+| `selectFile(file)` | `function` | Fallback path validating an uploaded video's type, size, and duration |
+| `retake()` | `function` | Discards the clip and restarts the preview |
+
+Recording stops automatically at the limit, camera tracks are released once a clip
+is captured, and object URLs are revoked on retake and unmount.
 
 ---
 
@@ -184,6 +213,7 @@ Defined in `router/index.ts`. Uses `createWebHistory` (HTML5 mode).
 | `/cases/new` | `case-create` | `CreateCaseView` | New case form |
 | `/rewards` | `rewards` | `RewardsView` | Rewards for selected user |
 | `/friends` | `friends` | `FriendsView` | Friend management |
+| `/standings` | `standings` | `LeaderboardView` | Public player records and Court Standing spectrum |
 
 ---
 

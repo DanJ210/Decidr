@@ -8,6 +8,7 @@ import type {
   CaseEvidenceCollection,
   CaseEvidenceItem,
   CaseEvidenceStatusResponse,
+  CaseMediaUploadResponse,
   CaseSide,
   CaseVoteStatus,
   CaseComment,
@@ -15,6 +16,7 @@ import type {
   CreateCaseRequest,
   CreateCaseCommentRequest,
   FriendRequest,
+  PlayerRecord,
   UserRewardView,
 } from '../types'
 
@@ -92,6 +94,17 @@ export async function fetchCaseEvidence(caseId: string): Promise<CaseEvidenceCol
   return data
 }
 
+export async function uploadCaseMedia(clip: { blob: Blob; durationSeconds: number }): Promise<CaseMediaUploadResponse> {
+  const extension = clip.blob.type.includes('mp4') ? 'mp4' : 'webm'
+  const formData = new FormData()
+  formData.append('file', clip.blob, `clip.${extension}`)
+
+  const { data } = await apiClient.post<CaseMediaUploadResponse>('/cases/media', formData, {
+    timeout: 120_000,
+  })
+  return data
+}
+
 export async function postCaseEvidenceLink(caseId: string, request: AddCaseEvidenceLinkRequest): Promise<CaseEvidenceItem> {
   const { data } = await apiClient.post<CaseEvidenceItem>(`/cases/${caseId}/evidence/link`, request)
   return data
@@ -142,6 +155,16 @@ export async function declineCaseInvitation(caseId: string): Promise<void> {
 
 export async function fetchUsers(): Promise<AppUser[]> {
   const { data } = await apiClient.get<AppUser[]>('/users')
+  return data
+}
+
+export async function fetchPlayerRecords(): Promise<PlayerRecord[]> {
+  const { data } = await apiClient.get<PlayerRecord[]>('/users/records')
+  return data
+}
+
+export async function fetchPlayerRecord(userId: string): Promise<PlayerRecord> {
+  const { data } = await apiClient.get<PlayerRecord>(`/users/${userId}/record`)
   return data
 }
 

@@ -46,6 +46,10 @@ public class DecidirDbContext : DbContext
             e.Property(c => c.SideAClaim).IsRequired().HasMaxLength(2048);
             e.Property(c => c.SideBUserName).HasMaxLength(64);
             e.Property(c => c.SideBClaim).HasMaxLength(2048);
+            e.Property(c => c.SideAMediaUrl).HasMaxLength(2048);
+            e.Property(c => c.SideAThumbnailUrl).HasMaxLength(2048);
+            e.Property(c => c.SideBMediaUrl).HasMaxLength(2048);
+            e.Property(c => c.SideBThumbnailUrl).HasMaxLength(2048);
             e.Property(c => c.Status).HasConversion<string>();
             e.Property(c => c.WinnerSide).HasConversion<string?>();
 

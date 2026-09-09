@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Home, Plus, Trophy, Users } from '@lucide/vue'
+import { ChartNoAxesColumnIncreasing, Home, Plus, Trophy, Users } from '@lucide/vue'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
@@ -21,6 +21,11 @@ const isFeedActive = computed(() => route.path === '/' || (route.path.startsWith
       </RouterLink>
 
       <span class="bottom-nav-spacer" aria-hidden="true"></span>
+
+      <RouterLink to="/standings" class="bottom-nav-item" :class="{ active: route.path === '/standings' }">
+        <ChartNoAxesColumnIncreasing :size="21" :stroke-width="2.2" aria-hidden="true" />
+        <span class="bottom-nav-label">Standings</span>
+      </RouterLink>
 
       <RouterLink to="/rewards" class="bottom-nav-item" :class="{ active: route.path === '/rewards' }">
         <Trophy :size="21" :stroke-width="2.2" aria-hidden="true" />

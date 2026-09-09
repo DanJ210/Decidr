@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ArrowLeft, ArrowRight, Scale, Send, UserRound } from '@lucide/vue'
+import VideoRecorder from '../components/VideoRecorder.vue'
 import { useCreateCase } from '../composables/useCreateCase'
 
-const { authStore, courtStore, form, inviteCandidates, submit } = useCreateCase()
+const { authStore, courtStore, form, sideARecording, uploadingMedia, inviteCandidates, submit } = useCreateCase()
 </script>
 
 <template>
@@ -74,6 +75,13 @@ const { authStore, courtStore, form, inviteCandidates, submit } = useCreateCase(
             placeholder="State what you believe and the strongest reason why."
           />
         </label>
+
+        <div class="form-row">
+          <div class="field-group field-grow">
+            <span>Your 30-second video</span>
+            <VideoRecorder v-model="sideARecording" side-label="your opening claim" />
+          </div>
+        </div>
       </section>
 
       <section class="composer-section opponent-composer">
@@ -110,11 +118,12 @@ const { authStore, courtStore, form, inviteCandidates, submit } = useCreateCase(
         <button
           type="submit"
           class="action-btn create-submit-button"
-          :disabled="courtStore.mutating || !form.invitedUserId"
+          :disabled="courtStore.mutating || uploadingMedia || !form.invitedUserId"
           :aria-describedby="form.invitedUserId ? undefined : 'create-case-help'"
         >
           <Send :size="17" aria-hidden="true" />
-          {{ courtStore.mutating ? 'Creating case...' : 'Send invitation' }}
+          <template v-if="uploadingMedia">Uploading video...</template>
+          <template v-else>{{ courtStore.mutating ? 'Creating case...' : 'Send invitation' }}</template>
         </button>
       </footer>
       <p v-if="!form.invitedUserId" id="create-case-help" class="visually-hidden">

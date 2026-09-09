@@ -36,6 +36,7 @@ onMounted(() => {
           <RouterLink to="/" class="top-nav-link">Feed</RouterLink>
           <RouterLink to="/cases/new" class="top-nav-link">Create</RouterLink>
           <RouterLink to="/friends" class="top-nav-link">Friends</RouterLink>
+          <RouterLink to="/standings" class="top-nav-link">Standings</RouterLink>
           <RouterLink to="/rewards" class="top-nav-link">Rewards</RouterLink>
         </nav>
 

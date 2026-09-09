@@ -96,6 +96,17 @@ Badges are awarded automatically at key lifecycle events:
 
 Duplicate awards are prevented: a `(userId, badgeCode, sourceType, sourceId)` combination is only awarded once.
 
+### Player Records and Court Standing
+Wins, losses, and ties are derived from closed cases rather than stored as mutable
+user counters. Only cases with both Side A and Side B participants count; declined
+invitations are excluded. Recomputing records is therefore idempotent, including
+when a close request is retried.
+
+Players qualify for ranked standings after three completed cases. Qualified
+players are ordered by win rate, then wins, completed cases, and display name.
+Other users remain visible as provisional players. Records are independent from
+reward badges.
+
 ### User Identity and Authentication
 In configured environments, the Vue SPA authenticates with Microsoft Entra External
 ID through MSAL and sends bearer tokens with API requests. ASP.NET Core JWT bearer

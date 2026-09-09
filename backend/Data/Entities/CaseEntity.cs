@@ -13,12 +13,20 @@ public class CaseEntity
     public Guid SideAUserId { get; set; }
     public string SideAUserName { get; set; } = "";
     public string SideAClaim { get; set; } = "";
+    public string? SideAMediaUrl { get; set; }
+    public string? SideAThumbnailUrl { get; set; }
+    public int? SideADurationSeconds { get; set; }
+    public MediaStatus SideAMediaStatus { get; set; }
     public DateTime SideAPostedAtUtc { get; set; }
 
     // Side B (null until the invitation is accepted)
     public Guid? SideBUserId { get; set; }
     public string? SideBUserName { get; set; }
     public string? SideBClaim { get; set; }
+    public string? SideBMediaUrl { get; set; }
+    public string? SideBThumbnailUrl { get; set; }
+    public int? SideBDurationSeconds { get; set; }
+    public MediaStatus SideBMediaStatus { get; set; }
     public DateTime? SideBPostedAtUtc { get; set; }
 
     public Guid? InvitedUserId { get; set; }

@@ -124,12 +124,20 @@ export const useCourtStore = defineStore('court', {
         this.mutating = false
       }
     },
-    async acceptInvitation(caseId: string, claim: string) {
+    async acceptInvitation(
+      caseId: string,
+      claim: string,
+      video?: { sideBRecordUrl?: string | null; sideBDurationSeconds?: number | null }
+    ) {
       this.mutating = true
       this.error = null
 
       try {
-        const updated = await acceptCaseInvitation(caseId, { claim })
+        const updated = await acceptCaseInvitation(caseId, {
+          claim,
+          sideBRecordUrl: video?.sideBRecordUrl ?? null,
+          sideBDurationSeconds: video?.sideBDurationSeconds ?? null,
+        })
         this.replaceCase(updated)
         return { success: true, updatedCase: updated } satisfies CaseMutationResult
       } catch {

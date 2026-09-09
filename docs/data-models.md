@@ -55,6 +55,24 @@ Represents a registered user.
 
 ---
 
+### `PlayerRecord`
+An outcome-derived public record for a user.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `UserId` | `Guid` | Player identifier |
+| `UserName` | `string` | Player handle |
+| `DisplayName` | `string` | Player display name |
+| `Wins` | `int` | Closed, decided cases won |
+| `Losses` | `int` | Closed, decided cases lost |
+| `Ties` | `int` | Closed cases with no winner |
+| `CompletedCases` | `int` | Wins, losses, and ties combined |
+| `WinRate` | `double` | Wins divided by completed cases |
+| `IsQualified` | `bool` | Whether the player completed at least three cases |
+| `Rank` | `int?` | Qualified standing, or `null` while provisional |
+
+---
+
 ### `ArgumentPost`
 One side's opening argument in a case.
 
@@ -65,6 +83,23 @@ One side's opening argument in a case.
 | `UserName` | `string` | Posting user's handle |
 | `Claim` | `string` | The argument text |
 | `PostedAtUtc` | `DateTime` | When posted |
+| `MediaUrl` | `string?` | Playback URL for the side's video, or `null` for a text-only argument |
+| `ThumbnailUrl` | `string?` | Poster image for the video |
+| `DurationSeconds` | `int?` | Clip length in seconds |
+| `MediaStatus` | `MediaStatus` | Readiness of this side's video |
+
+---
+
+### `MediaStatus`
+Readiness of one side's video. A case is held out of the public feed while either
+side is `Pending` or `Failed`.
+
+| Value | Meaning |
+|-------|---------|
+| `None` | Text-only argument; never blocks publication |
+| `Pending` | Upload or processing has not finished |
+| `Ready` | Playable |
+| `Failed` | Upload or processing failed |
 
 ---
 
@@ -227,25 +262,44 @@ API-facing reward shape returned by `GET /api/users/{id}/rewards`.
 
 ## Request DTOs
 
+### `CaseMediaUploadResponse`
+Returned by the case media upload endpoint. The `Url` is what gets persisted as
+the side's `MediaUrl`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Url` | `string` | Playback URL to persist on the case |
+| `DurationSeconds` | `int` | Server-derived clip length |
+| `SizeBytes` | `long` | Stored file size |
+| `ContentType` | `string` | Resolved video MIME type |
+
+---
+
 ### `CreateCaseRequest`
 Creates a new `Pending` case. Side B is filled in when the invited user accepts.
+The Side A poster is the authenticated actor and is never taken from the request body.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `Title` | `string` | Case title |
 | `Category` | `string` | Topic category |
 | `Summary` | `string` | Neutral summary |
-| `SideAUserId` | `Guid` | Case creator (Side A poster) |
 | `SideAClaim` | `string` | Creator's argument |
 | `InvitedUserId` | `Guid` | User invited to write Side B |
+| `SideARecordUrl` | `string?` | Optional Side A video URL |
+| `SideAThumbnailUrl` | `string?` | Optional Side A poster image |
+| `SideADurationSeconds` | `int?` | Optional Side A clip length |
 
 ### `AcceptInvitationRequest`
-Used by the invited user to accept and provide their Side B claim.
+Used by the invited user to accept and provide their Side B claim. The accepting
+user is the authenticated actor and is never taken from the request body.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `UserId` | `Guid` | Must match `InvitedUserId` on the case |
 | `Claim` | `string` | Side B argument text |
+| `SideBRecordUrl` | `string?` | Optional Side B video URL |
+| `SideBThumbnailUrl` | `string?` | Optional Side B poster image |
+| `SideBDurationSeconds` | `int?` | Optional Side B clip length |
 
 ### `DeclineInvitationRequest`
 Used by the invited user to decline the invitation.

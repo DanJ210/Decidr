@@ -333,10 +333,6 @@ textarea {
   grid-column: 3;
 }
 
-.bottom-nav-item:last-of-type {
-  grid-column: 4 / 6;
-}
-
 .create-fab {
   position: absolute;
   left: 50%;
@@ -364,6 +360,228 @@ textarea {
 
 .create-fab:focus-visible {
   transform: translateX(-50%);
+}
+
+/* ─── Court standings ────────────────────────────────────── */
+
+.standings-page {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.standings-header h1 {
+  max-width: 20ch;
+}
+
+.standing-spectrum {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background:
+    linear-gradient(90deg, rgba(222, 240, 215, 0.7), rgba(255, 255, 255, 0.8) 48%, rgba(240, 225, 218, 0.75));
+}
+
+.spectrum-canvas {
+  position: relative;
+  min-height: 18rem;
+}
+
+.spectrum-track {
+  position: absolute;
+  top: 50%;
+  right: 8%;
+  left: 8%;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--side-a), var(--line-strong), var(--side-b));
+}
+
+.spectrum-end {
+  position: absolute;
+  top: 1rem;
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.spectrum-champion {
+  left: 1rem;
+  color: var(--side-a);
+}
+
+.spectrum-jail {
+  right: 1rem;
+  color: var(--side-b);
+}
+
+.standing-marker {
+  position: absolute;
+  top: calc(50% - 4.7rem);
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  width: 5.5rem;
+  padding: 0;
+  transform: translateX(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.standing-marker.alternate {
+  top: calc(50% + 0.65rem);
+}
+
+.standing-marker:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+.marker-avatar {
+  display: grid;
+  place-items: center;
+  width: 2.65rem;
+  height: 2.65rem;
+  border: 2px solid white;
+  border-radius: 50%;
+  background: var(--ink);
+  color: white;
+  box-shadow: 0 0 0 2px var(--line-strong);
+  font-weight: 800;
+}
+
+.standing-marker.current .marker-avatar {
+  background: var(--signal);
+  color: var(--ink);
+}
+
+.standing-marker.selected .marker-avatar {
+  box-shadow: 0 0 0 4px var(--focus);
+}
+
+.marker-rank,
+.marker-name {
+  max-width: 5.5rem;
+  overflow: hidden;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marker-rank {
+  color: var(--muted);
+}
+
+.selected-standing {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.case-record-impact {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.case-record-impact h3,
+.case-record-impact p {
+  margin: 0;
+}
+
+.selected-standing h2,
+.selected-standing p {
+  margin: 0;
+}
+
+.standings-list-section,
+.provisional-section {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.standings-list-section h2,
+.provisional-section h2,
+.provisional-section > p {
+  margin: 0;
+}
+
+.standings-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.standings-table {
+  width: 100%;
+  min-width: 36rem;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+
+.standings-table th,
+.standings-table td {
+  padding: 0.85rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.standings-table thead th {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.standings-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.standings-table small {
+  display: block;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.current-user-row {
+  background: rgba(244, 198, 70, 0.14);
+}
+
+.provisional-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.provisional-list li {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.provisional-list span {
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 
 /* ─── Feed & case cards ──────────────────────────────────── */

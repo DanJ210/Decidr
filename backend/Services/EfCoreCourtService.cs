@@ -46,6 +46,23 @@ public class EfCoreCourtService : ICommunityCourtService
         return entity is null ? null : MapUser(entity);
     }
 
+    public IReadOnlyList<PlayerRecord> GetPlayerRecords()
+    {
+        var users = _db.Users.AsNoTracking().ToList().Select(MapUser);
+        var cases = _db.Cases
+            .AsNoTracking()
+            .Where(c => c.Status == CaseStatus.Closed && c.SideBUserId != null)
+            .ToList()
+            .Select(MapCase);
+
+        return PlayerRecordCalculator.Calculate(users, cases);
+    }
+
+    public PlayerRecord? GetPlayerRecord(Guid userId)
+    {
+        return GetPlayerRecords().FirstOrDefault(record => record.UserId == userId);
+    }
+
     // -------------------------------------------------------------------------
     // Cases
     // -------------------------------------------------------------------------
@@ -54,6 +71,8 @@ public class EfCoreCourtService : ICommunityCourtService
     {
         var caseEntities = _db.Cases
             .Where(c => c.Status != CaseStatus.Pending)
+            .Where(c => c.SideAMediaStatus != MediaStatus.Pending && c.SideAMediaStatus != MediaStatus.Failed)
+            .Where(c => c.SideBMediaStatus != MediaStatus.Pending && c.SideBMediaStatus != MediaStatus.Failed)
             .OrderByDescending(c => c.CreatedAtUtc)
             .ToList();
 
@@ -137,6 +156,10 @@ public class EfCoreCourtService : ICommunityCourtService
             SideAUserId = sideAUser.Id,
             SideAUserName = sideAUser.UserName,
             SideAClaim = request.SideAClaim,
+            SideAMediaUrl = request.SideARecordUrl,
+            SideAThumbnailUrl = request.SideAThumbnailUrl,
+            SideADurationSeconds = request.SideADurationSeconds,
+            SideAMediaStatus = CaseMediaGate.ResolveStatus(request.SideARecordUrl),
             SideAPostedAtUtc = createdAt,
             InvitedUserId = request.InvitedUserId,
             Status = CaseStatus.Pending,
@@ -679,6 +702,10 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
         caseEntity.SideBUserId = sideBUser.Id;
         caseEntity.SideBUserName = sideBUser.UserName;
         caseEntity.SideBClaim = request.Claim;
+        caseEntity.SideBMediaUrl = request.SideBRecordUrl;
+        caseEntity.SideBThumbnailUrl = request.SideBThumbnailUrl;
+        caseEntity.SideBDurationSeconds = request.SideBDurationSeconds;
+        caseEntity.SideBMediaStatus = CaseMediaGate.ResolveStatus(request.SideBRecordUrl);
         caseEntity.SideBPostedAtUtc = acceptedAt;
         caseEntity.Status = CaseStatus.Open;
         caseEntity.InvitedUserId = null;
@@ -834,10 +861,22 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
 
     private static ArgumentCase MapCase(CaseEntity e)
     {
-        var sideA = new ArgumentPost(CaseSide.A, e.SideAUserId, e.SideAUserName, e.SideAClaim, e.SideAPostedAtUtc);
+        var sideA = new ArgumentPost(CaseSide.A, e.SideAUserId, e.SideAUserName, e.SideAClaim, e.SideAPostedAtUtc)
+        {
+            MediaUrl = e.SideAMediaUrl,
+            ThumbnailUrl = e.SideAThumbnailUrl,
+            DurationSeconds = e.SideADurationSeconds,
+            MediaStatus = e.SideAMediaStatus,
+        };
 
         ArgumentPost? sideB = e.SideBUserId is not null
             ? new ArgumentPost(CaseSide.B, e.SideBUserId.Value, e.SideBUserName!, e.SideBClaim!, e.SideBPostedAtUtc!.Value)
+            {
+                MediaUrl = e.SideBMediaUrl,
+                ThumbnailUrl = e.SideBThumbnailUrl,
+                DurationSeconds = e.SideBDurationSeconds,
+                MediaStatus = e.SideBMediaStatus,
+            }
             : null;
 
         return new ArgumentCase(

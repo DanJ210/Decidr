@@ -13,6 +13,20 @@ namespace backend.Tests;
 public sealed class UsersControllerTests
 {
     [Fact]
+    public void Records_endpoints_are_allow_anonymous()
+    {
+        var recordsMethod = typeof(UsersController).GetMethod(nameof(UsersController.GetPlayerRecords));
+        Assert.Contains(
+            recordsMethod!.GetCustomAttributes(true),
+            attribute => attribute is Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute);
+
+        var recordMethod = typeof(UsersController).GetMethod(nameof(UsersController.GetPlayerRecord));
+        Assert.Contains(
+            recordMethod!.GetCustomAttributes(true),
+            attribute => attribute is Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute);
+    }
+
+    [Fact]
     public async Task Private_read_allows_resolved_actor_matching_route_user()
     {
         var userId = Guid.NewGuid();
