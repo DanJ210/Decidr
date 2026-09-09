@@ -269,7 +269,7 @@ the side's `MediaUrl`.
 | Field | Type | Description |
 |-------|------|-------------|
 | `Url` | `string` | Playback URL to persist on the case |
-| `DurationSeconds` | `int` | Validated clip length |
+| `DurationSeconds` | `int` | Server-derived clip length |
 | `SizeBytes` | `long` | Stored file size |
 | `ContentType` | `string` | Resolved video MIME type |
 

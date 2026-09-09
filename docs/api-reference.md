@@ -67,14 +67,13 @@ or `Failed`, so text-only cases remain visible.
 | Field | Type | Description |
 |-------|------|-------------|
 | `file` | file | The video clip |
-| `durationSeconds` | number | Measured clip length |
 
 **Validation**
 - The authenticated actor must resolve to a Decidr profile.
 - Extension must be `.mp4`, `.m4v`, `.mov`, or `.webm`.
 - File contents must match the extension's signature.
 - Size cannot exceed 64 MB.
-- `durationSeconds` must be between 1 and 30.
+- The server reads the container duration; it must be between 1 and 30 seconds.
 
 **Response `200 OK`** — `CaseMediaUploadResponse`  
 **Response `400 Bad Request`** — validation failure message  

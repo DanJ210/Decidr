@@ -97,7 +97,6 @@ export async function fetchCaseEvidence(caseId: string): Promise<CaseEvidenceCol
 export async function uploadCaseMedia(clip: { blob: Blob; durationSeconds: number }): Promise<CaseMediaUploadResponse> {
   const extension = clip.blob.type.includes('mp4') ? 'mp4' : 'webm'
   const formData = new FormData()
-  formData.append('durationSeconds', String(clip.durationSeconds))
   formData.append('file', clip.blob, `clip.${extension}`)
 
   const { data } = await apiClient.post<CaseMediaUploadResponse>('/cases/media', formData, {

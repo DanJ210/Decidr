@@ -328,9 +328,13 @@ public class CasesController : ControllerBase
             return BadRequest("Uploaded file contents do not match the selected video type.");
         }
 
-        if (request.DurationSeconds is < 1 or > MaxCaseMediaDurationSeconds)
+        var durationSeconds = await VideoFileValidator.GetDurationSecondsAsync(
+            request.File,
+            extension,
+            cancellationToken);
+        if (durationSeconds is null || durationSeconds > MaxCaseMediaDurationSeconds)
         {
-            return BadRequest($"Video duration must be between 1 and {MaxCaseMediaDurationSeconds} seconds.");
+            return BadRequest($"Video duration could not be determined or exceeds {MaxCaseMediaDurationSeconds} seconds.");
         }
 
         // Media is uploaded before the case exists, so it is partitioned by uploader rather than case.
@@ -345,7 +349,7 @@ public class CasesController : ControllerBase
         var fileName = Path.GetFileName(storageKey);
         return Ok(new CaseMediaUploadResponse(
             $"/api/cases/media/{actor.Id:N}/{fileName}",
-            request.DurationSeconds,
+            durationSeconds.Value,
             request.File.Length,
             contentType));
     }
@@ -729,7 +733,6 @@ public class CasesController : ControllerBase
 
     public sealed class UploadCaseMediaForm
     {
-        public int DurationSeconds { get; set; }
         public IFormFile? File { get; set; }
     }
 }

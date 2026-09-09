@@ -28,12 +28,33 @@ public sealed class CasesControllerMediaTests
             .ReturnsAsync($"{fixture.UserId:N}/{Guid.NewGuid():N}.webm");
 
         var result = await fixture.Controller.UploadCaseMedia(
-            new CasesController.UploadCaseMediaForm { DurationSeconds = 12, File = WebmFile() },
+            new CasesController.UploadCaseMediaForm { File = WebmFile(12) },
             CancellationToken.None);
 
         var response = Assert.IsType<CaseMediaUploadResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
         Assert.StartsWith($"/api/cases/media/{fixture.UserId:N}/", response.Url);
         Assert.Equal(12, response.DurationSeconds);
+    }
+
+    [Fact]
+    public async Task Media_upload_reads_duration_from_iso_base_media_container()
+    {
+        var fixture = CreateFixture();
+        fixture.Storage
+            .Setup(storage => storage.UploadAsync(
+                fixture.UserId,
+                ".mp4",
+                "video/mp4",
+                It.IsAny<Stream>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync($"{fixture.UserId:N}/{Guid.NewGuid():N}.mp4");
+
+        var result = await fixture.Controller.UploadCaseMedia(
+            new CasesController.UploadCaseMediaForm { File = Mp4File(18) },
+            CancellationToken.None);
+
+        var response = Assert.IsType<CaseMediaUploadResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(18, response.DurationSeconds);
     }
 
     [Fact]
@@ -48,7 +69,7 @@ public sealed class CasesControllerMediaTests
         };
 
         var result = await fixture.Controller.UploadCaseMedia(
-            new CasesController.UploadCaseMediaForm { DurationSeconds = 10, File = file },
+            new CasesController.UploadCaseMediaForm { File = file },
             CancellationToken.None);
 
         Assert.IsType<BadRequestObjectResult>(result.Result);
@@ -56,14 +77,13 @@ public sealed class CasesControllerMediaTests
     }
 
     [Theory]
-    [InlineData(0)]
     [InlineData(31)]
     public async Task Media_upload_rejects_duration_outside_the_clip_limit(int durationSeconds)
     {
         var fixture = CreateFixture();
 
         var result = await fixture.Controller.UploadCaseMedia(
-            new CasesController.UploadCaseMediaForm { DurationSeconds = durationSeconds, File = WebmFile() },
+            new CasesController.UploadCaseMediaForm { File = WebmFile(durationSeconds) },
             CancellationToken.None);
 
         Assert.IsType<BadRequestObjectResult>(result.Result);
@@ -82,7 +102,7 @@ public sealed class CasesControllerMediaTests
         };
 
         var result = await fixture.Controller.UploadCaseMedia(
-            new CasesController.UploadCaseMediaForm { DurationSeconds = 10, File = file },
+            new CasesController.UploadCaseMediaForm { File = file },
             CancellationToken.None);
 
         Assert.IsType<BadRequestObjectResult>(result.Result);
@@ -101,7 +121,7 @@ public sealed class CasesControllerMediaTests
             .ReturnsAsync((UserEntity?)null);
 
         var result = await fixture.Controller.UploadCaseMedia(
-            new CasesController.UploadCaseMediaForm { DurationSeconds = 10, File = WebmFile() },
+            new CasesController.UploadCaseMediaForm { File = WebmFile(12) },
             CancellationToken.None);
 
         Assert.IsType<UnauthorizedObjectResult>(result.Result);
@@ -134,14 +154,43 @@ public sealed class CasesControllerMediaTests
                 It.IsAny<CancellationToken>()),
             Times.Never);
 
-    private static FormFile WebmFile()
+    private static FormFile WebmFile(int durationSeconds)
     {
-        var bytes = new byte[] { 0x1A, 0x45, 0xDF, 0xA3, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 };
+        var durationBytes = BitConverter.GetBytes(durationSeconds * 1_000f);
+        if (BitConverter.IsLittleEndian) Array.Reverse(durationBytes);
+        var bytes = new byte[]
+        {
+            0x1A, 0x45, 0xDF, 0xA3, 0x80,
+            0x18, 0x53, 0x80, 0x67, 0xFF,
+            0x15, 0x49, 0xA9, 0x66, 0x8E,
+            0x2A, 0xD7, 0xB1, 0x83, 0x0F, 0x42, 0x40,
+            0x44, 0x89, 0x84,
+        }.Concat(durationBytes).ToArray();
         var content = new MemoryStream(bytes);
         return new FormFile(content, 0, content.Length, "file", "clip.webm")
         {
             Headers = new HeaderDictionary(),
             ContentType = "video/webm",
+        };
+    }
+
+    private static FormFile Mp4File(int durationSeconds)
+    {
+        var duration = durationSeconds * 1_000;
+        var bytes = new byte[]
+        {
+            0x00, 0x00, 0x00, 0x10, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6F, 0x6D, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x24, 0x6D, 0x6F, 0x6F, 0x76,
+            0x00, 0x00, 0x00, 0x1C, 0x6D, 0x76, 0x68, 0x64,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x03, 0xE8,
+            (byte)(duration >> 24), (byte)(duration >> 16), (byte)(duration >> 8), (byte)duration,
+        };
+        var content = new MemoryStream(bytes);
+        return new FormFile(content, 0, content.Length, "file", "clip.mp4")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "video/mp4",
         };
     }
 
