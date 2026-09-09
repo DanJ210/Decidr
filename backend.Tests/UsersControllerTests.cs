@@ -13,20 +13,17 @@ namespace backend.Tests;
 public sealed class UsersControllerTests
 {
     [Fact]
-    public void Records_are_public()
+    public void Records_endpoints_are_allow_anonymous()
     {
-        var userId = Guid.NewGuid();
-        var record = new PlayerRecord(userId, "alex", "Alex", 3, 1, 1, 5, 0.75, true, 1);
-        var courtService = new Mock<ICommunityCourtService>();
-        courtService.Setup(service => service.GetPlayerRecords()).Returns([record]);
-        courtService.Setup(service => service.GetPlayerRecord(userId)).Returns(record);
-        var controller = CreateController(courtService, new Mock<IActorResolver>());
+        var recordsMethod = typeof(UsersController).GetMethod(nameof(UsersController.GetPlayerRecords));
+        Assert.Contains(
+            recordsMethod!.GetCustomAttributes(true),
+            attribute => attribute is Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute);
 
-        var standings = controller.GetPlayerRecords();
-        var individual = controller.GetPlayerRecord(userId);
-
-        Assert.IsType<OkObjectResult>(standings.Result);
-        Assert.IsType<OkObjectResult>(individual.Result);
+        var recordMethod = typeof(UsersController).GetMethod(nameof(UsersController.GetPlayerRecord));
+        Assert.Contains(
+            recordMethod!.GetCustomAttributes(true),
+            attribute => attribute is Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute);
     }
 
     [Fact]
