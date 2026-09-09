@@ -26,12 +26,14 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet("records")]
+    [Microsoft.AspNetCore.Authorization.AllowAnonymous]
     public ActionResult<IEnumerable<PlayerRecord>> GetPlayerRecords()
     {
         return Ok(_courtService.GetPlayerRecords());
     }
 
     [HttpGet("{id:guid}/record")]
+    [Microsoft.AspNetCore.Authorization.AllowAnonymous]
     public ActionResult<PlayerRecord> GetPlayerRecord(Guid id)
     {
         var record = _courtService.GetPlayerRecord(id);
