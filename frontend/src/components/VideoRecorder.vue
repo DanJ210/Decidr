@@ -144,7 +144,7 @@ function onFileChange(event: Event) {
   max-height: 420px;
   border-radius: 14px;
   overflow: hidden;
-  background: #0d1016;
+  background: #0b1017;
   border: 1px solid rgba(255, 255, 255, 0.12);
   display: flex;
   align-items: center;
@@ -152,7 +152,7 @@ function onFileChange(event: Event) {
 }
 
 .recorder-stage.live {
-  border-color: #e5484d;
+  border-color: var(--danger);
 }
 
 .recorder-video {
@@ -189,7 +189,7 @@ function onFileChange(event: Event) {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #e5484d;
+  background: var(--danger);
 }
 
 .recorder-progress {
@@ -203,7 +203,7 @@ function onFileChange(event: Event) {
 .recorder-progress span {
   display: block;
   height: 100%;
-  background: #e5484d;
+  background: var(--danger);
   transition: width 1s linear;
 }
 
@@ -216,7 +216,7 @@ function onFileChange(event: Event) {
 
 .recorder-error {
   margin: 0;
-  color: #e5484d;
+  color: var(--danger);
   font-size: 0.85rem;
 }
 

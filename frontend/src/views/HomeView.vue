@@ -246,7 +246,7 @@ onBeforeUnmount(() => { for (const video of videoElements.values()) video.pause(
 
 .case-feed-media video {
   object-fit: cover;
-  background: #202830;
+  background: #111d29;
 }
 
 .case-feed-no-video {
@@ -254,7 +254,7 @@ onBeforeUnmount(() => { for (const video of videoElements.values()) video.pause(
   place-content: center;
   gap: .7rem;
   padding: 4rem 2rem;
-  background: linear-gradient(140deg, #2557d6, #182a42 55%, #b83a36);
+background: linear-gradient(140deg, var(--side-a-soft), #162d42 55%, var(--side-b-soft));
   text-align: center;
 }
 
