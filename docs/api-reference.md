@@ -124,8 +124,8 @@ creating a case or accepting an invitation, so the clip is partitioned by
 uploader rather than by case.
 
 Media supplied on creation or acceptance is recorded as `Ready`; sides with no
-media stay `None`. The public feed excludes cases where either side is `Pending`
-or `Failed`, so text-only cases remain visible.
+media stay `None`. The public feed requires both sides to have ready media, so
+text-only and partial cases remain hidden.
 
 **Request** — `multipart/form-data`
 
@@ -145,7 +145,7 @@ or `Failed`, so text-only cases remain visible.
 **Response `401 Unauthorized`** — unresolved actor
 
 ### `POST /api/cases/media/initiate`
-Starts a media upload session for an authenticated user before the final file is submitted. The session is owned by the resolved actor and stays in `Pending` until the final upload is accepted.
+Starts an authorized media upload session for an authenticated user before the file is submitted. The session is owned by the resolved actor and stays in `Pending` until content is uploaded.
 
 **Request body**
 ```json
@@ -166,8 +166,19 @@ Starts a media upload session for an authenticated user before the final file is
 **Response `400 Bad Request`** — validation failure message  
 **Response `401 Unauthorized`** — unresolved actor
 
+### `PUT /api/cases/media/{uploadId}/content`
+Uploads the raw video bytes to the authorized session. The request body must be
+the complete file and its `Content-Length` must match the initiated session.
+
+**Response `202 Accepted`** — content stored for processing
+**Response `400 Bad Request`** — size or upload state mismatch
+**Response `403 Forbidden`** — upload belongs to another user
+**Response `404 Not Found`** — unknown upload id
+
 ### `POST /api/cases/media/{uploadId}/finalize`
-Completes an authorized upload session by sending the actual file bytes. The upload must belong to the current user and still be pending.
+Queues an uploaded session for asynchronous validation. The upload must belong
+to the current user and have content stored. The legacy multipart body remains
+accepted for compatibility.
 
 **Request** — `multipart/form-data`
 
@@ -180,16 +191,18 @@ Completes an authorized upload session by sending the actual file bytes. The upl
 - File contents must match the selected video type and the stored metadata.
 - Duration must be determined and remain within the 30-second limit.
 
-**Response `200 OK`** — `CaseMediaUploadResponse`  
+**Response `202 Accepted`** — `CaseMediaUploadStatusResponse` with `status: "Processing"`
 **Response `400 Bad Request`** — validation or state failure message  
 **Response `401 Unauthorized`** — unresolved actor  
 **Response `403 Forbidden`** — upload belongs to another user  
 **Response `404 Not Found`** — unknown upload id
 
 ### `GET /api/cases/media/{uploadId}/status`
-Polls the status of a previously initiated upload session. This allows the client to wait for the server-side finalization state before creating or updating a case.
+Polls the status of a previously initiated upload session. Processing validates
+the stored signature and container duration. Rejected objects are deleted;
+ready responses include the playback URL and server-derived metadata.
 
-**Response `200 OK`** — `CaseMediaUploadStatusResponse` with `status: "Pending" | "Ready" | "Failed"`
+**Response `200 OK`** — `CaseMediaUploadStatusResponse` with `status: "Pending" | "Processing" | "Ready" | "Failed"`
 **Response `401 Unauthorized`** — unresolved actor  
 **Response `403 Forbidden`** — upload belongs to another user  
 **Response `404 Not Found`** — unknown upload id

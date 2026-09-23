@@ -98,6 +98,25 @@ export interface CaseMediaUploadResponse {
   contentType: string
 }
 
+export type CaseMediaUploadStatus = 'Pending' | 'Processing' | 'Ready' | 'Failed'
+
+export interface CaseMediaUploadSession {
+  uploadId: string
+  ownerId: string
+  fileName: string
+  contentType: string
+  sizeBytes: number
+  durationSeconds: number | null
+  status: CaseMediaUploadStatus
+  createdAtUtc: string
+}
+
+export interface CaseMediaUploadStatusResponse {
+  status: CaseMediaUploadStatus
+  media: CaseMediaUploadResponse | null
+  error: string | null
+}
+
 export interface ArgumentCase {
   id: string
   title: string

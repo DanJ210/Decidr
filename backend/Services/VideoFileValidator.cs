@@ -13,6 +13,15 @@ public static class VideoFileValidator
         CancellationToken cancellationToken)
     {
         await using var stream = file.OpenReadStream();
+        return await IsValidAsync(stream, extension, cancellationToken);
+    }
+
+    public static async Task<bool> IsValidAsync(
+        Stream stream,
+        string extension,
+        CancellationToken cancellationToken)
+    {
+        if (stream.CanSeek) stream.Position = 0;
         var header = new byte[12];
         if (await stream.ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false, cancellationToken) != header.Length)
         {
@@ -33,6 +42,15 @@ public static class VideoFileValidator
         CancellationToken cancellationToken)
     {
         await using var stream = file.OpenReadStream();
+        return await GetDurationSecondsAsync(stream, extension, cancellationToken);
+    }
+
+    public static async Task<int?> GetDurationSecondsAsync(
+        Stream stream,
+        string extension,
+        CancellationToken cancellationToken)
+    {
+        if (stream.CanSeek) stream.Position = 0;
         using var content = new MemoryStream();
         await stream.CopyToAsync(content, cancellationToken);
         var durationSeconds = extension.ToLowerInvariant() switch

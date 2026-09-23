@@ -59,7 +59,10 @@ If no `ConnectionStrings:DefaultConnection` is configured, the app falls back to
 ### Trust and Reliability Controls
 `TrustSafetyRegistry` centralizes the current prototype's moderation reports,
 case visibility decisions, user blocks, daily media upload quota, upload-session
-retention cleanup, retry counters, and operational metrics. Moderator-only API
+retention cleanup, retry counters, and operational metrics. Media upload sessions
+accept an owner-authorized content request, then `MediaUploadWorker` validates
+stored bytes asynchronously before exposing a playback URL; expired and rejected
+objects are deleted. Moderator-only API
 endpoints expose reports, case hide/restore decisions, and metrics. The registry
 is process-local by design for this prototype; production beta work must move
 these records and counters to durable storage and a shared rate-limit/metrics

@@ -116,6 +116,8 @@ else
     builder.Services.AddSingleton<IAuthenticatedUserService, UnavailableAuthenticatedUserService>();
 }
 builder.Services.AddScoped<IActorResolver, ActorResolver>();
+builder.Services.AddSingleton<MediaUploadProcessingQueue>();
+builder.Services.AddHostedService<MediaUploadWorker>();
 
 var evidenceBlobServiceUri = builder.Configuration["EvidenceStorage:BlobServiceUri"];
 var evidenceContainerName = builder.Configuration["EvidenceStorage:ContainerName"];

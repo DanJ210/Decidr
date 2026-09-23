@@ -10,6 +10,8 @@ import type {
   CaseEvidenceStatusResponse,
   CaseFeedPage,
   CaseMediaUploadResponse,
+  CaseMediaUploadSession,
+  CaseMediaUploadStatusResponse,
   CaseSide,
   CaseVoteStatus,
   CaseComment,
@@ -121,13 +123,30 @@ export async function fetchCaseEvidence(caseId: string): Promise<CaseEvidenceCol
 
 export async function uploadCaseMedia(clip: { blob: Blob; durationSeconds: number }): Promise<CaseMediaUploadResponse> {
   const extension = clip.blob.type.includes('mp4') ? 'mp4' : 'webm'
-  const formData = new FormData()
-  formData.append('file', clip.blob, `clip.${extension}`)
+  const fileName = `clip.${extension}`
+  const { data: session } = await apiClient.post<CaseMediaUploadSession>('/cases/media/initiate', {
+    fileName,
+    contentType: clip.blob.type || `video/${extension}`,
+    sizeBytes: clip.blob.size,
+    durationSeconds: clip.durationSeconds,
+  })
 
-  const { data } = await apiClient.post<CaseMediaUploadResponse>('/cases/media', formData, {
+  await apiClient.put(`/cases/media/${session.uploadId}/content`, clip.blob, {
+    headers: { 'Content-Type': session.contentType },
     timeout: 120_000,
   })
-  return data
+  await apiClient.post(`/cases/media/${session.uploadId}/finalize`)
+
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const { data: status } = await apiClient.get<CaseMediaUploadStatusResponse>(
+      `/cases/media/${session.uploadId}/status`,
+    )
+    if (status.status === 'Ready' && status.media) return status.media
+    if (status.status === 'Failed') throw new Error(status.error ?? 'Media processing failed.')
+    await new Promise((resolve) => window.setTimeout(resolve, 500))
+  }
+
+  throw new Error('Media processing timed out.')
 }
 
 export async function postCaseEvidenceLink(caseId: string, request: AddCaseEvidenceLinkRequest): Promise<CaseEvidenceItem> {

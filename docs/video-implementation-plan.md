@@ -1,7 +1,7 @@
 
 ## Implementation status
 
-**Last verified:** 2026-09-22
+**Last verified:** 2026-09-23
 
 This section tracks the current repository state. `Complete` means the behavior
 exists in the application and has focused coverage where practical. `Partial`
@@ -20,9 +20,9 @@ means the work has not been implemented yet.
    viewport and plays Side A followed by Side B when available.
 - **Gesture and accessible voting:** Horizontal swipe voting has visible button
    equivalents, while participant and repeat-vote restrictions remain enforced.
-- **Authorized media upload flow:** Clients can initiate a pending upload,
-   finalize it with ownership checks, and poll the ready state without a sync
-   server-side media endpoint. This is now covered by backend media tests.
+- **Authorized media upload flow:** Clients can initiate an owner-authorized
+   upload, send the raw content, finalize it for asynchronous validation, and
+   poll the ready state. Rejected and expired upload objects are removed.
 - **Basic media validation:** The server validates supported video signatures,
    extensions, size, and container-derived duration. Backend media tests cover
    successful uploads and rejected inputs.
@@ -34,7 +34,7 @@ means the work has not been implemented yet.
 - **Publication gating:** Public feed entries now require both Side A and Side B
    media to be ready before appearing, while text-only or partial cases remain
    hidden.
-- **Focused validation:** The backend test suite currently passes 75 tests.
+- **Focused validation:** Backend media upload and lifecycle paths have focused test coverage.
 - **Feed controls and pagination:** The feed now loads cursor pages, pauses when
    hidden, exposes a captions fallback and reporting control, and records
    playback start/completion events.
@@ -44,15 +44,16 @@ means the work has not been implemented yet.
 
 ### Partial
 
-- **Media foundation:** Uploads currently pass through ASP.NET and the existing
-   evidence storage abstraction. Media is marked `Ready` immediately; there is
-   no authorized direct upload, asynchronous processing, transcoding, or cleanup.
+- **Media foundation:** The authorized upload and asynchronous validation path
+   now exists, with signature/duration validation and cleanup. Direct-to-blob
+   SAS uploads, transcoding, thumbnail generation, caption generation, and
+   durable upload-session storage remain before production launch.
 
 ### Next
 
-1. Finish the production media foundation: direct browser uploads with
-   authorization, async processing, transcoding, thumbnail/caption generation,
-   and storage cleanup for rejected or declined media.
+1. Finish the remaining production media foundation: direct-to-blob
+   authorization, async transcoding, thumbnail/caption generation, and durable
+   upload-session storage.
 2. Complete the two-sided video lifecycle: enforce ready-media publication
    gating, finalize defense acceptance flow, and close the remaining
    lifecycle/production gaps in media handling.
@@ -64,7 +65,7 @@ means the work has not been implemented yet.
 | Phase | Status | Notes |
 |---|---|---|
 | 1. Product prototype | Complete | Core recording, two-sided playback, feed navigation, and voting are implemented. |
-| 2. Media foundation | Partial | Authorized upload initiation and polling are implemented; durable async processing and cleanup remain next. |
+| 2. Media foundation | Partial | Authorized upload, asynchronous validation, and cleanup are implemented; direct-to-blob SAS, transcoding, thumbnails, captions, and durable session storage remain. |
 | 3. Two-sided video lifecycle | Partial | Creation and acceptance accept media; publication still permits text-only cases. |
 | 4. Public video feed | Complete | Cursor pagination, preload limits, captions fallback, reporting, playback analytics, and hidden-visibility pause are implemented. |
 | 5. Trust and reliability | Complete | Reports, moderator hide/restore, blocking, quotas, retention cleanup, retry behavior, and metrics are implemented; production durability remains a beta hardening task. |

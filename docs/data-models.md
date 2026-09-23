@@ -310,8 +310,8 @@ API-facing reward shape returned by `GET /api/users/{id}/rewards`.
 ## Request DTOs
 
 ### `CaseMediaUploadResponse`
-Returned by the case media upload endpoint. The `Url` is what gets persisted as
-the side's `MediaUrl`.
+Returned when an asynchronous media upload reaches `Ready`. The `Url` is what
+gets persisted as the side's `MediaUrl`.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -319,6 +319,15 @@ the side's `MediaUrl`.
 | `DurationSeconds` | `int` | Server-derived clip length |
 | `SizeBytes` | `long` | Stored file size |
 | `ContentType` | `string` | Resolved video MIME type |
+
+### `CaseMediaUploadStatusResponse`
+Returned while polling an authorized upload session.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Status` | `CaseMediaUploadStatus` | `Pending`, `Processing`, `Ready`, or `Failed` |
+| `Media` | `CaseMediaUploadResponse?` | Playback metadata when ready |
+| `Error` | `string?` | Processing failure detail when failed |
 
 ---
 
