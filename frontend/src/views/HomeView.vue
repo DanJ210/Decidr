@@ -254,7 +254,7 @@ onBeforeUnmount(() => { for (const video of videoElements.values()) video.pause(
   place-content: center;
   gap: .7rem;
   padding: 4rem 2rem;
-  background: linear-gradient(140deg, var(--side-a), #162d42 55%, var(--side-b));
+background: linear-gradient(140deg, var(--side-a-soft), #162d42 55%, var(--side-b-soft));
   text-align: center;
 }
 
