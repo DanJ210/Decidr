@@ -85,21 +85,68 @@ One side's opening argument in a case.
 | `PostedAtUtc` | `DateTime` | When posted |
 | `MediaUrl` | `string?` | Playback URL for the side's video, or `null` for a text-only argument |
 | `ThumbnailUrl` | `string?` | Poster image for the video |
+| `MimeType` | `string?` | Media MIME type, such as `video/mp4` |
+| `WidthPixels` | `int?` | Encoded video width in pixels |
+| `HeightPixels` | `int?` | Encoded video height in pixels |
 | `DurationSeconds` | `int?` | Clip length in seconds |
 | `MediaStatus` | `MediaStatus` | Readiness of this side's video |
+| `CaptionStatus` | `CaptionStatus` | Caption-generation state |
+| `TranscriptStatus` | `TranscriptStatus` | Transcript-generation state |
+
+### `CaseFeedPage`
+Cursor page returned by the public feed endpoint.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Items` | `ArgumentCase[]` | Publication-ready cases in this page |
+| `NextCursor` | `string?` | Opaque cursor for the next page |
+| `HasMore` | `bool` | Whether another page is available |
+
+### `ModerationReport`
+Queued trust-safety report returned to moderators.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `CaseId` | `Guid` | Reported case |
+| `ReporterId` | `Guid` | Authenticated reporter |
+| `Reason` | `string` | User-provided reason |
+| `CreatedAtUtc` | `DateTime` | Submission time |
 
 ---
 
 ### `MediaStatus`
 Readiness of one side's video. A case is held out of the public feed while either
-side is `Pending` or `Failed`.
+side is still in an unfinished or rejected media state.
 
 | Value | Meaning |
 |-------|---------|
-| `None` | Text-only argument; never blocks publication |
+| `None` | No video is attached; the side is still excluded from the public feed because publication currently requires both sides to be `Ready` |
 | `Pending` | Upload or processing has not finished |
+| `Uploading` | Media is being transferred or staged |
+| `Processing` | Media is being validated or transcoded |
 | `Ready` | Playable |
+| `Rejected` | Upload or processing was rejected |
 | `Failed` | Upload or processing failed |
+
+### `CaptionStatus`
+The caption-generation state for a media asset.
+
+| Value | Meaning |
+|-------|---------|
+| `None` | No caption workflow has started |
+| `Pending` | Caption generation is in progress |
+| `Ready` | Captions are available |
+| `Failed` | Caption generation failed |
+
+### `TranscriptStatus`
+The transcript-generation state for a media asset.
+
+| Value | Meaning |
+|-------|---------|
+| `None` | No transcript workflow has started |
+| `Pending` | Transcript generation is in progress |
+| `Ready` | Transcript is available |
+| `Failed` | Transcript generation failed |
 
 ---
 
@@ -263,8 +310,8 @@ API-facing reward shape returned by `GET /api/users/{id}/rewards`.
 ## Request DTOs
 
 ### `CaseMediaUploadResponse`
-Returned by the case media upload endpoint. The `Url` is what gets persisted as
-the side's `MediaUrl`.
+Returned when an asynchronous media upload reaches `Ready`. The `Url` is what
+gets persisted as the side's `MediaUrl`.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -272,6 +319,15 @@ the side's `MediaUrl`.
 | `DurationSeconds` | `int` | Server-derived clip length |
 | `SizeBytes` | `long` | Stored file size |
 | `ContentType` | `string` | Resolved video MIME type |
+
+### `CaseMediaUploadStatusResponse`
+Returned while polling an authorized upload session.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Status` | `CaseMediaUploadStatus` | `Pending`, `Processing`, `Ready`, or `Failed` |
+| `Media` | `CaseMediaUploadResponse?` | Playback metadata when ready |
+| `Error` | `string?` | Processing failure detail when failed |
 
 ---
 

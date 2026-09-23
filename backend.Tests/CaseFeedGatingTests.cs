@@ -13,10 +13,40 @@ public sealed class CaseFeedGatingTests
     [InlineData(MediaStatus.None, false)]
     [InlineData(MediaStatus.Ready, false)]
     [InlineData(MediaStatus.Pending, true)]
+    [InlineData(MediaStatus.Uploading, true)]
+    [InlineData(MediaStatus.Processing, true)]
+    [InlineData(MediaStatus.Rejected, true)]
     [InlineData(MediaStatus.Failed, true)]
     public void Only_unready_media_blocks_publication(MediaStatus status, bool blocks)
     {
         Assert.Equal(blocks, CaseMediaGate.BlocksPublication(status));
+    }
+
+    [Fact]
+    public void Video_posts_expose_metadata_needed_for_processing_and_playback()
+    {
+        var post = new ArgumentPost(
+            CaseSide.A,
+            Guid.NewGuid(),
+            "alex_t",
+            "Opening claim",
+            DateTime.UtcNow)
+        {
+            MediaUrl = "/api/cases/media/abc/clip.mp4",
+            ThumbnailUrl = "https://cdn.example.com/thumb.jpg",
+            MimeType = "video/mp4",
+            WidthPixels = 1920,
+            HeightPixels = 1080,
+            CaptionStatus = CaptionStatus.Ready,
+            TranscriptStatus = TranscriptStatus.Ready,
+            MediaStatus = MediaStatus.Ready,
+        };
+
+        Assert.Equal("video/mp4", post.MimeType);
+        Assert.Equal(1920, post.WidthPixels);
+        Assert.Equal(1080, post.HeightPixels);
+        Assert.Equal(CaptionStatus.Ready, post.CaptionStatus);
+        Assert.Equal(TranscriptStatus.Ready, post.TranscriptStatus);
     }
 
     [Theory]
@@ -30,7 +60,7 @@ public sealed class CaseFeedGatingTests
     }
 
     [Fact]
-    public void Feed_hides_cases_whose_media_is_not_ready_but_keeps_text_only_cases()
+    public void Feed_requires_both_sides_to_be_ready_before_publication()
     {
         using var connection = new Microsoft.Data.Sqlite.SqliteConnection("DataSource=:memory:");
         connection.Open();
@@ -48,19 +78,52 @@ public sealed class CaseFeedGatingTests
         var bothReady = OpenCase(alex, blair, MediaStatus.Ready, MediaStatus.Ready);
         var defenceStillProcessing = OpenCase(alex, blair, MediaStatus.Ready, MediaStatus.Pending);
         var prosecutionFailed = OpenCase(alex, blair, MediaStatus.Failed, MediaStatus.Ready);
-        db.Cases.AddRange(textOnly, bothReady, defenceStillProcessing, prosecutionFailed);
+        var sideAOnly = OpenCase(alex, blair, MediaStatus.Ready, MediaStatus.None);
+        db.Cases.AddRange(textOnly, bothReady, defenceStillProcessing, prosecutionFailed, sideAOnly);
         db.SaveChanges();
 
         var feed = new EfCoreCourtService(db).GetCases().Select(item => item.Id).ToList();
 
-        Assert.Contains(textOnly.Id, feed);
+        Assert.DoesNotContain(textOnly.Id, feed);
+        Assert.DoesNotContain(sideAOnly.Id, feed);
         Assert.Contains(bothReady.Id, feed);
         Assert.DoesNotContain(defenceStillProcessing.Id, feed);
         Assert.DoesNotContain(prosecutionFailed.Id, feed);
     }
 
     [Fact]
-    public void In_memory_acceptance_marks_declared_media_ready()
+    public void Feed_queries_apply_cursor_pagination_before_materializing_results()
+    {
+        using var connection = new Microsoft.Data.Sqlite.SqliteConnection("DataSource=:memory:");
+        connection.Open();
+        var options = new DbContextOptionsBuilder<DecidirDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        using var db = new DecidirDbContext(options);
+        db.Database.EnsureCreated();
+
+        var alex = User("alex", "Alex");
+        var blair = User("blair", "Blair");
+        db.Users.AddRange(alex, blair);
+
+        var older = OpenCase(alex, blair, MediaStatus.Ready, MediaStatus.Ready);
+        older.CreatedAtUtc = DateTime.UtcNow.AddMinutes(-1);
+        var newer = OpenCase(alex, blair, MediaStatus.Ready, MediaStatus.Ready);
+        newer.CreatedAtUtc = DateTime.UtcNow;
+        db.Cases.AddRange(older, newer);
+        db.SaveChanges();
+
+        var service = new EfCoreCourtService(db);
+        var firstPage = service.GetFeedCases(null, null, 1, [], []);
+        var secondPage = service.GetFeedCases(firstPage[0].CreatedAtUtc, firstPage[0].Id, 1, [], []);
+
+        Assert.Single(firstPage);
+        Assert.Single(secondPage);
+        Assert.NotEqual(firstPage[0].Id, secondPage[0].Id);
+    }
+
+    [Fact]
+    public void In_memory_acceptance_requires_ready_media_before_public_feed_visibility()
     {
         var service = new InMemoryCommunityCourtService();
         var creator = service.GetUsers().First();
@@ -78,11 +141,16 @@ public sealed class CaseFeedGatingTests
         });
 
         Assert.Equal(MediaStatus.Ready, created.SideA.MediaStatus);
+        Assert.DoesNotContain(service.GetCases(), item => item.Id == created.Id);
 
-        var accepted = service.AcceptCaseInvitation(created.Id, invitee.Id, new AcceptInvitationRequest("Defense claim"));
+        var accepted = service.AcceptCaseInvitation(created.Id, invitee.Id, new AcceptInvitationRequest("Defense claim")
+        {
+            SideBRecordUrl = "/api/cases/media/abc/side-b.webm",
+            SideBDurationSeconds = 18,
+        });
 
         Assert.True(accepted.Success);
-        Assert.Equal(MediaStatus.None, accepted.UpdatedCase!.SideB!.MediaStatus);
+        Assert.Equal(MediaStatus.Ready, accepted.UpdatedCase!.SideB!.MediaStatus);
         Assert.Contains(service.GetCases(), item => item.Id == created.Id);
     }
 

@@ -144,6 +144,199 @@ public sealed class CasesControllerMediaTests
             Times.Never);
     }
 
+    [Fact]
+    public async Task Media_upload_initiation_and_finalization_track_pending_then_ready_status()
+    {
+        var fixture = CreateFixture();
+        var file = WebmFile(12);
+        fixture.Storage
+            .Setup(storage => storage.UploadAsync(
+                fixture.UserId,
+                ".webm",
+                "video/webm",
+                It.IsAny<Stream>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>()))
+            .ReturnsAsync($"{fixture.UserId:N}/{Guid.NewGuid():N}.webm");
+
+        var initiate = await fixture.Controller.InitiateCaseMediaUpload(
+            new CasesController.InitiateCaseMediaUploadRequest
+            {
+                FileName = "clip.webm",
+                ContentType = "video/webm",
+                SizeBytes = file.Length,
+                DurationSeconds = 12,
+            },
+            CancellationToken.None);
+
+        var statusBefore = Assert.IsType<OkObjectResult>(initiate.Result);
+        var upload = Assert.IsType<CasesController.CaseMediaUploadSession>(statusBefore.Value);
+        Assert.Equal(CasesController.CaseMediaUploadStatus.Pending, upload.Status);
+
+        var finalise = await fixture.Controller.FinalizeCaseMediaUpload(
+            upload.UploadId,
+            new CasesController.FinalizeCaseMediaUploadRequest
+            {
+                File = file,
+            },
+            CancellationToken.None);
+
+        var finalized = Assert.IsType<OkObjectResult>(finalise.Result);
+        var response = Assert.IsType<CaseMediaUploadResponse>(finalized.Value);
+        Assert.StartsWith($"/api/cases/media/{fixture.UserId:N}/", response.Url);
+        Assert.Equal(12, response.DurationSeconds);
+
+        var poll = await fixture.Controller.GetCaseMediaUploadStatus(
+            upload.UploadId,
+            CancellationToken.None);
+
+        var pollResult = Assert.IsType<OkObjectResult>(poll.Result);
+        var pollStatus = Assert.IsType<CasesController.CaseMediaUploadStatusResponse>(pollResult.Value);
+        Assert.Equal(CasesController.CaseMediaUploadStatus.Ready, pollStatus.Status);
+    }
+
+    [Fact]
+    public async Task Media_upload_content_then_finalize_queues_processing_and_becomes_ready()
+    {
+        var fixture = CreateFixture();
+        var file = WebmFile(12);
+        var storageKey = $"{fixture.UserId:N}/{Guid.NewGuid():N}.webm";
+        fixture.Storage
+            .Setup(storage => storage.UploadAsync(
+                fixture.UserId,
+                ".webm",
+                "video/webm",
+                It.IsAny<Stream>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>()))
+            .ReturnsAsync(storageKey);
+        fixture.Storage
+            .Setup(storage => storage.OpenReadAsync(storageKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            {
+                var source = file.OpenReadStream();
+                return new StoredEvidenceContent(EvidenceContentStatus.Clean, source, "video/webm");
+            });
+
+        var initiate = await fixture.Controller.InitiateCaseMediaUpload(
+            new CasesController.InitiateCaseMediaUploadRequest
+            {
+                FileName = "clip.webm",
+                ContentType = "video/webm",
+                SizeBytes = file.Length,
+                DurationSeconds = 12,
+            },
+            CancellationToken.None);
+        var upload = Assert.IsType<CasesController.CaseMediaUploadSession>(
+            Assert.IsType<OkObjectResult>(initiate.Result).Value);
+
+        var request = fixture.Controller.ControllerContext.HttpContext.Request;
+        request.Body = file.OpenReadStream();
+        request.ContentLength = file.Length;
+        request.ContentType = "video/webm; charset=binary";
+
+        var uploadContent = await fixture.Controller.UploadCaseMediaContent(upload.UploadId, CancellationToken.None);
+        Assert.IsType<AcceptedResult>(uploadContent);
+
+        var queued = await fixture.Controller.FinalizeCaseMediaUpload(
+            upload.UploadId,
+            new CasesController.FinalizeCaseMediaUploadRequest(),
+            CancellationToken.None);
+        var queuedResponse = Assert.IsType<AcceptedResult>(queued.Result);
+        var queuedStatus = Assert.IsType<CasesController.CaseMediaUploadStatusResponse>(queuedResponse.Value);
+        Assert.Equal(CasesController.CaseMediaUploadStatus.Processing, queuedStatus.Status);
+
+        await CasesController.ProcessMediaUploadAsync(
+            upload.UploadId,
+            fixture.Storage.Object,
+            fixture.SessionStore,
+            Mock.Of<ILogger>(),
+            CancellationToken.None);
+
+        var poll = await fixture.Controller.GetCaseMediaUploadStatus(upload.UploadId, CancellationToken.None);
+        var pollStatus = Assert.IsType<CasesController.CaseMediaUploadStatusResponse>(
+            Assert.IsType<OkObjectResult>(poll.Result).Value);
+        Assert.Equal(CasesController.CaseMediaUploadStatus.Ready, pollStatus.Status);
+        Assert.NotNull(pollStatus.Media);
+    }
+
+    [Fact]
+    public async Task Media_upload_finalization_rejects_metadata_mismatches_and_marks_session_failed()
+    {
+        var fixture = CreateFixture();
+        var file = WebmFile(12);
+        var initiate = await fixture.Controller.InitiateCaseMediaUpload(
+            new CasesController.InitiateCaseMediaUploadRequest
+            {
+                FileName = "clip.webm",
+                ContentType = "video/webm",
+                SizeBytes = file.Length + 1,
+                DurationSeconds = 12,
+            },
+            CancellationToken.None);
+
+        var upload = Assert.IsType<CasesController.CaseMediaUploadSession>(
+            Assert.IsType<OkObjectResult>(initiate.Result).Value);
+
+        var finalise = await fixture.Controller.FinalizeCaseMediaUpload(
+            upload.UploadId,
+            new CasesController.FinalizeCaseMediaUploadRequest
+            {
+                File = file,
+            },
+            CancellationToken.None);
+
+        var failure = Assert.IsType<BadRequestObjectResult>(finalise.Result);
+        Assert.Equal("The uploaded content length does not match the upload session.", failure.Value);
+
+        var poll = await fixture.Controller.GetCaseMediaUploadStatus(upload.UploadId, CancellationToken.None);
+        var pollStatus = Assert.IsType<CasesController.CaseMediaUploadStatusResponse>(
+            Assert.IsType<OkObjectResult>(poll.Result).Value);
+        Assert.Equal(CasesController.CaseMediaUploadStatus.Failed, pollStatus.Status);
+    }
+
+    [Fact]
+    public async Task Declining_a_case_deletes_any_attached_side_a_media()
+    {
+        var caseId = Guid.NewGuid();
+        var service = new Mock<ICommunityCourtService>();
+        service
+            .Setup(x => x.DeclineCaseInvitation(caseId, It.IsAny<Guid>()))
+            .Returns((true, null));
+
+        var fixture = CreateFixture(service.Object);
+        var actorId = fixture.UserId;
+        var pendingCase = new ArgumentCase(
+            caseId,
+            "Title",
+            "Category",
+            "Summary",
+            new ArgumentPost(CaseSide.A, Guid.NewGuid(), "creator", "Claim", DateTime.UtcNow)
+            {
+                MediaUrl = $"/api/cases/media/{Guid.NewGuid():N}/side-a.webm",
+                MediaStatus = MediaStatus.Ready,
+            },
+            null,
+            actorId,
+            new CommunityVerdict(0, 0),
+            CaseStatus.Pending,
+            null,
+            DateTime.UtcNow,
+            null);
+        service
+            .Setup(x => x.GetCase(caseId, It.IsAny<Guid?>()))
+            .Returns(pendingCase);
+
+        var result = await fixture.Controller.DeclineInvitation(caseId, CancellationToken.None);
+
+        Assert.IsType<NoContentResult>(result);
+        fixture.Storage.Verify(
+            storage => storage.DeleteAsync(
+                It.Is<string>(key => key.EndsWith("/side-a.webm", StringComparison.OrdinalIgnoreCase)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private static void VerifyNoUpload(MediaFixture fixture) =>
         fixture.Storage.Verify(
             storage => storage.UploadAsync(
@@ -194,7 +387,7 @@ public sealed class CasesControllerMediaTests
         };
     }
 
-    private static MediaFixture CreateFixture()
+    private static MediaFixture CreateFixture(ICommunityCourtService? service = null)
     {
         var userId = Guid.NewGuid();
         var actorResolver = new Mock<IActorResolver>();
@@ -206,10 +399,13 @@ public sealed class CasesControllerMediaTests
             .ReturnsAsync(new UserEntity { Id = userId });
 
         var storage = new Mock<ICaseEvidenceStorage>();
+        var sessionStore = new TestCaseMediaUploadSessionStore();
         var controller = new CasesController(
-            Mock.Of<ICommunityCourtService>(),
+            service ?? Mock.Of<ICommunityCourtService>(),
             actorResolver.Object,
             storage.Object,
+            sessionStore,
+            new MediaUploadProcessingQueue(),
             Mock.Of<ILogger<CasesController>>())
         {
             ControllerContext = new ControllerContext
@@ -218,12 +414,13 @@ public sealed class CasesControllerMediaTests
             },
         };
 
-        return new MediaFixture(userId, actorResolver, storage, controller);
+        return new MediaFixture(userId, actorResolver, storage, sessionStore, controller);
     }
 
     private sealed record MediaFixture(
         Guid UserId,
         Mock<IActorResolver> ActorResolver,
         Mock<ICaseEvidenceStorage> Storage,
+        TestCaseMediaUploadSessionStore SessionStore,
         CasesController Controller);
 }

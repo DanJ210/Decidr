@@ -71,11 +71,61 @@ public class EfCoreCourtService : ICommunityCourtService
     {
         var caseEntities = _db.Cases
             .Where(c => c.Status != CaseStatus.Pending)
-            .Where(c => c.SideAMediaStatus != MediaStatus.Pending && c.SideAMediaStatus != MediaStatus.Failed)
-            .Where(c => c.SideBMediaStatus != MediaStatus.Pending && c.SideBMediaStatus != MediaStatus.Failed)
+            .Where(c => c.SideAUserId != Guid.Empty)
+            .Where(c => c.SideBUserId != null)
+            .Where(c => c.SideAMediaStatus == MediaStatus.Ready)
+            .Where(c => c.SideBMediaStatus == MediaStatus.Ready)
             .OrderByDescending(c => c.CreatedAtUtc)
             .ToList();
 
+        return MapCasesWithVerdicts(caseEntities);
+    }
+
+    public IReadOnlyList<ArgumentCase> GetFeedCases(
+        DateTime? createdBeforeUtc,
+        Guid? caseIdBefore,
+        int limit,
+        IReadOnlyCollection<Guid> hiddenCaseIds,
+        IReadOnlyCollection<Guid> blockedUserIds)
+    {
+        var query = _db.Cases
+            .AsNoTracking()
+            .Where(c => c.Status != CaseStatus.Pending)
+            .Where(c => c.SideAUserId != Guid.Empty)
+            .Where(c => c.SideBUserId != null)
+            .Where(c => c.SideAMediaStatus == MediaStatus.Ready)
+            .Where(c => c.SideBMediaStatus == MediaStatus.Ready);
+
+        if (hiddenCaseIds.Count > 0)
+        {
+            query = query.Where(c => !hiddenCaseIds.Contains(c.Id));
+        }
+
+        if (blockedUserIds.Count > 0)
+        {
+            query = query
+                .Where(c => !blockedUserIds.Contains(c.SideAUserId))
+                .Where(c => c.SideBUserId == null || !blockedUserIds.Contains(c.SideBUserId.Value));
+        }
+
+        if (createdBeforeUtc is DateTime createdBefore && caseIdBefore is Guid beforeId)
+        {
+            query = query.Where(c =>
+                c.CreatedAtUtc < createdBefore ||
+                (c.CreatedAtUtc == createdBefore && c.Id.CompareTo(beforeId) < 0));
+        }
+
+        var caseEntities = query
+            .OrderByDescending(c => c.CreatedAtUtc)
+            .ThenByDescending(c => c.Id)
+            .Take(limit)
+            .ToList();
+
+        return MapCasesWithVerdicts(caseEntities);
+    }
+
+    private IReadOnlyList<ArgumentCase> MapCasesWithVerdicts(IReadOnlyList<CaseEntity> caseEntities)
+    {
         if (caseEntities.Count == 0)
         {
             return [];
@@ -158,8 +208,13 @@ public class EfCoreCourtService : ICommunityCourtService
             SideAClaim = request.SideAClaim,
             SideAMediaUrl = request.SideARecordUrl,
             SideAThumbnailUrl = request.SideAThumbnailUrl,
+            SideAMimeType = request.SideAMimeType,
+            SideAWidthPixels = request.SideAWidthPixels,
+            SideAHeightPixels = request.SideAHeightPixels,
             SideADurationSeconds = request.SideADurationSeconds,
             SideAMediaStatus = CaseMediaGate.ResolveStatus(request.SideARecordUrl),
+            SideACaptionStatus = request.SideACaptionStatus,
+            SideATranscriptStatus = request.SideATranscriptStatus,
             SideAPostedAtUtc = createdAt,
             InvitedUserId = request.InvitedUserId,
             Status = CaseStatus.Pending,
@@ -704,8 +759,13 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
         caseEntity.SideBClaim = request.Claim;
         caseEntity.SideBMediaUrl = request.SideBRecordUrl;
         caseEntity.SideBThumbnailUrl = request.SideBThumbnailUrl;
+        caseEntity.SideBMimeType = request.SideBMimeType;
+        caseEntity.SideBWidthPixels = request.SideBWidthPixels;
+        caseEntity.SideBHeightPixels = request.SideBHeightPixels;
         caseEntity.SideBDurationSeconds = request.SideBDurationSeconds;
         caseEntity.SideBMediaStatus = CaseMediaGate.ResolveStatus(request.SideBRecordUrl);
+        caseEntity.SideBCaptionStatus = request.SideBCaptionStatus;
+        caseEntity.SideBTranscriptStatus = request.SideBTranscriptStatus;
         caseEntity.SideBPostedAtUtc = acceptedAt;
         caseEntity.Status = CaseStatus.Open;
         caseEntity.InvitedUserId = null;
@@ -865,8 +925,13 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
         {
             MediaUrl = e.SideAMediaUrl,
             ThumbnailUrl = e.SideAThumbnailUrl,
+            MimeType = e.SideAMimeType,
+            WidthPixels = e.SideAWidthPixels,
+            HeightPixels = e.SideAHeightPixels,
             DurationSeconds = e.SideADurationSeconds,
             MediaStatus = e.SideAMediaStatus,
+            CaptionStatus = e.SideACaptionStatus,
+            TranscriptStatus = e.SideATranscriptStatus,
         };
 
         ArgumentPost? sideB = e.SideBUserId is not null
@@ -874,8 +939,13 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
             {
                 MediaUrl = e.SideBMediaUrl,
                 ThumbnailUrl = e.SideBThumbnailUrl,
+                MimeType = e.SideBMimeType,
+                WidthPixels = e.SideBWidthPixels,
+                HeightPixels = e.SideBHeightPixels,
                 DurationSeconds = e.SideBDurationSeconds,
                 MediaStatus = e.SideBMediaStatus,
+                CaptionStatus = e.SideBCaptionStatus,
+                TranscriptStatus = e.SideBTranscriptStatus,
             }
             : null;
 

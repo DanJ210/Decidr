@@ -169,6 +169,38 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         }
     }
 
+    public IReadOnlyList<ArgumentCase> GetFeedCases(
+        DateTime? createdBeforeUtc,
+        Guid? caseIdBefore,
+        int limit,
+        IReadOnlyCollection<Guid> hiddenCaseIds,
+        IReadOnlyCollection<Guid> blockedUserIds)
+    {
+        lock (_syncRoot)
+        {
+            var query = _cases
+                .Where(c => c.Status != CaseStatus.Pending)
+                .Where(CaseMediaGate.IsFeedReady)
+                .Where(c => !hiddenCaseIds.Contains(c.Id))
+                .Where(c => !blockedUserIds.Contains(c.SideA.UserId))
+                .Where(c => c.SideB is null || !blockedUserIds.Contains(c.SideB.UserId));
+
+            if (createdBeforeUtc is DateTime createdBefore && caseIdBefore is Guid beforeId)
+            {
+                query = query.Where(c =>
+                    c.CreatedAtUtc < createdBefore ||
+                    (c.CreatedAtUtc == createdBefore && c.Id.CompareTo(beforeId) < 0));
+            }
+
+            return query
+                .OrderByDescending(c => c.CreatedAtUtc)
+                .ThenByDescending(c => c.Id)
+                .Take(limit)
+                .Select(RefreshVerdict)
+                .ToList();
+        }
+    }
+
     public ArgumentCase? GetCase(Guid caseId, Guid? viewerUserId = null)
     {
         lock (_syncRoot)
@@ -216,8 +248,13 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
             {
                 MediaUrl = request.SideARecordUrl,
                 ThumbnailUrl = request.SideAThumbnailUrl,
+                MimeType = request.SideAMimeType,
+                WidthPixels = request.SideAWidthPixels,
+                HeightPixels = request.SideAHeightPixels,
                 DurationSeconds = request.SideADurationSeconds,
                 MediaStatus = CaseMediaGate.ResolveStatus(request.SideARecordUrl),
+                CaptionStatus = request.SideACaptionStatus,
+                TranscriptStatus = request.SideATranscriptStatus,
             };
 
             var created = new ArgumentCase(
@@ -722,8 +759,13 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
             {
                 MediaUrl = request.SideBRecordUrl,
                 ThumbnailUrl = request.SideBThumbnailUrl,
+                MimeType = request.SideBMimeType,
+                WidthPixels = request.SideBWidthPixels,
+                HeightPixels = request.SideBHeightPixels,
                 DurationSeconds = request.SideBDurationSeconds,
                 MediaStatus = CaseMediaGate.ResolveStatus(request.SideBRecordUrl),
+                CaptionStatus = request.SideBCaptionStatus,
+                TranscriptStatus = request.SideBTranscriptStatus,
             };
 
             var opened = foundCase with { SideB = sideB, Status = CaseStatus.Open, InvitedUserId = null };
@@ -903,13 +945,16 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         ArgumentPost sideB,
         DateTime createdAt)
     {
+        var readySideA = sideA with { MediaStatus = MediaStatus.Ready };
+        var readySideB = sideB with { MediaStatus = MediaStatus.Ready };
+
         return new ArgumentCase(
             id,
             title,
             category,
             summary,
-            sideA,
-            sideB,
+            readySideA,
+            readySideB,
             InvitedUserId: null,
             new CommunityVerdict(0, 0),
             CaseStatus.Open,

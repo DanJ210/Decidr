@@ -9,6 +9,12 @@ public interface ICommunityCourtService
     IReadOnlyList<PlayerRecord> GetPlayerRecords();
     PlayerRecord? GetPlayerRecord(Guid userId);
     IReadOnlyList<ArgumentCase> GetCases();
+    IReadOnlyList<ArgumentCase> GetFeedCases(
+        DateTime? createdBeforeUtc,
+        Guid? caseIdBefore,
+        int limit,
+        IReadOnlyCollection<Guid> hiddenCaseIds,
+        IReadOnlyCollection<Guid> blockedUserIds);
     ArgumentCase? GetCase(Guid caseId, Guid? viewerUserId = null);
     IReadOnlyList<CaseComment> GetCaseComments(Guid caseId);
     CaseEvidenceCollection GetCaseEvidence(Guid caseId);

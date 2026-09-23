@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { ArrowLeft, ArrowRight, Bell, Info, Pause, Play, Volume2, VolumeX } from '@lucide/vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { ArrowLeft, ArrowRight, Bell, Captions, Flag, Info, Pause, Play, ShieldBan, Volume2, VolumeX } from '@lucide/vue'
 import { useHottestCases } from '../composables/useHottestCases'
 import { useAuthStore } from '../stores/auth'
 import type { ArgumentCase, ArgumentPost, CaseSide, CaseStatus } from '../types'
@@ -19,6 +19,7 @@ const muted = ref(true)
 const playing = ref(false)
 const swipeStart = ref<{ x: number; y: number } | null>(null)
 const feedback = ref('')
+const captionsEnabled = ref(false)
 
 const filteredCaseFeed = computed(() => activeFilter.value === 'All'
   ? caseFeed.value
@@ -51,8 +52,27 @@ async function playActiveVideo() {
 }
 
 function handleVideoEnded(item: ArgumentCase, side: CaseSide) {
+  const post = postForSide(item, side)
+  void courtStore.recordPlaybackEvent(item.id, { side, event: 'completed', positionSeconds: post?.durationSeconds ?? 0 })
   playing.value = false
   if (item.id === activeCase.value?.id && side === activeSide.value && side === 'A' && item.sideB) activeSide.value = 'B'
+}
+
+function sideFromVideoEvent(event: Event): CaseSide | null {
+  const side = (event.currentTarget as HTMLVideoElement | null)?.dataset.side
+  return side === 'A' || side === 'B' ? side : null
+}
+
+function handleVideoPlay(caseId: string, event: Event) {
+  const side = sideFromVideoEvent(event)
+  if (!side) return
+  void courtStore.recordPlaybackEvent(caseId, { side, event: 'started', positionSeconds: 0 })
+}
+
+function handleVideoEndedEvent(item: ArgumentCase, event: Event) {
+  const side = sideFromVideoEvent(event)
+  if (!side) return
+  handleVideoEnded(item, side)
 }
 
 function togglePlayback() {
@@ -69,6 +89,7 @@ function updateActiveCase() {
   if (!viewport) return
   const nextIndex = Math.round(viewport.scrollTop / viewport.clientHeight)
   if (nextIndex !== activeCaseIndex.value && filteredCaseFeed.value[nextIndex]) activeCaseIndex.value = nextIndex
+  if (nextIndex >= filteredCaseFeed.value.length - 2) void courtStore.loadMoreCases()
 }
 function handlePointerDown(event: PointerEvent) { swipeStart.value = { x: event.clientX, y: event.clientY } }
 function handlePointerUp(event: PointerEvent) {
@@ -91,6 +112,38 @@ async function vote(side: CaseSide) {
   const result = await courtStore.vote(item.id, side)
   feedback.value = result.success ? `You chose Side ${side}. Community results are now visible.` : result.error ?? 'Vote could not be submitted.'
 }
+function toggleCaptions() { captionsEnabled.value = !captionsEnabled.value }
+async function reportActiveCase() {
+  const item = activeCase.value
+  if (!item) return
+  const reason = window.prompt('Why are you reporting this case?')?.trim()
+  if (!reason) return
+  try {
+    await courtStore.reportCase(item.id, reason)
+    feedback.value = 'Thanks. Your report was submitted for review.'
+  } catch { feedback.value = 'The report could not be submitted.' }
+}
+async function blockActiveParticipant() {
+  const item = activeCase.value
+  const post = item ? postForSide(item, activeSide.value) : null
+  if (!post || !window.confirm(`Block @${post.userName}?`)) return
+  try {
+    await courtStore.blockUser(post.userId)
+    const remainingCases = activeFilter.value === 'All'
+      ? courtStore.cases
+      : courtStore.cases.filter((feedItem) => feedItem.status === activeFilter.value)
+    activeCaseIndex.value = Math.min(activeCaseIndex.value, Math.max(0, remainingCases.length - 1))
+    feedback.value = `@${post.userName} has been blocked.`
+  } catch { feedback.value = 'The block could not be submitted.' }
+}
+function handleDocumentVisibility() {
+  if (document.hidden) {
+    for (const video of videoElements.values()) video.pause()
+    playing.value = false
+  } else {
+    void playActiveVideo()
+  }
+}
 function changeFilter(filter: FeedFilter) {
   activeFilter.value = filter
   activeCaseIndex.value = 0
@@ -102,6 +155,8 @@ watch(activeCaseIndex, () => { activeSide.value = 'A'; feedback.value = ''; void
 watch(activeSide, () => void playActiveVideo())
 watch(filteredCaseFeed, (items) => { if (activeCaseIndex.value >= items.length) activeCaseIndex.value = Math.max(0, items.length - 1); void playActiveVideo() }, { flush: 'post' })
 onBeforeUnmount(() => { for (const video of videoElements.values()) video.pause() })
+onMounted(() => document.addEventListener('visibilitychange', handleDocumentVisibility))
+onBeforeUnmount(() => document.removeEventListener('visibilitychange', handleDocumentVisibility))
 </script>
 
 <template>
@@ -119,7 +174,7 @@ onBeforeUnmount(() => { for (const video of videoElements.values()) video.pause(
     <div v-else-if="filteredCaseFeed.length" ref="feedViewport" class="case-feed-viewport" @scroll.passive="updateActiveCase" @pointerdown="handlePointerDown" @pointerup="handlePointerUp">
       <article v-for="(item, index) in filteredCaseFeed" :key="item.id" class="case-feed-item" :aria-label="item.title">
         <div class="case-feed-media" :class="`side-${shownSide(index).toLowerCase()}`">
-          <video v-if="visiblePost(item, index)?.mediaUrl && shouldLoadMedia(index)" :ref="(element) => setVideoElement(videoKey(item.id, shownSide(index)), element as Element | null)" :src="visiblePost(item, index)?.mediaUrl ?? undefined" :poster="visiblePost(item, index)?.thumbnailUrl ?? undefined" :muted="muted" playsinline preload="metadata" @ended="handleVideoEnded(item, shownSide(index))"></video>
+          <video v-if="visiblePost(item, index)?.mediaUrl && shouldLoadMedia(index)" :key="videoKey(item.id, shownSide(index))" :ref="(element) => setVideoElement(videoKey(item.id, shownSide(index)), element as Element | null)" :src="visiblePost(item, index)?.mediaUrl ?? undefined" :poster="visiblePost(item, index)?.thumbnailUrl ?? undefined" :data-side="shownSide(index)" :muted="muted" playsinline preload="metadata" @play="handleVideoPlay(item.id, $event)" @ended="handleVideoEndedEvent(item, $event)"></video>
           <div v-else class="case-feed-no-video"><span>Side {{ shownSide(index) }}</span><p>{{ visiblePost(item, index)?.claim ?? 'The response has not been recorded yet.' }}</p></div>
           <div class="case-feed-shade"></div>
         </div>
@@ -131,7 +186,8 @@ onBeforeUnmount(() => { for (const video of videoElements.values()) video.pause(
             <button type="button" :class="{ active: shownSide(index) === 'B' }" :disabled="!item.sideB" @click="index === activeCaseIndex && (activeSide = 'B')"><span>02</span> Side B</button>
           </div>
           <div v-if="index === activeCaseIndex" class="case-feed-actions">
-            <div class="case-feed-playback"><button type="button" :aria-label="'Play or pause Side ' + activeSide" @click="togglePlayback"><Pause v-if="playing" :size="20" aria-hidden="true" /><Play v-else :size="20" aria-hidden="true" /></button><button type="button" :aria-label="muted ? 'Unmute video' : 'Mute video'" @click="toggleMute"><VolumeX v-if="muted" :size="20" aria-hidden="true" /><Volume2 v-else :size="20" aria-hidden="true" /></button><RouterLink :to="`/cases/${item.id}`" aria-label="Open full case details"><Info :size="20" aria-hidden="true" /></RouterLink></div>
+            <div class="case-feed-playback"><button type="button" :aria-label="'Play or pause Side ' + activeSide" @click="togglePlayback"><Pause v-if="playing" :size="20" aria-hidden="true" /><Play v-else :size="20" aria-hidden="true" /></button><button type="button" :aria-label="muted ? 'Unmute video' : 'Mute video'" @click="toggleMute"><VolumeX v-if="muted" :size="20" aria-hidden="true" /><Volume2 v-else :size="20" aria-hidden="true" /></button><button type="button" :aria-label="captionsEnabled ? 'Hide captions' : 'Show captions'" :aria-pressed="captionsEnabled" @click="toggleCaptions"><Captions :size="20" aria-hidden="true" /></button><button type="button" aria-label="Report case" @click="reportActiveCase"><Flag :size="20" aria-hidden="true" /></button><button type="button" aria-label="Block participant" @click="blockActiveParticipant"><ShieldBan :size="20" aria-hidden="true" /></button><RouterLink :to="`/cases/${item.id}`" aria-label="Open full case details"><Info :size="20" aria-hidden="true" /></RouterLink></div>
+            <p v-if="captionsEnabled" class="case-feed-captions" aria-live="polite">{{ visiblePost(item, index)?.claim }}</p>
             <div class="case-feed-vote-area">
               <template v-if="hasSeenVerdict(item)"><div class="case-feed-verdict"><div><span>Side A</span><strong>{{ sideAPercentage(item) }}%</strong></div><div class="case-feed-meter" role="img" :aria-label="`${sideAPercentage(item)} percent Side A and ${100 - sideAPercentage(item)} percent Side B`"><span :style="{ width: `${sideAPercentage(item)}%` }"></span></div><div><strong>{{ 100 - sideAPercentage(item) }}%</strong><span>Side B</span></div></div><p class="case-feed-result-note">{{ totalVotes(item) }} community {{ totalVotes(item) === 1 ? 'vote' : 'votes' }}</p></template>
               <template v-else><button class="case-feed-vote side-a" type="button" :disabled="!canVote(item)" @click="vote('A')"><ArrowRight :size="18" aria-hidden="true" /><span>Side A</span></button><p>Choose your verdict</p><button class="case-feed-vote side-b" type="button" :disabled="!canVote(item)" @click="vote('B')"><span>Side B</span><ArrowLeft :size="18" aria-hidden="true" /></button></template>
@@ -304,6 +360,7 @@ background: linear-gradient(140deg, var(--side-a-soft), #162d42 55%, var(--side-
 .case-feed-actions { display: grid; gap: .8rem; }
 .case-feed-playback { display: flex; gap: .45rem; }
 .case-feed-playback button, .case-feed-playback a { display: inline-grid; place-items: center; width: 2.6rem; height: 2.6rem; border: 1px solid #ffffff6b; border-radius: 50%; background: #11161a9e; color: #fff; cursor: pointer; }
+.case-feed-captions { max-width: 34rem; margin: 0; padding: .55rem .7rem; border-left: 3px solid var(--signal); background: #11161ad9; color: #fff; font-size: .82rem; line-height: 1.35; }
 
 .case-feed-vote-area {
   display: grid;
@@ -359,5 +416,3 @@ background: linear-gradient(140deg, var(--side-a-soft), #162d42 55%, var(--side-
   }
 }
 </style>
-
-

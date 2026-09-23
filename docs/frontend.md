@@ -60,7 +60,9 @@ Goal: make Decidr feel like a social-first mobile app (Instagram-style) with a c
 ### Case feed (home page) experience
 
 - **Full-screen feed:** Home presents one case per vertically scroll-snapped viewport. The current case starts on Side A and its playback moves to Side B when Side A completes.
-- **Media loading:** The feed attaches video media only for the current case and its immediate neighbors; it pauses inactive videos during navigation.
+- **Media loading:** The feed attaches video media only for the current case and its immediate neighbors; it pauses inactive videos during navigation and whenever the document is hidden. Near the end of the loaded list it requests the next cursor page.
+- **Captions and trust controls:** The feed exposes a captions toggle, report action, and playback start/completion analytics. Until generated caption tracks are available, the toggle presents the recorded side claim as the accessible caption fallback.
+- **Blocking:** The active feed item includes a participant block action. Blocking immediately removes matching loaded cases and the backend excludes cases containing blocked participants from subsequent feed pages.
 - **Voting:** Rightward swipes select Side A and leftward swipes select Side B. Equivalent visible buttons provide the keyboard and non-gesture path. Existing participant and single-vote restrictions still apply.
 - **Verdict visibility:** Live community totals and the split meter stay hidden until the current user votes. A returned vote response updates the case and reveals its results.
 - **Case detail:** Playback, mute, side selection, and the detail route remain available from the active feed item. Pending invitations are exposed through the header badge.

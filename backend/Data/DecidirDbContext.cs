@@ -48,10 +48,18 @@ public class DecidirDbContext : DbContext
             e.Property(c => c.SideBClaim).HasMaxLength(2048);
             e.Property(c => c.SideAMediaUrl).HasMaxLength(2048);
             e.Property(c => c.SideAThumbnailUrl).HasMaxLength(2048);
+            e.Property(c => c.SideAMimeType).HasMaxLength(128);
             e.Property(c => c.SideBMediaUrl).HasMaxLength(2048);
             e.Property(c => c.SideBThumbnailUrl).HasMaxLength(2048);
+            e.Property(c => c.SideBMimeType).HasMaxLength(128);
             e.Property(c => c.Status).HasConversion<string>();
             e.Property(c => c.WinnerSide).HasConversion<string?>();
+            e.Property(c => c.SideAMediaStatus).HasConversion<string>();
+            e.Property(c => c.SideBMediaStatus).HasConversion<string>();
+            e.Property(c => c.SideACaptionStatus).HasConversion<string>();
+            e.Property(c => c.SideBCaptionStatus).HasConversion<string>();
+            e.Property(c => c.SideATranscriptStatus).HasConversion<string>();
+            e.Property(c => c.SideBTranscriptStatus).HasConversion<string>();
 
             e.HasOne<UserEntity>()
                 .WithMany()

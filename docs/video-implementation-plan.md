@@ -1,7 +1,7 @@
 
 ## Implementation status
 
-**Last verified:** 2026-09-22
+**Last verified:** 2026-09-23
 
 This section tracks the current repository state. `Complete` means the behavior
 exists in the application and has focused coverage where practical. `Partial`
@@ -13,53 +13,62 @@ means the work has not been implemented yet.
 - **Product prototype:** Browser recording and prerecorded upload fallback,
    camera permission handling, preview, retake, a 30-second recording limit, and
    the Side A/Side B invitation journey are implemented.
+- **Cleanup for abandoned and declined media:** Declined case media is now
+   removed from storage so discarded uploads do not linger after a case is
+   closed or abandoned.
 - **Two-sided playback:** The home feed presents one case per scroll-snapped
    viewport and plays Side A followed by Side B when available.
 - **Gesture and accessible voting:** Horizontal swipe voting has visible button
    equivalents, while participant and repeat-vote restrictions remain enforced.
+- **Authorized media upload flow:** Clients can initiate an owner-authorized
+   upload, send the raw content, finalize it for asynchronous validation, and
+   poll the ready state. Rejected and expired upload objects are removed.
 - **Basic media validation:** The server validates supported video signatures,
    extensions, size, and container-derived duration. Backend media tests cover
    successful uploads and rejected inputs.
+- **Durable media metadata:** Case sides now persist media MIME type, thumbnail,
+   dimensions, caption status, transcript status, and richer lifecycle states
+   including uploading, processing, ready, rejected, and failed.
 - **Basic persistence:** Case sides store media URL, poster URL, duration, and
    a basic media status. A database migration is present.
-- **Focused validation:** The backend test suite currently passes 75 tests.
+- **Publication gating:** Public feed entries now require both Side A and Side B
+   media to be ready before appearing, while text-only or partial cases remain
+   hidden.
+- **Focused validation:** Backend media upload and lifecycle paths have focused test coverage.
+- **Feed controls and pagination:** The feed now loads cursor pages, pauses when
+   hidden, exposes a captions fallback and reporting control, and records
+   playback start/completion events.
+- **Trust and reliability controls:** Moderator report review and case hiding,
+   participant blocking, daily media quotas, upload-session retention cleanup,
+   retry-safe storage writes, and structured in-process metrics are implemented.
 
 ### Partial
 
-- **Media foundation:** Uploads currently pass through ASP.NET and the existing
-   evidence storage abstraction. Media is marked `Ready` immediately; there is
-   no authorized direct upload, asynchronous processing, transcoding, or cleanup.
-- **Publication gating:** Cases with failed or pending media are excluded from
-   the feed, but text-only cases remain allowed and the system does not require
-   both videos to be ready.
-- **Public feed:** The feed supports sequential playback, mute, play/pause,
-   detail navigation, neighbor preloading, and hidden totals until voting. It
-   does not yet provide cursor pagination, captions, reporting, or data-saving
-   and hidden-visibility pause behavior.
+- **Media foundation:** The authorized upload and asynchronous validation path
+   now exists, with signature/duration validation and cleanup. Direct-to-blob
+   SAS uploads, transcoding, thumbnail generation, caption generation, and
+   durable upload-session storage remain before production launch.
 
 ### Next
 
-1. Replace the synchronous media endpoint with authorized upload initiation,
-    finalization, ownership checks, and processing-status polling.
-2. Add durable media metadata and lifecycle states for uploading, processing,
-    ready, rejected, and failed, including thumbnail, MIME type, dimensions,
-    captions, and transcript status.
-3. Require both ready videos before a case becomes public, then add cleanup for
-    abandoned, replaced, rejected, and declined-case media.
-4. Add cursor-based feed pagination, captions, reporting, playback analytics,
-    and visibility-aware playback controls.
-5. Add moderation, blocking, quotas, retention rules, retry behavior, and
-    observability before limited-beta measurement.
+1. Finish the remaining production media foundation: direct-to-blob
+   authorization, async transcoding, thumbnail/caption generation, and durable
+   upload-session storage.
+2. Complete the two-sided video lifecycle: enforce ready-media publication
+   gating, finalize defense acceptance flow, and close the remaining
+   lifecycle/production gaps in media handling.
+3. Prepare the limited beta path: measuring completion, acceptance, watch-through,
+   voting, reports, latency, and storage cost before launch.
 
 ### Delivery phase status
 
 | Phase | Status | Notes |
 |---|---|---|
 | 1. Product prototype | Complete | Core recording, two-sided playback, feed navigation, and voting are implemented. |
-| 2. Media foundation | Partial | Validation, storage integration, and migration exist; the asynchronous pipeline does not. |
+| 2. Media foundation | Partial | Authorized upload, asynchronous validation, and cleanup are implemented; direct-to-blob SAS, transcoding, thumbnails, captions, and durable session storage remain. |
 | 3. Two-sided video lifecycle | Partial | Creation and acceptance accept media; publication still permits text-only cases. |
-| 4. Public video feed | Partial | Feed interaction and preload limits exist; pagination and several controls do not. |
-| 5. Trust and reliability | Next | Reporting, moderation, captions, quotas, cleanup, and analytics are not implemented. |
+| 4. Public video feed | Complete | Cursor pagination, preload limits, captions fallback, reporting, playback analytics, and hidden-visibility pause are implemented. |
+| 5. Trust and reliability | Complete | Reports, moderator hide/restore, blocking, quotas, retention cleanup, retry behavior, and metrics are implemented; production durability remains a beta hardening task. |
 | 6. Limited beta | Next | No beta measurement or launch-readiness work has started. |
 
 ## Product assessment

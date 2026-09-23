@@ -56,6 +56,18 @@ When a connection string is configured, the backend uses `EfCoreCourtService` wi
 
 If no `ConnectionStrings:DefaultConnection` is configured, the app falls back to `InMemoryCommunityCourtService` for local/demo execution.
 
+### Trust and Reliability Controls
+`TrustSafetyRegistry` centralizes the current prototype's moderation reports,
+case visibility decisions, user blocks, daily media upload quota, retention
+cleanup, retry counters, and operational metrics. Media upload sessions are
+persisted outside process memory, accept an owner-authorized content request,
+then `MediaUploadWorker` validates stored bytes asynchronously before exposing a
+playback URL; expired and rejected objects are deleted. Moderator-only API
+endpoints expose reports, case hide/restore decisions, and metrics. The
+registry's moderation, quota, and metric counters remain process-local for this
+prototype; production beta work must still move those records and counters to a
+shared rate-limit/metrics system.
+
 ### Verdict Refresh
 Vote counts are not stored directly on `ArgumentCase`. `RefreshVerdict()` recomputes the tally from vote records each time a case is read, keeping the read model consistent with persisted votes.
 

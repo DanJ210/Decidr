@@ -15,9 +15,10 @@ public sealed class LocalCaseEvidenceStorage(
         string fileExtension,
         string contentType,
         Stream content,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? storageKey = null)
     {
-        var storageKey = $"{caseId:N}/{Guid.NewGuid():N}{fileExtension}";
+        storageKey ??= $"{caseId:N}/{Guid.NewGuid():N}{fileExtension}";
         var fullPath = GetFullPath(storageKey);
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
 

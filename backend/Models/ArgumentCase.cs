@@ -40,6 +40,25 @@ public enum MediaStatus
     None,
     Pending,
     Ready,
+    Failed,
+    Uploading,
+    Processing,
+    Rejected
+}
+
+public enum CaptionStatus
+{
+    None,
+    Pending,
+    Ready,
+    Failed
+}
+
+public enum TranscriptStatus
+{
+    None,
+    Pending,
+    Ready,
     Failed
 }
 
@@ -79,8 +98,13 @@ public record ArgumentPost(
 {
     public string? MediaUrl { get; init; }
     public string? ThumbnailUrl { get; init; }
+    public string? MimeType { get; init; }
+    public int? WidthPixels { get; init; }
+    public int? HeightPixels { get; init; }
     public int? DurationSeconds { get; init; }
     public MediaStatus MediaStatus { get; init; } = MediaStatus.None;
+    public CaptionStatus CaptionStatus { get; init; } = CaptionStatus.None;
+    public TranscriptStatus TranscriptStatus { get; init; } = TranscriptStatus.None;
 }
 
 public record CommunityVerdict(
@@ -97,6 +121,26 @@ public record CaseVote(
 
 public record CaseVoteStatus(
     bool HasVoted
+);
+
+public record CaseFeedPage(
+    IReadOnlyList<ArgumentCase> Items,
+    string? NextCursor,
+    bool HasMore
+);
+
+public record ReportCaseRequest(
+    string Reason
+);
+
+public record ModerateCaseRequest(
+    bool Hidden
+);
+
+public record PlaybackEventRequest(
+    CaseSide Side,
+    string Event,
+    int PositionSeconds
 );
 
 public record CurrentUserVote(
@@ -186,14 +230,26 @@ public record CreateCaseRequest(
 {
     public string? SideARecordUrl { get; init; }
     public string? SideAThumbnailUrl { get; init; }
+    public string? SideAMimeType { get; init; }
+    public int? SideAWidthPixels { get; init; }
+    public int? SideAHeightPixels { get; init; }
     public int? SideADurationSeconds { get; init; }
+    public MediaStatus SideAMediaStatus { get; init; } = MediaStatus.None;
+    public CaptionStatus SideACaptionStatus { get; init; } = CaptionStatus.None;
+    public TranscriptStatus SideATranscriptStatus { get; init; } = TranscriptStatus.None;
 }
 
 public record AcceptInvitationRequest(string Claim)
 {
     public string? SideBRecordUrl { get; init; }
     public string? SideBThumbnailUrl { get; init; }
+    public string? SideBMimeType { get; init; }
+    public int? SideBWidthPixels { get; init; }
+    public int? SideBHeightPixels { get; init; }
     public int? SideBDurationSeconds { get; init; }
+    public MediaStatus SideBMediaStatus { get; init; } = MediaStatus.None;
+    public CaptionStatus SideBCaptionStatus { get; init; } = CaptionStatus.None;
+    public TranscriptStatus SideBTranscriptStatus { get; init; } = TranscriptStatus.None;
 }
 
 public record SendFriendRequestDto(

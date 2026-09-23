@@ -116,6 +116,8 @@ else
     builder.Services.AddSingleton<IAuthenticatedUserService, UnavailableAuthenticatedUserService>();
 }
 builder.Services.AddScoped<IActorResolver, ActorResolver>();
+builder.Services.AddSingleton<MediaUploadProcessingQueue>();
+builder.Services.AddHostedService<MediaUploadWorker>();
 
 var evidenceBlobServiceUri = builder.Configuration["EvidenceStorage:BlobServiceUri"];
 var evidenceContainerName = builder.Configuration["EvidenceStorage:ContainerName"];
@@ -142,10 +144,12 @@ if (!string.IsNullOrWhiteSpace(evidenceBlobServiceUri) && !string.IsNullOrWhiteS
         return serviceClient.GetBlobContainerClient(evidenceContainerName);
     });
     builder.Services.AddSingleton<ICaseEvidenceStorage, AzureBlobCaseEvidenceStorage>();
+    builder.Services.AddSingleton<ICaseMediaUploadSessionStore, BlobCaseMediaUploadSessionStore>();
 }
 else if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddSingleton<ICaseEvidenceStorage, LocalCaseEvidenceStorage>();
+    builder.Services.AddSingleton<ICaseMediaUploadSessionStore, LocalCaseMediaUploadSessionStore>();
 }
 else
 {

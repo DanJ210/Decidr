@@ -95,6 +95,26 @@ public class UsersController : ControllerBase
         return Ok(_courtService.GetPendingInvitations(id));
     }
 
+    [HttpPost("{id:guid}/block")]
+    public async Task<IActionResult> BlockUser(Guid id, CancellationToken cancellationToken)
+    {
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null) return Unauthorized();
+        if (actor.Id == id) return BadRequest("You cannot block yourself.");
+        if (_courtService.GetUser(id) is null) return NotFound();
+        TrustSafetyRegistry.Block(actor.Id, id);
+        return NoContent();
+    }
+
+    [HttpDelete("{id:guid}/block")]
+    public async Task<IActionResult> UnblockUser(Guid id, CancellationToken cancellationToken)
+    {
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null) return Unauthorized();
+        TrustSafetyRegistry.Unblock(actor.Id, id);
+        return NoContent();
+    }
+
     private async Task<bool> CanAccessUserAsync(Guid userId, CancellationToken cancellationToken)
     {
         var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);

@@ -2,7 +2,8 @@ export type CaseSide = 'A' | 'B'
 export type CaseStatus = 'Pending' | 'Open' | 'Closed'
 export type UserRole = 'Member' | 'Moderator'
 export type FriendRequestStatus = 'Pending' | 'Accepted' | 'Declined'
-export type MediaStatus = 'None' | 'Pending' | 'Ready' | 'Failed'
+export type MediaStatus = 'None' | 'Pending' | 'Ready' | 'Failed' | 'Uploading' | 'Processing' | 'Rejected'
+export type CaptionStatus = 'None' | 'Pending' | 'Ready' | 'Failed'
 
 export interface AppUser {
   id: string
@@ -33,6 +34,9 @@ export interface ArgumentPost {
   mediaUrl?: string | null
   thumbnailUrl?: string | null
   durationSeconds?: number | null
+  mimeType?: string | null
+  captionStatus: CaptionStatus
+  transcriptStatus?: CaptionStatus
   mediaStatus: MediaStatus
 }
 
@@ -94,6 +98,25 @@ export interface CaseMediaUploadResponse {
   contentType: string
 }
 
+export type CaseMediaUploadStatus = 'Pending' | 'Processing' | 'Ready' | 'Failed'
+
+export interface CaseMediaUploadSession {
+  uploadId: string
+  ownerId: string
+  fileName: string
+  contentType: string
+  sizeBytes: number
+  durationSeconds: number | null
+  status: CaseMediaUploadStatus
+  createdAtUtc: string
+}
+
+export interface CaseMediaUploadStatusResponse {
+  status: CaseMediaUploadStatus
+  media: CaseMediaUploadResponse | null
+  error: string | null
+}
+
 export interface ArgumentCase {
   id: string
   title: string
@@ -107,6 +130,12 @@ export interface ArgumentCase {
   winnerSide: CaseSide | null
   createdAtUtc: string
   currentUserVote: CurrentUserVote | null
+}
+
+export interface CaseFeedPage {
+  items: ArgumentCase[]
+  nextCursor: string | null
+  hasMore: boolean
 }
 
 export interface FriendRequest {
