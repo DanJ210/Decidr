@@ -17,11 +17,17 @@ means the work has not been implemented yet.
    viewport and plays Side A followed by Side B when available.
 - **Gesture and accessible voting:** Horizontal swipe voting has visible button
    equivalents, while participant and repeat-vote restrictions remain enforced.
+- **Authorized media upload flow:** Clients can initiate a pending upload,
+   finalize it with ownership checks, and poll the ready state without a sync
+   server-side media endpoint. This is now covered by backend media tests.
 - **Basic media validation:** The server validates supported video signatures,
    extensions, size, and container-derived duration. Backend media tests cover
    successful uploads and rejected inputs.
 - **Basic persistence:** Case sides store media URL, poster URL, duration, and
    a basic media status. A database migration is present.
+- **Publication gating:** Public feed entries now require both Side A and Side B
+   media to be ready before appearing, while text-only or partial cases remain
+   hidden.
 - **Focused validation:** The backend test suite currently passes 75 tests.
 
 ### Partial
@@ -29,9 +35,6 @@ means the work has not been implemented yet.
 - **Media foundation:** Uploads currently pass through ASP.NET and the existing
    evidence storage abstraction. Media is marked `Ready` immediately; there is
    no authorized direct upload, asynchronous processing, transcoding, or cleanup.
-- **Publication gating:** Cases with failed or pending media are excluded from
-   the feed, but text-only cases remain allowed and the system does not require
-   both videos to be ready.
 - **Public feed:** The feed supports sequential playback, mute, play/pause,
    detail navigation, neighbor preloading, and hidden totals until voting. It
    does not yet provide cursor pagination, captions, reporting, or data-saving
@@ -39,16 +42,13 @@ means the work has not been implemented yet.
 
 ### Next
 
-1. Replace the synchronous media endpoint with authorized upload initiation,
-    finalization, ownership checks, and processing-status polling.
-2. Add durable media metadata and lifecycle states for uploading, processing,
+1. Add durable media metadata and lifecycle states for uploading, processing,
     ready, rejected, and failed, including thumbnail, MIME type, dimensions,
     captions, and transcript status.
-3. Require both ready videos before a case becomes public, then add cleanup for
-    abandoned, replaced, rejected, and declined-case media.
-4. Add cursor-based feed pagination, captions, reporting, playback analytics,
+2. Add cleanup for abandoned, replaced, rejected, and declined-case media.
+3. Add cursor-based feed pagination, captions, reporting, playback analytics,
     and visibility-aware playback controls.
-5. Add moderation, blocking, quotas, retention rules, retry behavior, and
+4. Add moderation, blocking, quotas, retention rules, retry behavior, and
     observability before limited-beta measurement.
 
 ### Delivery phase status
@@ -56,7 +56,7 @@ means the work has not been implemented yet.
 | Phase | Status | Notes |
 |---|---|---|
 | 1. Product prototype | Complete | Core recording, two-sided playback, feed navigation, and voting are implemented. |
-| 2. Media foundation | Partial | Validation, storage integration, and migration exist; the asynchronous pipeline does not. |
+| 2. Media foundation | Partial | Authorized upload initiation and polling are implemented; durable async processing and cleanup remain next. |
 | 3. Two-sided video lifecycle | Partial | Creation and acceptance accept media; publication still permits text-only cases. |
 | 4. Public video feed | Partial | Feed interaction and preload limits exist; pagination and several controls do not. |
 | 5. Trust and reliability | Next | Reporting, moderation, captions, quotas, cleanup, and analytics are not implemented. |

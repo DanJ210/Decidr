@@ -71,8 +71,10 @@ public class EfCoreCourtService : ICommunityCourtService
     {
         var caseEntities = _db.Cases
             .Where(c => c.Status != CaseStatus.Pending)
-            .Where(c => c.SideAMediaStatus != MediaStatus.Pending && c.SideAMediaStatus != MediaStatus.Failed)
-            .Where(c => c.SideBMediaStatus != MediaStatus.Pending && c.SideBMediaStatus != MediaStatus.Failed)
+            .Where(c => c.SideAUserId != Guid.Empty)
+            .Where(c => c.SideBUserId != null)
+            .Where(c => c.SideAMediaStatus == MediaStatus.Ready)
+            .Where(c => c.SideBMediaStatus == MediaStatus.Ready)
             .OrderByDescending(c => c.CreatedAtUtc)
             .ToList();
 

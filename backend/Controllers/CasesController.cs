@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using backend.Models;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -35,6 +36,8 @@ public class CasesController : ControllerBase
         [".doc"] = ("application/msword", CaseEvidenceType.Document),
         [".docx"] = ("application/vnd.openxmlformats-officedocument.wordprocessingml.document", CaseEvidenceType.Document),
     };
+
+    private static readonly ConcurrentDictionary<Guid, CaseMediaUploadSession> MediaUploadSessions = new();
 
     private readonly ICommunityCourtService _courtService;
     private readonly IActorResolver _actorResolver;
@@ -352,6 +355,157 @@ public class CasesController : ControllerBase
             durationSeconds.Value,
             request.File.Length,
             contentType));
+    }
+
+    [HttpPost("media/initiate")]
+    public async Task<ActionResult<CaseMediaUploadSession>> InitiateCaseMediaUpload(
+        [FromBody] InitiateCaseMediaUploadRequest request,
+        CancellationToken cancellationToken)
+    {
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null)
+        {
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.FileName))
+        {
+            return BadRequest("A file name is required.");
+        }
+
+        var extension = Path.GetExtension(request.FileName);
+        if (!AllowedCaseMediaTypes.TryGetValue(extension, out var contentType))
+        {
+            return BadRequest("Unsupported video type. Allowed types are mp4, m4v, mov, and webm.");
+        }
+
+        if (request.SizeBytes <= 0 || request.SizeBytes > MaxCaseMediaSizeBytes)
+        {
+            return BadRequest($"Video cannot exceed {MaxCaseMediaSizeBytes} bytes.");
+        }
+
+        if (request.DurationSeconds is <= 0 || request.DurationSeconds > MaxCaseMediaDurationSeconds)
+        {
+            return BadRequest($"Video duration must be between 1 and {MaxCaseMediaDurationSeconds} seconds.");
+        }
+
+        var uploadId = Guid.NewGuid();
+        var session = new CaseMediaUploadSession(
+            uploadId,
+            actor.Id,
+            request.FileName,
+            request.ContentType ?? contentType,
+            request.SizeBytes,
+            request.DurationSeconds,
+            CaseMediaUploadStatus.Pending,
+            DateTime.UtcNow);
+
+        MediaUploadSessions[uploadId] = session;
+        return Ok(session);
+    }
+
+    [HttpPost("media/{uploadId:guid}/finalize")]
+    [RequestSizeLimit(MaxCaseMediaSizeBytes + (1024 * 1024))]
+    public async Task<ActionResult<CaseMediaUploadResponse>> FinalizeCaseMediaUpload(
+        Guid uploadId,
+        [FromForm] FinalizeCaseMediaUploadRequest request,
+        CancellationToken cancellationToken)
+    {
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null)
+        {
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        }
+
+        if (!MediaUploadSessions.TryGetValue(uploadId, out var session))
+        {
+            return NotFound();
+        }
+
+        if (session.OwnerId != actor.Id)
+        {
+            return Forbid();
+        }
+
+        if (session.Status != CaseMediaUploadStatus.Pending)
+        {
+            return BadRequest("This upload has already been finalized.");
+        }
+
+        if (request.File is null || request.File.Length == 0)
+        {
+            return BadRequest("A video file is required.");
+        }
+
+        if (request.File.Length > MaxCaseMediaSizeBytes)
+        {
+            return BadRequest($"Video cannot exceed {MaxCaseMediaSizeBytes} bytes.");
+        }
+
+        var extension = Path.GetExtension(request.File.FileName).ToLowerInvariant();
+        if (!AllowedCaseMediaTypes.TryGetValue(extension, out var contentType))
+        {
+            return BadRequest("Unsupported video type. Allowed types are mp4, m4v, mov, and webm.");
+        }
+
+        if (!await VideoFileValidator.IsValidAsync(request.File, extension, cancellationToken))
+        {
+            return BadRequest("Uploaded file contents do not match the selected video type.");
+        }
+
+        var durationSeconds = await VideoFileValidator.GetDurationSecondsAsync(
+            request.File,
+            extension,
+            cancellationToken);
+        if (durationSeconds is null || durationSeconds > MaxCaseMediaDurationSeconds)
+        {
+            return BadRequest($"Video duration could not be determined or exceeds {MaxCaseMediaDurationSeconds} seconds.");
+        }
+
+        await using var content = request.File.OpenReadStream();
+        var storageKey = await _evidenceStorage.UploadAsync(
+            actor.Id,
+            extension,
+            contentType,
+            content,
+            cancellationToken);
+
+        MediaUploadSessions[uploadId] = session with
+        {
+            Status = CaseMediaUploadStatus.Ready,
+            FinalizedAtUtc = DateTime.UtcNow,
+        };
+
+        var fileName = Path.GetFileName(storageKey);
+        return Ok(new CaseMediaUploadResponse(
+            $"/api/cases/media/{actor.Id:N}/{fileName}",
+            durationSeconds.Value,
+            request.File.Length,
+            contentType));
+    }
+
+    [HttpGet("media/{uploadId:guid}/status")]
+    public async Task<ActionResult<CaseMediaUploadStatusResponse>> GetCaseMediaUploadStatus(
+        Guid uploadId,
+        CancellationToken cancellationToken)
+    {
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null)
+        {
+            return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        }
+
+        if (!MediaUploadSessions.TryGetValue(uploadId, out var session))
+        {
+            return NotFound();
+        }
+
+        if (session.OwnerId != actor.Id)
+        {
+            return Forbid();
+        }
+
+        return Ok(new CaseMediaUploadStatusResponse(session.Status));
     }
 
     [HttpGet("media/{ownerId}/{fileName}")]
@@ -735,4 +889,47 @@ public class CasesController : ControllerBase
     {
         public IFormFile? File { get; set; }
     }
+
+    public enum CaseMediaUploadStatus
+    {
+        Pending,
+        Ready,
+        Failed,
+    }
+
+    public sealed record InitiateCaseMediaUploadRequest(
+        string FileName,
+        string? ContentType,
+        long SizeBytes,
+        int? DurationSeconds)
+    {
+        public InitiateCaseMediaUploadRequest() : this(string.Empty, null, 0, null)
+        {
+        }
+
+        public string FileName { get; set; } = FileName;
+        public string? ContentType { get; set; } = ContentType;
+        public long SizeBytes { get; set; } = SizeBytes;
+        public int? DurationSeconds { get; set; } = DurationSeconds;
+    }
+
+    public sealed record FinalizeCaseMediaUploadRequest
+    {
+        public IFormFile? File { get; set; }
+    }
+
+    public sealed record CaseMediaUploadSession(
+        Guid UploadId,
+        Guid OwnerId,
+        string FileName,
+        string ContentType,
+        long SizeBytes,
+        int? DurationSeconds,
+        CaseMediaUploadStatus Status,
+        DateTime CreatedAtUtc)
+    {
+        public DateTime? FinalizedAtUtc { get; init; }
+    }
+
+    public sealed record CaseMediaUploadStatusResponse(CaseMediaUploadStatus Status);
 }

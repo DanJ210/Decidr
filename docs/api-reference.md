@@ -79,6 +79,56 @@ or `Failed`, so text-only cases remain visible.
 **Response `400 Bad Request`** — validation failure message  
 **Response `401 Unauthorized`** — unresolved actor
 
+### `POST /api/cases/media/initiate`
+Starts a media upload session for an authenticated user before the final file is submitted. The session is owned by the resolved actor and stays in `Pending` until the final upload is accepted.
+
+**Request body**
+```json
+{
+  "fileName": "clip.webm",
+  "contentType": "video/webm",
+  "sizeBytes": 1536000,
+  "durationSeconds": 12
+}
+```
+
+**Validation**
+- Authenticated actor must resolve to a Decidr profile.
+- File name must use an allowed video extension and stay within the 64 MB limit.
+- Duration must be present and between 1 and 30 seconds when supplied.
+
+**Response `200 OK`** — `CaseMediaUploadSession` with `status: "Pending"`
+**Response `400 Bad Request`** — validation failure message  
+**Response `401 Unauthorized`** — unresolved actor
+
+### `POST /api/cases/media/{uploadId}/finalize`
+Completes an authorized upload session by sending the actual file bytes. The upload must belong to the current user and still be pending.
+
+**Request** — `multipart/form-data`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `file` | file | The final video clip |
+
+**Validation**
+- `uploadId` must exist and belong to the authenticated user.
+- File contents must match the selected video type and the stored metadata.
+- Duration must be determined and remain within the 30-second limit.
+
+**Response `200 OK`** — `CaseMediaUploadResponse`  
+**Response `400 Bad Request`** — validation or state failure message  
+**Response `401 Unauthorized`** — unresolved actor  
+**Response `403 Forbidden`** — upload belongs to another user  
+**Response `404 Not Found`** — unknown upload id
+
+### `GET /api/cases/media/{uploadId}/status`
+Polls the status of a previously initiated upload session. This allows the client to wait for the server-side finalization state before creating or updating a case.
+
+**Response `200 OK`** — `CaseMediaUploadStatusResponse` with `status: "Pending" | "Ready" | "Failed"`
+**Response `401 Unauthorized`** — unresolved actor  
+**Response `403 Forbidden`** — upload belongs to another user  
+**Response `404 Not Found`** — unknown upload id
+
 ---
 
 ### `GET /api/cases/media/{ownerId}/{fileName}`
