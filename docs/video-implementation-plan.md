@@ -13,6 +13,9 @@ means the work has not been implemented yet.
 - **Product prototype:** Browser recording and prerecorded upload fallback,
    camera permission handling, preview, retake, a 30-second recording limit, and
    the Side A/Side B invitation journey are implemented.
+- **Cleanup for abandoned and declined media:** Declined case media is now
+   removed from storage so discarded uploads do not linger after a case is
+   closed or abandoned.
 - **Two-sided playback:** The home feed presents one case per scroll-snapped
    viewport and plays Side A followed by Side B when available.
 - **Gesture and accessible voting:** Horizontal swipe voting has visible button
@@ -48,7 +51,8 @@ means the work has not been implemented yet.
 1. Completed: durable media metadata and lifecycle states for uploading,
     processing, ready, rejected, and failed, including thumbnail, MIME type,
     dimensions, captions, and transcript status.
-2. Add cleanup for abandoned, replaced, rejected, and declined-case media.
+2. Completed: cleanup for abandoned and declined-case media, including removal of
+    stale uploaded media when a pending case is declined.
 3. Add cursor-based feed pagination, captions, reporting, playback analytics,
     and visibility-aware playback controls.
 4. Add moderation, blocking, quotas, retention rules, retry behavior, and

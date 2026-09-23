@@ -184,6 +184,47 @@ public sealed class CasesControllerMediaTests
         Assert.Equal(CasesController.CaseMediaUploadStatus.Ready, pollStatus.Status);
     }
 
+    [Fact]
+    public async Task Declining_a_case_deletes_any_attached_side_a_media()
+    {
+        var caseId = Guid.NewGuid();
+        var service = new Mock<ICommunityCourtService>();
+        service
+            .Setup(x => x.GetCase(caseId, It.IsAny<Guid?>()))
+            .Returns(new ArgumentCase(
+                caseId,
+                "Title",
+                "Category",
+                "Summary",
+                new ArgumentPost(CaseSide.A, Guid.NewGuid(), "creator", "Claim", DateTime.UtcNow)
+                {
+                    MediaUrl = $"/api/cases/media/{Guid.NewGuid():N}/side-a.webm",
+                    MediaStatus = MediaStatus.Ready,
+                },
+                null,
+                Guid.NewGuid(),
+                new CommunityVerdict(0, 0),
+                CaseStatus.Pending,
+                null,
+                DateTime.UtcNow,
+                null));
+        service
+            .Setup(x => x.DeclineCaseInvitation(caseId, It.IsAny<Guid>()))
+            .Returns((true, null));
+
+        var fixture = CreateFixture(service.Object);
+        var actorId = fixture.UserId;
+
+        var result = await fixture.Controller.DeclineInvitation(caseId, CancellationToken.None);
+
+        Assert.IsType<NoContentResult>(result);
+        fixture.Storage.Verify(
+            storage => storage.DeleteAsync(
+                It.Is<string>(key => key.EndsWith("/side-a.webm", StringComparison.OrdinalIgnoreCase)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private static void VerifyNoUpload(MediaFixture fixture) =>
         fixture.Storage.Verify(
             storage => storage.UploadAsync(
@@ -234,7 +275,7 @@ public sealed class CasesControllerMediaTests
         };
     }
 
-    private static MediaFixture CreateFixture()
+    private static MediaFixture CreateFixture(ICommunityCourtService? service = null)
     {
         var userId = Guid.NewGuid();
         var actorResolver = new Mock<IActorResolver>();
@@ -247,7 +288,7 @@ public sealed class CasesControllerMediaTests
 
         var storage = new Mock<ICaseEvidenceStorage>();
         var controller = new CasesController(
-            Mock.Of<ICommunityCourtService>(),
+            service ?? Mock.Of<ICommunityCourtService>(),
             actorResolver.Object,
             storage.Object,
             Mock.Of<ILogger<CasesController>>())

@@ -759,10 +759,16 @@ public class CasesController : ControllerBase
             return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
         }
 
+        var pendingCase = _courtService.GetCase(id, actor.Id);
         var result = _courtService.DeclineCaseInvitation(id, actor.Id);
         if (!result.Success)
         {
             return BadRequest(result.Error);
+        }
+
+        if (pendingCase is not null)
+        {
+            await CleanupCaseMediaAsync(pendingCase, cancellationToken);
         }
 
         return NoContent();
@@ -786,6 +792,62 @@ public class CasesController : ControllerBase
             found.WinnerSide,
             found.Verdict
         });
+    }
+
+    private async Task CleanupCaseMediaAsync(ArgumentCase argumentCase, CancellationToken cancellationToken)
+    {
+        foreach (var mediaUrl in new[] { argumentCase.SideA.MediaUrl, argumentCase.SideB?.MediaUrl })
+        {
+            if (string.IsNullOrWhiteSpace(mediaUrl))
+            {
+                continue;
+            }
+
+            var storageKey = NormalizeMediaStorageKey(mediaUrl);
+            if (string.IsNullOrWhiteSpace(storageKey))
+            {
+                continue;
+            }
+
+            try
+            {
+                await _evidenceStorage.DeleteAsync(storageKey, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "Unable to clean up media object {StorageKey} after a case was declined or abandoned.",
+                    storageKey);
+            }
+        }
+    }
+
+    private static string? NormalizeMediaStorageKey(string mediaUrl)
+    {
+        var trimmed = mediaUrl.Trim();
+        if (trimmed.Length == 0)
+        {
+            return null;
+        }
+
+        const string mediaRoutePrefix = "/api/cases/media/";
+        if (trimmed.StartsWith(mediaRoutePrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return trimmed[mediaRoutePrefix.Length..];
+        }
+
+        if (Uri.TryCreate(trimmed, UriKind.Absolute, out var absoluteUri) &&
+            (absoluteUri.Scheme == Uri.UriSchemeHttp || absoluteUri.Scheme == Uri.UriSchemeHttps))
+        {
+            return null;
+        }
+
+        return trimmed;
     }
 
     private static CaseEvidenceItem ToApiEvidenceItem(CaseEvidenceItem evidence)
