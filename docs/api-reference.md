@@ -23,6 +23,71 @@ Returns all `Open` and `Closed` cases ordered by creation date descending. `Pend
 
 **Response `200 OK`** — `ArgumentCase[]`
 
+### `GET /api/cases/feed`
+Returns a cursor-paginated page of publication-ready `Open` and `Closed` cases.
+The opaque cursor is ordered by creation timestamp and case ID.
+
+**Query parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `cursor` | `string?` | Cursor returned by the previous page |
+| `limit` | `int?` | Number of cases, clamped to 1-20; default 5 |
+
+**Response `200 OK`** — `CaseFeedPage` (`items`, `nextCursor`, `hasMore`)
+**Response `400 Bad Request`** — invalid cursor
+
+### `POST /api/cases/{id}/report`
+Submits an authenticated user's report for a case. Reports are queued for
+moderation and are not exposed through the public feed response.
+
+**Request body** — `{ "reason": "string" }`, 1-256 characters
+
+**Response `202 Accepted`** — report queued
+**Response `400 Bad Request`** — invalid reason
+**Response `401 Unauthorized`** — actor unavailable
+
+### `GET /api/cases/moderation/reports`
+Returns queued case reports for moderators.
+
+**Response `200 OK`** — `ModerationReport[]`
+**Response `401 Unauthorized`** — actor unavailable
+**Response `403 Forbidden`** — actor is not a moderator
+
+### `POST /api/cases/{id}/moderation`
+Sets the moderator visibility state for a case. Hidden cases are excluded from
+the cursor feed.
+
+**Request body** — `{ "hidden": true }`
+
+**Response `204 No Content`** — moderation state changed
+**Response `403 Forbidden`** — actor is not a moderator
+**Response `404 Not Found`** — case does not exist
+
+### `GET /api/cases/observability/metrics`
+Returns in-process trust, upload, moderation, and playback counters to moderators.
+
+**Response `200 OK`** — `object` containing metric names and counts
+**Response `403 Forbidden`** — actor is not a moderator
+
+### `POST /api/users/{id}/block` and `DELETE /api/users/{id}/block`
+Blocks or unblocks a user for the authenticated actor. Blocked participants are
+removed from the actor's feed results.
+
+**Response `204 No Content`** — state changed
+**Response `400 Bad Request`** — actor attempted to block themselves
+**Response `404 Not Found`** — target user does not exist (block only)
+**Response `404 Not Found`** — case does not exist
+
+### `POST /api/cases/{id}/playback-events`
+Records an authenticated playback event for analytics.
+
+**Request body** — `{ "side": "A" | "B", "event": "string", "positionSeconds": 0 }`
+
+**Response `204 No Content`** — event accepted
+**Response `400 Bad Request`** — invalid event
+**Response `401 Unauthorized`** — actor unavailable
+
 ---
 
 ### `GET /api/cases/{id}`

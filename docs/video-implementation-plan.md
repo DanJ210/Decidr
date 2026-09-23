@@ -35,6 +35,12 @@ means the work has not been implemented yet.
    media to be ready before appearing, while text-only or partial cases remain
    hidden.
 - **Focused validation:** The backend test suite currently passes 75 tests.
+- **Feed controls and pagination:** The feed now loads cursor pages, pauses when
+   hidden, exposes a captions fallback and reporting control, and records
+   playback start/completion events.
+- **Trust and reliability controls:** Moderator report review and case hiding,
+   participant blocking, daily media quotas, upload-session retention cleanup,
+   retry-safe storage writes, and structured in-process metrics are implemented.
 
 ### Partial
 
@@ -53,10 +59,10 @@ means the work has not been implemented yet.
     dimensions, captions, and transcript status.
 2. Completed: cleanup for abandoned and declined-case media, including removal of
     stale uploaded media when a pending case is declined.
-3. Add cursor-based feed pagination, captions, reporting, playback analytics,
-    and visibility-aware playback controls.
-4. Add moderation, blocking, quotas, retention rules, retry behavior, and
-    observability before limited-beta measurement.
+3. Completed: cursor-based feed pagination, captions fallback, reporting,
+   playback analytics, and visibility-aware playback controls.
+4. Completed: moderation, blocking, quotas, retention rules, retry behavior, and
+   observability for the prototype trust-safety path.
 
 ### Delivery phase status
 
@@ -65,8 +71,8 @@ means the work has not been implemented yet.
 | 1. Product prototype | Complete | Core recording, two-sided playback, feed navigation, and voting are implemented. |
 | 2. Media foundation | Partial | Authorized upload initiation and polling are implemented; durable async processing and cleanup remain next. |
 | 3. Two-sided video lifecycle | Partial | Creation and acceptance accept media; publication still permits text-only cases. |
-| 4. Public video feed | Partial | Feed interaction and preload limits exist; pagination and several controls do not. |
-| 5. Trust and reliability | Next | Reporting, moderation, captions, quotas, cleanup, and analytics are not implemented. |
+| 4. Public video feed | Complete | Cursor pagination, preload limits, captions fallback, reporting, playback analytics, and hidden-visibility pause are implemented. |
+| 5. Trust and reliability | Complete | Reports, moderator hide/restore, blocking, quotas, retention cleanup, retry behavior, and metrics are implemented; production durability remains a beta hardening task. |
 | 6. Limited beta | Next | No beta measurement or launch-readiness work has started. |
 
 ## Product assessment

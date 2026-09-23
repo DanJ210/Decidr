@@ -93,6 +93,25 @@ One side's opening argument in a case.
 | `CaptionStatus` | `CaptionStatus` | Caption-generation state |
 | `TranscriptStatus` | `TranscriptStatus` | Transcript-generation state |
 
+### `CaseFeedPage`
+Cursor page returned by the public feed endpoint.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Items` | `ArgumentCase[]` | Publication-ready cases in this page |
+| `NextCursor` | `string?` | Opaque cursor for the next page |
+| `HasMore` | `bool` | Whether another page is available |
+
+### `ModerationReport`
+Queued trust-safety report returned to moderators.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `CaseId` | `Guid` | Reported case |
+| `ReporterId` | `Guid` | Authenticated reporter |
+| `Reason` | `string` | User-provided reason |
+| `CreatedAtUtc` | `DateTime` | Submission time |
+
 ---
 
 ### `MediaStatus`

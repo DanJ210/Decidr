@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Text;
+using System.Text.Json;
 using backend.Models;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -38,6 +40,7 @@ public class CasesController : ControllerBase
     };
 
     private static readonly ConcurrentDictionary<Guid, CaseMediaUploadSession> MediaUploadSessions = new();
+    private static readonly ConcurrentDictionary<Guid, ConcurrentBag<PlaybackEvent>> PlaybackEvents = new();
 
     private readonly ICommunityCourtService _courtService;
     private readonly IActorResolver _actorResolver;
@@ -61,6 +64,97 @@ public class CasesController : ControllerBase
     public ActionResult<IEnumerable<ArgumentCase>> GetAllCases()
     {
         return Ok(_courtService.GetCases());
+    }
+
+    [HttpGet("feed")]
+    [AllowAnonymous]
+    public async Task<ActionResult<CaseFeedPage>> GetFeed([FromQuery] string? cursor = null, [FromQuery] int limit = 5, CancellationToken cancellationToken = default)
+    {
+        limit = Math.Clamp(limit, 1, 20);
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        var cases = _courtService.GetCases()
+            .Where(item => !TrustSafetyRegistry.IsCaseHidden(item.Id))
+            .Where(item => actor is null || !TrustSafetyRegistry.IsBlockedEither(actor.Id, item.SideA.UserId))
+            .Where(item => actor is null || item.SideB is null || !TrustSafetyRegistry.IsBlockedEither(actor.Id, item.SideB.UserId))
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .ToList();
+        FeedCursor? cursorValue = null;
+
+        if (!string.IsNullOrWhiteSpace(cursor) && !TryDecodeCursor(cursor, out cursorValue))
+            return BadRequest("The feed cursor is invalid.");
+
+        if (cursorValue is FeedCursor decodedCursor)
+        {
+            cases = cases
+                .Where(item => item.CreatedAtUtc < decodedCursor.CreatedAtUtc ||
+                    (item.CreatedAtUtc == decodedCursor.CreatedAtUtc && item.Id.CompareTo(decodedCursor.Id) < 0))
+                .ToList();
+        }
+
+        var page = cases.Take(limit).ToList();
+        var hasMore = cases.Count > page.Count;
+        var nextCursor = hasMore && page.Count > 0 ? EncodeCursor(page[^1]) : null;
+        return Ok(new CaseFeedPage(page, nextCursor, hasMore));
+    }
+
+    [HttpPost("{id:guid}/report")]
+    public async Task<IActionResult> ReportCase(Guid id, [FromBody] ReportCaseRequest request, CancellationToken cancellationToken)
+    {
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null) return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        if (_courtService.GetCase(id) is null) return NotFound();
+        if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length > 256)
+            return BadRequest("A report reason between 1 and 256 characters is required.");
+
+        TrustSafetyRegistry.AddReport(id, actor.Id, request.Reason.Trim(), DateTime.UtcNow);
+        _logger.LogInformation("Case report queued for moderation. CaseId={CaseId} ReporterId={ReporterId}", id, actor.Id);
+        return Accepted();
+    }
+
+    [HttpGet("moderation/reports")]
+    public async Task<ActionResult<IReadOnlyList<ModerationReport>>> GetModerationReports(CancellationToken cancellationToken)
+    {
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null) return Unauthorized();
+        if (actor.Role != UserRole.Moderator) return Forbid();
+        return Ok(TrustSafetyRegistry.GetReports());
+    }
+
+    [HttpPost("{id:guid}/moderation")]
+    public async Task<IActionResult> ModerateCase(Guid id, [FromBody] ModerateCaseRequest request, CancellationToken cancellationToken)
+    {
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null) return Unauthorized();
+        if (actor.Role != UserRole.Moderator) return Forbid();
+        if (_courtService.GetCase(id) is null) return NotFound();
+        TrustSafetyRegistry.SetCaseHidden(id, request.Hidden);
+        _logger.LogInformation("Case moderation state changed. CaseId={CaseId} Hidden={Hidden} ModeratorId={ModeratorId}", id, request.Hidden, actor.Id);
+        return NoContent();
+    }
+
+    [HttpGet("observability/metrics")]
+    public async Task<ActionResult<IReadOnlyDictionary<string, long>>> GetMetrics(CancellationToken cancellationToken)
+    {
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null) return Unauthorized();
+        if (actor.Role != UserRole.Moderator) return Forbid();
+        return Ok(TrustSafetyRegistry.GetMetrics());
+    }
+
+    [HttpPost("{id:guid}/playback-events")]
+    public async Task<IActionResult> RecordPlaybackEvent(Guid id, [FromBody] PlaybackEventRequest request, CancellationToken cancellationToken)
+    {
+        var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
+        if (actor is null) return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
+        var foundCase = _courtService.GetCase(id);
+        if (foundCase is null || !Enum.IsDefined(request.Side) || string.IsNullOrWhiteSpace(request.Event) || request.PositionSeconds < 0)
+            return BadRequest("The playback event is invalid.");
+        if (request.Event.Length > 32) return BadRequest("The playback event name is too long.");
+
+        PlaybackEvents.GetOrAdd(id, _ => new ConcurrentBag<PlaybackEvent>())
+            .Add(new PlaybackEvent(actor.Id, request.Side, request.Event.Trim(), request.PositionSeconds, DateTime.UtcNow));
+        return NoContent();
     }
 
     [HttpGet("{id:guid}")]
@@ -340,14 +434,18 @@ public class CasesController : ControllerBase
             return BadRequest($"Video duration could not be determined or exceeds {MaxCaseMediaDurationSeconds} seconds.");
         }
 
+        if (!TrustSafetyRegistry.TryConsumeMediaQuota(actor.Id, DateTime.UtcNow))
+            return StatusCode(StatusCodes.Status429TooManyRequests, "Daily video upload quota exceeded.");
+
         // Media is uploaded before the case exists, so it is partitioned by uploader rather than case.
         await using var content = request.File.OpenReadStream();
-        var storageKey = await _evidenceStorage.UploadAsync(
-            actor.Id,
-            extension,
-            contentType,
-            content,
-            cancellationToken);
+        var storageKey = await TrustSafetyRegistry.WithRetryAsync(
+            async () =>
+            {
+                if (content.CanSeek) content.Position = 0;
+                return await _evidenceStorage.UploadAsync(actor.Id, extension, contentType, content, cancellationToken);
+            },
+            "media.upload", cancellationToken);
 
         var fileName = Path.GetFileName(storageKey);
         return Ok(new CaseMediaUploadResponse(
@@ -367,6 +465,10 @@ public class CasesController : ControllerBase
         {
             return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
         }
+
+        TrustSafetyRegistry.PurgeExpiredUploadSessions(MediaUploadSessions, session => session.CreatedAtUtc, DateTime.UtcNow, TimeSpan.FromHours(24));
+        if (!TrustSafetyRegistry.TryConsumeMediaQuota(actor.Id, DateTime.UtcNow))
+            return StatusCode(StatusCodes.Status429TooManyRequests, "Daily video upload quota exceeded.");
 
         if (string.IsNullOrWhiteSpace(request.FileName))
         {
@@ -463,12 +565,13 @@ public class CasesController : ControllerBase
         }
 
         await using var content = request.File.OpenReadStream();
-        var storageKey = await _evidenceStorage.UploadAsync(
-            actor.Id,
-            extension,
-            contentType,
-            content,
-            cancellationToken);
+        var storageKey = await TrustSafetyRegistry.WithRetryAsync(
+            async () =>
+            {
+                if (content.CanSeek) content.Position = 0;
+                return await _evidenceStorage.UploadAsync(actor.Id, extension, contentType, content, cancellationToken);
+            },
+            "media.upload", cancellationToken);
 
         MediaUploadSessions[uploadId] = session with
         {
@@ -494,6 +597,8 @@ public class CasesController : ControllerBase
         {
             return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
         }
+
+        TrustSafetyRegistry.PurgeExpiredUploadSessions(MediaUploadSessions, session => session.CreatedAtUtc, DateTime.UtcNow, TimeSpan.FromHours(24));
 
         if (!MediaUploadSessions.TryGetValue(uploadId, out var session))
         {
@@ -887,6 +992,31 @@ public class CasesController : ControllerBase
         return string.IsNullOrWhiteSpace(sanitized) ? "evidence" : sanitized;
     }
 
+    private static string EncodeCursor(ArgumentCase item)
+    {
+        var payload = JsonSerializer.Serialize(new FeedCursor(item.CreatedAtUtc, item.Id));
+        return Convert.ToBase64String(Encoding.UTF8.GetBytes(payload));
+    }
+
+    private static bool TryDecodeCursor(string cursor, out FeedCursor? value)
+    {
+        value = null;
+        try
+        {
+            var payload = Encoding.UTF8.GetString(Convert.FromBase64String(cursor));
+            value = JsonSerializer.Deserialize<FeedCursor>(payload);
+            return value is not null;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
     private static bool TryGetEvidenceType(string fileName, string contentType, out CaseEvidenceType evidenceType)
     {
         var extension = Path.GetExtension(fileName);
@@ -994,4 +1124,8 @@ public class CasesController : ControllerBase
     }
 
     public sealed record CaseMediaUploadStatusResponse(CaseMediaUploadStatus Status);
+
+    private sealed record FeedCursor(DateTime CreatedAtUtc, Guid Id);
+    private sealed record CaseReport(Guid UserId, string Reason, DateTime CreatedAtUtc);
+    private sealed record PlaybackEvent(Guid UserId, CaseSide Side, string Event, int PositionSeconds, DateTime CreatedAtUtc);
 }

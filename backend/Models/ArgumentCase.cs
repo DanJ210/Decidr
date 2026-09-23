@@ -123,6 +123,26 @@ public record CaseVoteStatus(
     bool HasVoted
 );
 
+public record CaseFeedPage(
+    IReadOnlyList<ArgumentCase> Items,
+    string? NextCursor,
+    bool HasMore
+);
+
+public record ReportCaseRequest(
+    string Reason
+);
+
+public record ModerateCaseRequest(
+    bool Hidden
+);
+
+public record PlaybackEventRequest(
+    CaseSide Side,
+    string Event,
+    int PositionSeconds
+);
+
 public record CurrentUserVote(
     CaseSide Side,
     DateTime CastAtUtc,

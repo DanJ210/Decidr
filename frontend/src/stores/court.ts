@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { acceptCaseInvitation, castVote, closeCase, createCase, declineCaseInvitation, fetchCaseById, fetchCases } from '../services/api'
+import { acceptCaseInvitation, blockUser, castVote, closeCase, createCase, declineCaseInvitation, fetchCaseById, fetchCaseFeed, reportCase, recordPlaybackEvent } from '../services/api'
 import type { ArgumentCase, CaseSide, CreateCaseRequest } from '../types'
 
 interface CourtState {
@@ -9,6 +9,9 @@ interface CourtState {
   mutating: boolean
   error: string | null
   selectedCaseRequestId: number
+  feedCursor: string | null
+  feedHasMore: boolean
+  feedLoading: boolean
 }
 
 interface CaseMutationResult {
@@ -25,6 +28,9 @@ export const useCourtStore = defineStore('court', {
     mutating: false,
     error: null,
     selectedCaseRequestId: 0,
+    feedCursor: null,
+    feedHasMore: true,
+    feedLoading: false,
   }),
   actions: {
     async loadCases() {
@@ -32,12 +38,38 @@ export const useCourtStore = defineStore('court', {
       this.error = null
 
       try {
-        this.cases = await fetchCases()
+        const page = await fetchCaseFeed()
+        this.cases = page.items
+        this.feedCursor = page.nextCursor
+        this.feedHasMore = page.hasMore
       } catch {
         this.error = 'Unable to load arguments right now. Please try again.'
       } finally {
         this.loading = false
       }
+    },
+    async loadMoreCases() {
+      if (this.feedLoading || !this.feedHasMore) return
+      this.feedLoading = true
+      try {
+        const page = await fetchCaseFeed(this.feedCursor)
+        const existingIds = new Set(this.cases.map((item) => item.id))
+        this.cases.push(...page.items.filter((item) => !existingIds.has(item.id)))
+        this.feedCursor = page.nextCursor
+        this.feedHasMore = page.hasMore
+      } finally {
+        this.feedLoading = false
+      }
+    },
+    async reportCase(caseId: string, reason: string) {
+      await reportCase(caseId, reason)
+    },
+    async blockUser(userId: string) {
+      await blockUser(userId)
+      this.cases = this.cases.filter((item) => item.sideA.userId !== userId && item.sideB?.userId !== userId)
+    },
+    async recordPlaybackEvent(caseId: string, event: { side: CaseSide; event: string; positionSeconds: number }) {
+      try { await recordPlaybackEvent(caseId, event) } catch { /* analytics must not interrupt playback */ }
     },
     async loadCase(id: string, options?: { clearSelectedCaseOnFailure?: boolean }) {
       const requestId = this.selectedCaseRequestId + 1

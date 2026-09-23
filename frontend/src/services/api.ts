@@ -8,6 +8,7 @@ import type {
   CaseEvidenceCollection,
   CaseEvidenceItem,
   CaseEvidenceStatusResponse,
+  CaseFeedPage,
   CaseMediaUploadResponse,
   CaseSide,
   CaseVoteStatus,
@@ -52,6 +53,30 @@ export async function fetchCurrentUser(): Promise<AppUser> {
 export async function fetchCases(): Promise<ArgumentCase[]> {
   const { data } = await apiClient.get<ArgumentCase[]>('/cases')
   return data
+}
+
+export async function fetchCaseFeed(cursor?: string | null, limit = 5): Promise<CaseFeedPage> {
+  const { data } = await apiClient.get<CaseFeedPage>('/cases/feed', { params: { cursor, limit } })
+  return data
+}
+
+export async function reportCase(caseId: string, reason: string): Promise<void> {
+  await apiClient.post(`/cases/${caseId}/report`, { reason })
+}
+
+export async function blockUser(userId: string): Promise<void> {
+  await apiClient.post(`/users/${userId}/block`)
+}
+
+export async function unblockUser(userId: string): Promise<void> {
+  await apiClient.delete(`/users/${userId}/block`)
+}
+
+export async function recordPlaybackEvent(
+  caseId: string,
+  event: { side: CaseSide; event: string; positionSeconds: number },
+): Promise<void> {
+  await apiClient.post(`/cases/${caseId}/playback-events`, event)
 }
 
 export async function fetchCaseById(id: string): Promise<ArgumentCase> {
