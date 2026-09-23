@@ -5,7 +5,7 @@ namespace backend.Services;
 public static class CaseMediaGate
 {
     public static bool BlocksPublication(MediaStatus status) =>
-        status is MediaStatus.Pending or MediaStatus.Failed;
+        status is MediaStatus.Pending or MediaStatus.Uploading or MediaStatus.Processing or MediaStatus.Rejected or MediaStatus.Failed;
 
     public static MediaStatus ResolveStatus(string? mediaUrl) =>
         string.IsNullOrWhiteSpace(mediaUrl) ? MediaStatus.None : MediaStatus.Ready;

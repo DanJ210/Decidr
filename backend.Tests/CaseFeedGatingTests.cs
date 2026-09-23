@@ -13,10 +13,40 @@ public sealed class CaseFeedGatingTests
     [InlineData(MediaStatus.None, false)]
     [InlineData(MediaStatus.Ready, false)]
     [InlineData(MediaStatus.Pending, true)]
+    [InlineData(MediaStatus.Uploading, true)]
+    [InlineData(MediaStatus.Processing, true)]
+    [InlineData(MediaStatus.Rejected, true)]
     [InlineData(MediaStatus.Failed, true)]
     public void Only_unready_media_blocks_publication(MediaStatus status, bool blocks)
     {
         Assert.Equal(blocks, CaseMediaGate.BlocksPublication(status));
+    }
+
+    [Fact]
+    public void Video_posts_expose_metadata_needed_for_processing_and_playback()
+    {
+        var post = new ArgumentPost(
+            CaseSide.A,
+            Guid.NewGuid(),
+            "alex_t",
+            "Opening claim",
+            DateTime.UtcNow)
+        {
+            MediaUrl = "/api/cases/media/abc/clip.mp4",
+            ThumbnailUrl = "https://cdn.example.com/thumb.jpg",
+            MimeType = "video/mp4",
+            WidthPixels = 1920,
+            HeightPixels = 1080,
+            CaptionStatus = CaptionStatus.Ready,
+            TranscriptStatus = TranscriptStatus.Ready,
+            MediaStatus = MediaStatus.Ready,
+        };
+
+        Assert.Equal("video/mp4", post.MimeType);
+        Assert.Equal(1920, post.WidthPixels);
+        Assert.Equal(1080, post.HeightPixels);
+        Assert.Equal(CaptionStatus.Ready, post.CaptionStatus);
+        Assert.Equal(TranscriptStatus.Ready, post.TranscriptStatus);
     }
 
     [Theory]

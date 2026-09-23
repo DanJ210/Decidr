@@ -15,8 +15,13 @@ public class CaseEntity
     public string SideAClaim { get; set; } = "";
     public string? SideAMediaUrl { get; set; }
     public string? SideAThumbnailUrl { get; set; }
+    public string? SideAMimeType { get; set; }
+    public int? SideAWidthPixels { get; set; }
+    public int? SideAHeightPixels { get; set; }
     public int? SideADurationSeconds { get; set; }
     public MediaStatus SideAMediaStatus { get; set; }
+    public CaptionStatus SideACaptionStatus { get; set; }
+    public TranscriptStatus SideATranscriptStatus { get; set; }
     public DateTime SideAPostedAtUtc { get; set; }
 
     // Side B (null until the invitation is accepted)
@@ -25,8 +30,13 @@ public class CaseEntity
     public string? SideBClaim { get; set; }
     public string? SideBMediaUrl { get; set; }
     public string? SideBThumbnailUrl { get; set; }
+    public string? SideBMimeType { get; set; }
+    public int? SideBWidthPixels { get; set; }
+    public int? SideBHeightPixels { get; set; }
     public int? SideBDurationSeconds { get; set; }
     public MediaStatus SideBMediaStatus { get; set; }
+    public CaptionStatus SideBCaptionStatus { get; set; }
+    public TranscriptStatus SideBTranscriptStatus { get; set; }
     public DateTime? SideBPostedAtUtc { get; set; }
 
     public Guid? InvitedUserId { get; set; }

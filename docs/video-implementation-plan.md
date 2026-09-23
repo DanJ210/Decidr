@@ -23,6 +23,9 @@ means the work has not been implemented yet.
 - **Basic media validation:** The server validates supported video signatures,
    extensions, size, and container-derived duration. Backend media tests cover
    successful uploads and rejected inputs.
+- **Durable media metadata:** Case sides now persist media MIME type, thumbnail,
+   dimensions, caption status, transcript status, and richer lifecycle states
+   including uploading, processing, ready, rejected, and failed.
 - **Basic persistence:** Case sides store media URL, poster URL, duration, and
    a basic media status. A database migration is present.
 - **Publication gating:** Public feed entries now require both Side A and Side B
@@ -42,9 +45,9 @@ means the work has not been implemented yet.
 
 ### Next
 
-1. Add durable media metadata and lifecycle states for uploading, processing,
-    ready, rejected, and failed, including thumbnail, MIME type, dimensions,
-    captions, and transcript status.
+1. Completed: durable media metadata and lifecycle states for uploading,
+    processing, ready, rejected, and failed, including thumbnail, MIME type,
+    dimensions, captions, and transcript status.
 2. Add cleanup for abandoned, replaced, rejected, and declined-case media.
 3. Add cursor-based feed pagination, captions, reporting, playback analytics,
     and visibility-aware playback controls.

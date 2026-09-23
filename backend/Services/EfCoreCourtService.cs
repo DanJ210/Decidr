@@ -160,8 +160,13 @@ public class EfCoreCourtService : ICommunityCourtService
             SideAClaim = request.SideAClaim,
             SideAMediaUrl = request.SideARecordUrl,
             SideAThumbnailUrl = request.SideAThumbnailUrl,
+            SideAMimeType = request.SideAMimeType,
+            SideAWidthPixels = request.SideAWidthPixels,
+            SideAHeightPixels = request.SideAHeightPixels,
             SideADurationSeconds = request.SideADurationSeconds,
-            SideAMediaStatus = CaseMediaGate.ResolveStatus(request.SideARecordUrl),
+            SideAMediaStatus = request.SideAMediaStatus != MediaStatus.None ? request.SideAMediaStatus : CaseMediaGate.ResolveStatus(request.SideARecordUrl),
+            SideACaptionStatus = request.SideACaptionStatus,
+            SideATranscriptStatus = request.SideATranscriptStatus,
             SideAPostedAtUtc = createdAt,
             InvitedUserId = request.InvitedUserId,
             Status = CaseStatus.Pending,
@@ -706,8 +711,13 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
         caseEntity.SideBClaim = request.Claim;
         caseEntity.SideBMediaUrl = request.SideBRecordUrl;
         caseEntity.SideBThumbnailUrl = request.SideBThumbnailUrl;
+        caseEntity.SideBMimeType = request.SideBMimeType;
+        caseEntity.SideBWidthPixels = request.SideBWidthPixels;
+        caseEntity.SideBHeightPixels = request.SideBHeightPixels;
         caseEntity.SideBDurationSeconds = request.SideBDurationSeconds;
-        caseEntity.SideBMediaStatus = CaseMediaGate.ResolveStatus(request.SideBRecordUrl);
+        caseEntity.SideBMediaStatus = request.SideBMediaStatus != MediaStatus.None ? request.SideBMediaStatus : CaseMediaGate.ResolveStatus(request.SideBRecordUrl);
+        caseEntity.SideBCaptionStatus = request.SideBCaptionStatus;
+        caseEntity.SideBTranscriptStatus = request.SideBTranscriptStatus;
         caseEntity.SideBPostedAtUtc = acceptedAt;
         caseEntity.Status = CaseStatus.Open;
         caseEntity.InvitedUserId = null;
@@ -867,8 +877,13 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
         {
             MediaUrl = e.SideAMediaUrl,
             ThumbnailUrl = e.SideAThumbnailUrl,
+            MimeType = e.SideAMimeType,
+            WidthPixels = e.SideAWidthPixels,
+            HeightPixels = e.SideAHeightPixels,
             DurationSeconds = e.SideADurationSeconds,
             MediaStatus = e.SideAMediaStatus,
+            CaptionStatus = e.SideACaptionStatus,
+            TranscriptStatus = e.SideATranscriptStatus,
         };
 
         ArgumentPost? sideB = e.SideBUserId is not null
@@ -876,8 +891,13 @@ public IReadOnlyList<UserRewardView> GetUserRewards(Guid userId)
             {
                 MediaUrl = e.SideBMediaUrl,
                 ThumbnailUrl = e.SideBThumbnailUrl,
+                MimeType = e.SideBMimeType,
+                WidthPixels = e.SideBWidthPixels,
+                HeightPixels = e.SideBHeightPixels,
                 DurationSeconds = e.SideBDurationSeconds,
                 MediaStatus = e.SideBMediaStatus,
+                CaptionStatus = e.SideBCaptionStatus,
+                TranscriptStatus = e.SideBTranscriptStatus,
             }
             : null;
 

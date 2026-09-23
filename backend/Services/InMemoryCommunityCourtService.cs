@@ -216,8 +216,13 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
             {
                 MediaUrl = request.SideARecordUrl,
                 ThumbnailUrl = request.SideAThumbnailUrl,
+                MimeType = request.SideAMimeType,
+                WidthPixels = request.SideAWidthPixels,
+                HeightPixels = request.SideAHeightPixels,
                 DurationSeconds = request.SideADurationSeconds,
-                MediaStatus = CaseMediaGate.ResolveStatus(request.SideARecordUrl),
+                MediaStatus = request.SideAMediaStatus != MediaStatus.None ? request.SideAMediaStatus : CaseMediaGate.ResolveStatus(request.SideARecordUrl),
+                CaptionStatus = request.SideACaptionStatus,
+                TranscriptStatus = request.SideATranscriptStatus,
             };
 
             var created = new ArgumentCase(
@@ -722,8 +727,13 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
             {
                 MediaUrl = request.SideBRecordUrl,
                 ThumbnailUrl = request.SideBThumbnailUrl,
+                MimeType = request.SideBMimeType,
+                WidthPixels = request.SideBWidthPixels,
+                HeightPixels = request.SideBHeightPixels,
                 DurationSeconds = request.SideBDurationSeconds,
-                MediaStatus = CaseMediaGate.ResolveStatus(request.SideBRecordUrl),
+                MediaStatus = request.SideBMediaStatus != MediaStatus.None ? request.SideBMediaStatus : CaseMediaGate.ResolveStatus(request.SideBRecordUrl),
+                CaptionStatus = request.SideBCaptionStatus,
+                TranscriptStatus = request.SideBTranscriptStatus,
             };
 
             var opened = foundCase with { SideB = sideB, Status = CaseStatus.Open, InvitedUserId = null };

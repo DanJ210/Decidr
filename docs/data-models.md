@@ -85,21 +85,49 @@ One side's opening argument in a case.
 | `PostedAtUtc` | `DateTime` | When posted |
 | `MediaUrl` | `string?` | Playback URL for the side's video, or `null` for a text-only argument |
 | `ThumbnailUrl` | `string?` | Poster image for the video |
+| `MimeType` | `string?` | Media MIME type, such as `video/mp4` |
+| `WidthPixels` | `int?` | Encoded video width in pixels |
+| `HeightPixels` | `int?` | Encoded video height in pixels |
 | `DurationSeconds` | `int?` | Clip length in seconds |
 | `MediaStatus` | `MediaStatus` | Readiness of this side's video |
+| `CaptionStatus` | `CaptionStatus` | Caption-generation state |
+| `TranscriptStatus` | `TranscriptStatus` | Transcript-generation state |
 
 ---
 
 ### `MediaStatus`
 Readiness of one side's video. A case is held out of the public feed while either
-side is `Pending` or `Failed`.
+side is still in an unfinished or rejected media state.
 
 | Value | Meaning |
 |-------|---------|
 | `None` | Text-only argument; never blocks publication |
 | `Pending` | Upload or processing has not finished |
+| `Uploading` | Media is being transferred or staged |
+| `Processing` | Media is being validated or transcoded |
 | `Ready` | Playable |
+| `Rejected` | Upload or processing was rejected |
 | `Failed` | Upload or processing failed |
+
+### `CaptionStatus`
+The caption-generation state for a media asset.
+
+| Value | Meaning |
+|-------|---------|
+| `None` | No caption workflow has started |
+| `Pending` | Caption generation is in progress |
+| `Ready` | Captions are available |
+| `Failed` | Caption generation failed |
+
+### `TranscriptStatus`
+The transcript-generation state for a media asset.
+
+| Value | Meaning |
+|-------|---------|
+| `None` | No transcript workflow has started |
+| `Pending` | Transcript generation is in progress |
+| `Ready` | Transcript is available |
+| `Failed` | Transcript generation failed |
 
 ---
 
