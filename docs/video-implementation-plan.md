@@ -47,22 +47,17 @@ means the work has not been implemented yet.
 - **Media foundation:** Uploads currently pass through ASP.NET and the existing
    evidence storage abstraction. Media is marked `Ready` immediately; there is
    no authorized direct upload, asynchronous processing, transcoding, or cleanup.
-- **Public feed:** The feed supports sequential playback, mute, play/pause,
-   detail navigation, neighbor preloading, and hidden totals until voting. It
-   does not yet provide cursor pagination, captions, reporting, or data-saving
-   and hidden-visibility pause behavior.
 
 ### Next
 
-1. Completed: durable media metadata and lifecycle states for uploading,
-    processing, ready, rejected, and failed, including thumbnail, MIME type,
-    dimensions, captions, and transcript status.
-2. Completed: cleanup for abandoned and declined-case media, including removal of
-    stale uploaded media when a pending case is declined.
-3. Completed: cursor-based feed pagination, captions fallback, reporting,
-   playback analytics, and visibility-aware playback controls.
-4. Completed: moderation, blocking, quotas, retention rules, retry behavior, and
-   observability for the prototype trust-safety path.
+1. Finish the production media foundation: direct browser uploads with
+   authorization, async processing, transcoding, thumbnail/caption generation,
+   and storage cleanup for rejected or declined media.
+2. Complete the two-sided video lifecycle: enforce ready-media publication
+   gating, finalize defense acceptance flow, and close the remaining
+   lifecycle/production gaps in media handling.
+3. Prepare the limited beta path: measuring completion, acceptance, watch-through,
+   voting, reports, latency, and storage cost before launch.
 
 ### Delivery phase status
 
