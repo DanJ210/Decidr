@@ -492,7 +492,7 @@ public class CasesController : ControllerBase
         }
 
         if (!string.IsNullOrWhiteSpace(request.ContentType) &&
-            !string.Equals(request.ContentType, contentType, StringComparison.OrdinalIgnoreCase))
+            !string.Equals(NormalizeMediaContentType(request.ContentType), contentType, StringComparison.OrdinalIgnoreCase))
         {
             return BadRequest("The requested content type does not match the file extension.");
         }
@@ -538,7 +538,7 @@ public class CasesController : ControllerBase
         if (Request.ContentLength is null || Request.ContentLength != session.SizeBytes)
             return BadRequest("The uploaded content length does not match the upload session.");
         if (!string.IsNullOrWhiteSpace(Request.ContentType)
-            && !string.Equals(Request.ContentType, session.ContentType, StringComparison.OrdinalIgnoreCase))
+            && !string.Equals(NormalizeMediaContentType(Request.ContentType), session.ContentType, StringComparison.OrdinalIgnoreCase))
             return BadRequest("The uploaded content type does not match the upload session.");
 
         var extension = Path.GetExtension(session.FileName).ToLowerInvariant();
@@ -623,7 +623,7 @@ public class CasesController : ControllerBase
         }
 
         if (!string.Equals(contentType, session.ContentType, StringComparison.OrdinalIgnoreCase)
-            || !string.Equals(request.File.ContentType, session.ContentType, StringComparison.OrdinalIgnoreCase))
+            || !string.Equals(NormalizeMediaContentType(request.File.ContentType), session.ContentType, StringComparison.OrdinalIgnoreCase))
         {
             return await FailMediaUploadAsync(session, "The uploaded content type does not match the upload session.", cancellationToken);
         }
@@ -743,11 +743,35 @@ public class CasesController : ControllerBase
         var sessions = await _mediaUploadSessions.ListAsync(cancellationToken);
         foreach (var session in sessions)
         {
-            if (session.CreatedAtUtc > cutoff || !await _mediaUploadSessions.DeleteAsync(session.UploadId, cancellationToken))
+            if (session.CreatedAtUtc > cutoff)
                 continue;
 
             if (!string.IsNullOrWhiteSpace(session.StorageKey))
-                await _evidenceStorage.DeleteAsync(session.StorageKey, cancellationToken);
+            {
+                try
+                {
+                    await _evidenceStorage.DeleteAsync(session.StorageKey, cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogWarning(
+                        exception,
+                        "Unable to delete expired media object {StorageKey} for upload session {UploadId}.",
+                        session.StorageKey,
+                        session.UploadId);
+                    continue;
+                }
+            }
+
+            if (!await _mediaUploadSessions.DeleteAsync(session.UploadId, cancellationToken))
+            {
+                continue;
+            }
+
             TrustSafetyRegistry.IncrementMetric("media.upload_sessions.purged");
         }
     }
@@ -792,6 +816,7 @@ public class CasesController : ControllerBase
             await sessionStore.SaveAsync(session with
             {
                 Status = CaseMediaUploadStatus.Failed,
+                StorageKey = null,
                 Error = exception.Message,
             }, cancellationToken);
             TrustSafetyRegistry.IncrementMetric("media.processing.failed");
@@ -1240,6 +1265,11 @@ public class CasesController : ControllerBase
         }, cancellationToken);
         return BadRequest(error);
     }
+
+    private static string? NormalizeMediaContentType(string? contentType) =>
+        string.IsNullOrWhiteSpace(contentType)
+            ? null
+            : contentType.Split(';', 2)[0].Trim();
 
     private static bool TryGetOwnedMediaStorageKey(Guid ownerId, string mediaUrl, out string storageKey)
     {

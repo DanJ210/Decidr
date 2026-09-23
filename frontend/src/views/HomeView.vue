@@ -58,6 +58,23 @@ function handleVideoEnded(item: ArgumentCase, side: CaseSide) {
   if (item.id === activeCase.value?.id && side === activeSide.value && side === 'A' && item.sideB) activeSide.value = 'B'
 }
 
+function sideFromVideoEvent(event: Event): CaseSide | null {
+  const side = (event.currentTarget as HTMLVideoElement | null)?.dataset.side
+  return side === 'A' || side === 'B' ? side : null
+}
+
+function handleVideoPlay(caseId: string, event: Event) {
+  const side = sideFromVideoEvent(event)
+  if (!side) return
+  void courtStore.recordPlaybackEvent(caseId, { side, event: 'started', positionSeconds: 0 })
+}
+
+function handleVideoEndedEvent(item: ArgumentCase, event: Event) {
+  const side = sideFromVideoEvent(event)
+  if (!side) return
+  handleVideoEnded(item, side)
+}
+
 function togglePlayback() {
   const item = activeCase.value
   const video = item ? videoElements.get(videoKey(item.id, activeSide.value)) : undefined
@@ -108,7 +125,7 @@ async function reportActiveCase() {
 }
 async function blockActiveParticipant() {
   const item = activeCase.value
-  const post = item ? visiblePost(item, activeCaseIndex.value) : null
+  const post = item ? postForSide(item, activeSide.value) : null
   if (!post || !window.confirm(`Block @${post.userName}?`)) return
   try {
     await courtStore.blockUser(post.userId)
@@ -154,7 +171,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', handleDoc
     <div v-else-if="filteredCaseFeed.length" ref="feedViewport" class="case-feed-viewport" @scroll.passive="updateActiveCase" @pointerdown="handlePointerDown" @pointerup="handlePointerUp">
       <article v-for="(item, index) in filteredCaseFeed" :key="item.id" class="case-feed-item" :aria-label="item.title">
         <div class="case-feed-media" :class="`side-${shownSide(index).toLowerCase()}`">
-          <video v-if="visiblePost(item, index)?.mediaUrl && shouldLoadMedia(index)" :ref="(element) => setVideoElement(videoKey(item.id, shownSide(index)), element as Element | null)" :src="visiblePost(item, index)?.mediaUrl ?? undefined" :poster="visiblePost(item, index)?.thumbnailUrl ?? undefined" :muted="muted" playsinline preload="metadata" @play="courtStore.recordPlaybackEvent(item.id, { side: shownSide(index), event: 'started', positionSeconds: 0 })" @ended="handleVideoEnded(item, shownSide(index))"></video>
+          <video v-if="visiblePost(item, index)?.mediaUrl && shouldLoadMedia(index)" :key="videoKey(item.id, shownSide(index))" :ref="(element) => setVideoElement(videoKey(item.id, shownSide(index)), element as Element | null)" :src="visiblePost(item, index)?.mediaUrl ?? undefined" :poster="visiblePost(item, index)?.thumbnailUrl ?? undefined" :data-side="shownSide(index)" :muted="muted" playsinline preload="metadata" @play="handleVideoPlay(item.id, $event)" @ended="handleVideoEndedEvent(item, $event)"></video>
           <div v-else class="case-feed-no-video"><span>Side {{ shownSide(index) }}</span><p>{{ visiblePost(item, index)?.claim ?? 'The response has not been recorded yet.' }}</p></div>
           <div class="case-feed-shade"></div>
         </div>
@@ -396,5 +413,4 @@ background: linear-gradient(140deg, var(--side-a-soft), #162d42 55%, var(--side-
   }
 }
 </style>
-
 
