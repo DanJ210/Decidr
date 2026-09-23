@@ -169,6 +169,38 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         }
     }
 
+    public IReadOnlyList<ArgumentCase> GetFeedCases(
+        DateTime? createdBeforeUtc,
+        Guid? caseIdBefore,
+        int limit,
+        IReadOnlyCollection<Guid> hiddenCaseIds,
+        IReadOnlyCollection<Guid> blockedUserIds)
+    {
+        lock (_syncRoot)
+        {
+            var query = _cases
+                .Where(c => c.Status != CaseStatus.Pending)
+                .Where(CaseMediaGate.IsFeedReady)
+                .Where(c => !hiddenCaseIds.Contains(c.Id))
+                .Where(c => !blockedUserIds.Contains(c.SideA.UserId))
+                .Where(c => c.SideB is null || !blockedUserIds.Contains(c.SideB.UserId));
+
+            if (createdBeforeUtc is DateTime createdBefore && caseIdBefore is Guid beforeId)
+            {
+                query = query.Where(c =>
+                    c.CreatedAtUtc < createdBefore ||
+                    (c.CreatedAtUtc == createdBefore && c.Id.CompareTo(beforeId) < 0));
+            }
+
+            return query
+                .OrderByDescending(c => c.CreatedAtUtc)
+                .ThenByDescending(c => c.Id)
+                .Take(limit)
+                .Select(RefreshVerdict)
+                .ToList();
+        }
+    }
+
     public ArgumentCase? GetCase(Guid caseId, Guid? viewerUserId = null)
     {
         lock (_syncRoot)
@@ -220,7 +252,7 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                 WidthPixels = request.SideAWidthPixels,
                 HeightPixels = request.SideAHeightPixels,
                 DurationSeconds = request.SideADurationSeconds,
-                MediaStatus = request.SideAMediaStatus != MediaStatus.None ? request.SideAMediaStatus : CaseMediaGate.ResolveStatus(request.SideARecordUrl),
+                MediaStatus = CaseMediaGate.ResolveStatus(request.SideARecordUrl),
                 CaptionStatus = request.SideACaptionStatus,
                 TranscriptStatus = request.SideATranscriptStatus,
             };
@@ -731,7 +763,7 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
                 WidthPixels = request.SideBWidthPixels,
                 HeightPixels = request.SideBHeightPixels,
                 DurationSeconds = request.SideBDurationSeconds,
-                MediaStatus = request.SideBMediaStatus != MediaStatus.None ? request.SideBMediaStatus : CaseMediaGate.ResolveStatus(request.SideBRecordUrl),
+                MediaStatus = CaseMediaGate.ResolveStatus(request.SideBRecordUrl),
                 CaptionStatus = request.SideBCaptionStatus,
                 TranscriptStatus = request.SideBTranscriptStatus,
             };

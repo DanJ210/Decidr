@@ -107,6 +107,8 @@ public sealed class CasesControllerAuthorizationTests
             courtService.Object,
             actorResolver.Object,
             Mock.Of<ICaseEvidenceStorage>(),
+            new TestCaseMediaUploadSessionStore(),
+            new MediaUploadProcessingQueue(),
             Mock.Of<ILogger<CasesController>>())
         {
             ControllerContext = new ControllerContext

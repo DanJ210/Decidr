@@ -58,15 +58,15 @@ If no `ConnectionStrings:DefaultConnection` is configured, the app falls back to
 
 ### Trust and Reliability Controls
 `TrustSafetyRegistry` centralizes the current prototype's moderation reports,
-case visibility decisions, user blocks, daily media upload quota, upload-session
-retention cleanup, retry counters, and operational metrics. Media upload sessions
-accept an owner-authorized content request, then `MediaUploadWorker` validates
-stored bytes asynchronously before exposing a playback URL; expired and rejected
-objects are deleted. Moderator-only API
-endpoints expose reports, case hide/restore decisions, and metrics. The registry
-is process-local by design for this prototype; production beta work must move
-these records and counters to durable storage and a shared rate-limit/metrics
-system.
+case visibility decisions, user blocks, daily media upload quota, retention
+cleanup, retry counters, and operational metrics. Media upload sessions are
+persisted outside process memory, accept an owner-authorized content request,
+then `MediaUploadWorker` validates stored bytes asynchronously before exposing a
+playback URL; expired and rejected objects are deleted. Moderator-only API
+endpoints expose reports, case hide/restore decisions, and metrics. The
+registry's moderation, quota, and metric counters remain process-local for this
+prototype; production beta work must still move those records and counters to a
+shared rate-limit/metrics system.
 
 ### Verdict Refresh
 Vote counts are not stored directly on `ArgumentCase`. `RefreshVerdict()` recomputes the tally from vote records each time a case is read, keeping the read model consistent with persisted votes.

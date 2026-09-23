@@ -120,7 +120,7 @@ side is still in an unfinished or rejected media state.
 
 | Value | Meaning |
 |-------|---------|
-| `None` | Text-only argument; never blocks publication |
+| `None` | No video is attached; the side is still excluded from the public feed because publication currently requires both sides to be `Ready` |
 | `Pending` | Upload or processing has not finished |
 | `Uploading` | Media is being transferred or staged |
 | `Processing` | Media is being validated or transcoded |

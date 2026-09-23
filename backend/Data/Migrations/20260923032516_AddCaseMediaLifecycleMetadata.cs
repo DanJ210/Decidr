@@ -26,12 +26,38 @@ namespace backend.Data.Migrations
                 oldClrType: typeof(int),
                 oldType: "int");
 
+            migrationBuilder.Sql("""
+                UPDATE [Cases]
+                SET [SideAMediaStatus] = CASE [SideAMediaStatus]
+                    WHEN '0' THEN 'None'
+                    WHEN '1' THEN 'Pending'
+                    WHEN '2' THEN 'Ready'
+                    WHEN '3' THEN 'Failed'
+                    WHEN '4' THEN 'Uploading'
+                    WHEN '5' THEN 'Processing'
+                    WHEN '6' THEN 'Rejected'
+                    ELSE [SideAMediaStatus]
+                END;
+
+                UPDATE [Cases]
+                SET [SideBMediaStatus] = CASE [SideBMediaStatus]
+                    WHEN '0' THEN 'None'
+                    WHEN '1' THEN 'Pending'
+                    WHEN '2' THEN 'Ready'
+                    WHEN '3' THEN 'Failed'
+                    WHEN '4' THEN 'Uploading'
+                    WHEN '5' THEN 'Processing'
+                    WHEN '6' THEN 'Rejected'
+                    ELSE [SideBMediaStatus]
+                END;
+                """);
+
             migrationBuilder.AddColumn<string>(
                 name: "SideACaptionStatus",
                 table: "Cases",
                 type: "nvarchar(max)",
                 nullable: false,
-                defaultValue: "");
+                defaultValue: "None");
 
             migrationBuilder.AddColumn<int>(
                 name: "SideAHeightPixels",
@@ -51,7 +77,7 @@ namespace backend.Data.Migrations
                 table: "Cases",
                 type: "nvarchar(max)",
                 nullable: false,
-                defaultValue: "");
+                defaultValue: "None");
 
             migrationBuilder.AddColumn<int>(
                 name: "SideAWidthPixels",
@@ -64,7 +90,7 @@ namespace backend.Data.Migrations
                 table: "Cases",
                 type: "nvarchar(max)",
                 nullable: false,
-                defaultValue: "");
+                defaultValue: "None");
 
             migrationBuilder.AddColumn<int>(
                 name: "SideBHeightPixels",
@@ -84,13 +110,20 @@ namespace backend.Data.Migrations
                 table: "Cases",
                 type: "nvarchar(max)",
                 nullable: false,
-                defaultValue: "");
+                defaultValue: "None");
 
             migrationBuilder.AddColumn<int>(
                 name: "SideBWidthPixels",
                 table: "Cases",
                 type: "int",
                 nullable: true);
+
+            migrationBuilder.Sql("""
+                UPDATE [Cases] SET [SideACaptionStatus] = 'None' WHERE [SideACaptionStatus] = '';
+                UPDATE [Cases] SET [SideATranscriptStatus] = 'None' WHERE [SideATranscriptStatus] = '';
+                UPDATE [Cases] SET [SideBCaptionStatus] = 'None' WHERE [SideBCaptionStatus] = '';
+                UPDATE [Cases] SET [SideBTranscriptStatus] = 'None' WHERE [SideBTranscriptStatus] = '';
+                """);
         }
 
         /// <inheritdoc />
@@ -135,6 +168,32 @@ namespace backend.Data.Migrations
             migrationBuilder.DropColumn(
                 name: "SideBWidthPixels",
                 table: "Cases");
+
+            migrationBuilder.Sql("""
+                UPDATE [Cases]
+                SET [SideBMediaStatus] = CASE [SideBMediaStatus]
+                    WHEN 'None' THEN '0'
+                    WHEN 'Pending' THEN '1'
+                    WHEN 'Ready' THEN '2'
+                    WHEN 'Failed' THEN '3'
+                    WHEN 'Uploading' THEN '4'
+                    WHEN 'Processing' THEN '5'
+                    WHEN 'Rejected' THEN '6'
+                    ELSE [SideBMediaStatus]
+                END;
+
+                UPDATE [Cases]
+                SET [SideAMediaStatus] = CASE [SideAMediaStatus]
+                    WHEN 'None' THEN '0'
+                    WHEN 'Pending' THEN '1'
+                    WHEN 'Ready' THEN '2'
+                    WHEN 'Failed' THEN '3'
+                    WHEN 'Uploading' THEN '4'
+                    WHEN 'Processing' THEN '5'
+                    WHEN 'Rejected' THEN '6'
+                    ELSE [SideAMediaStatus]
+                END;
+                """);
 
             migrationBuilder.AlterColumn<int>(
                 name: "SideBMediaStatus",

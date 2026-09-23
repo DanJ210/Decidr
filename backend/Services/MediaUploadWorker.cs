@@ -5,6 +5,7 @@ namespace backend.Services;
 public sealed class MediaUploadWorker(
     MediaUploadProcessingQueue queue,
     ICaseEvidenceStorage storage,
+    ICaseMediaUploadSessionStore sessionStore,
     ILogger<MediaUploadWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -13,7 +14,7 @@ public sealed class MediaUploadWorker(
         {
             try
             {
-                await CasesController.ProcessMediaUploadAsync(uploadId, storage, logger, stoppingToken);
+                await CasesController.ProcessMediaUploadAsync(uploadId, storage, sessionStore, logger, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

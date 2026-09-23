@@ -144,10 +144,12 @@ if (!string.IsNullOrWhiteSpace(evidenceBlobServiceUri) && !string.IsNullOrWhiteS
         return serviceClient.GetBlobContainerClient(evidenceContainerName);
     });
     builder.Services.AddSingleton<ICaseEvidenceStorage, AzureBlobCaseEvidenceStorage>();
+    builder.Services.AddSingleton<ICaseMediaUploadSessionStore, BlobCaseMediaUploadSessionStore>();
 }
 else if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddSingleton<ICaseEvidenceStorage, LocalCaseEvidenceStorage>();
+    builder.Services.AddSingleton<ICaseMediaUploadSessionStore, LocalCaseMediaUploadSessionStore>();
 }
 else
 {

@@ -14,7 +14,8 @@ public interface ICaseEvidenceStorage
         string fileExtension,
         string contentType,
         Stream content,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        string? storageKey = null);
 
     Task<EvidenceContentStatus> GetStatusAsync(
         string storageKey,

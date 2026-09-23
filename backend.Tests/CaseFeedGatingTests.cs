@@ -92,6 +92,37 @@ public sealed class CaseFeedGatingTests
     }
 
     [Fact]
+    public void Feed_queries_apply_cursor_pagination_before_materializing_results()
+    {
+        using var connection = new Microsoft.Data.Sqlite.SqliteConnection("DataSource=:memory:");
+        connection.Open();
+        var options = new DbContextOptionsBuilder<DecidirDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        using var db = new DecidirDbContext(options);
+        db.Database.EnsureCreated();
+
+        var alex = User("alex", "Alex");
+        var blair = User("blair", "Blair");
+        db.Users.AddRange(alex, blair);
+
+        var older = OpenCase(alex, blair, MediaStatus.Ready, MediaStatus.Ready);
+        older.CreatedAtUtc = DateTime.UtcNow.AddMinutes(-1);
+        var newer = OpenCase(alex, blair, MediaStatus.Ready, MediaStatus.Ready);
+        newer.CreatedAtUtc = DateTime.UtcNow;
+        db.Cases.AddRange(older, newer);
+        db.SaveChanges();
+
+        var service = new EfCoreCourtService(db);
+        var firstPage = service.GetFeedCases(null, null, 1, [], []);
+        var secondPage = service.GetFeedCases(firstPage[0].CreatedAtUtc, firstPage[0].Id, 1, [], []);
+
+        Assert.Single(firstPage);
+        Assert.Single(secondPage);
+        Assert.NotEqual(firstPage[0].Id, secondPage[0].Id);
+    }
+
+    [Fact]
     public void In_memory_acceptance_requires_ready_media_before_public_feed_visibility()
     {
         var service = new InMemoryCommunityCourtService();

@@ -25,13 +25,7 @@ export function useHottestCases() {
 
   watch(() => authStore.selectedUserId, loadInvitations)
 
-  const caseFeed = computed(() => {
-    return [...courtStore.cases].sort(
-      (a, b) =>
-        b.verdict.votesForSideA + b.verdict.votesForSideB -
-        (a.verdict.votesForSideA + a.verdict.votesForSideB),
-    )
-  })
+  const caseFeed = computed(() => courtStore.cases)
 
   return { courtStore, friendsStore, caseFeed }
 }

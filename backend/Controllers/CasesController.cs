@@ -39,12 +39,12 @@ public class CasesController : ControllerBase
         [".docx"] = ("application/vnd.openxmlformats-officedocument.wordprocessingml.document", CaseEvidenceType.Document),
     };
 
-    private static readonly ConcurrentDictionary<Guid, CaseMediaUploadSession> MediaUploadSessions = new();
     private static readonly ConcurrentDictionary<Guid, ConcurrentBag<PlaybackEvent>> PlaybackEvents = new();
 
     private readonly ICommunityCourtService _courtService;
     private readonly IActorResolver _actorResolver;
     private readonly ICaseEvidenceStorage _evidenceStorage;
+    private readonly ICaseMediaUploadSessionStore _mediaUploadSessions;
     private readonly MediaUploadProcessingQueue _mediaUploadQueue;
     private readonly ILogger<CasesController> _logger;
 
@@ -52,23 +52,16 @@ public class CasesController : ControllerBase
         ICommunityCourtService courtService,
         IActorResolver actorResolver,
         ICaseEvidenceStorage evidenceStorage,
+        ICaseMediaUploadSessionStore mediaUploadSessions,
         MediaUploadProcessingQueue mediaUploadQueue,
         ILogger<CasesController> logger)
     {
         _courtService = courtService;
         _actorResolver = actorResolver;
         _evidenceStorage = evidenceStorage;
+        _mediaUploadSessions = mediaUploadSessions;
         _mediaUploadQueue = mediaUploadQueue;
         _logger = logger;
-    }
-
-    public CasesController(
-        ICommunityCourtService courtService,
-        IActorResolver actorResolver,
-        ICaseEvidenceStorage evidenceStorage,
-        ILogger<CasesController> logger)
-        : this(courtService, actorResolver, evidenceStorage, new MediaUploadProcessingQueue(), logger)
-    {
     }
 
     [HttpGet]
@@ -84,28 +77,21 @@ public class CasesController : ControllerBase
     {
         limit = Math.Clamp(limit, 1, 20);
         var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
-        var cases = _courtService.GetCases()
-            .Where(item => !TrustSafetyRegistry.IsCaseHidden(item.Id))
-            .Where(item => actor is null || !TrustSafetyRegistry.IsBlockedEither(actor.Id, item.SideA.UserId))
-            .Where(item => actor is null || item.SideB is null || !TrustSafetyRegistry.IsBlockedEither(actor.Id, item.SideB.UserId))
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .ThenByDescending(item => item.Id)
-            .ToList();
         FeedCursor? cursorValue = null;
 
         if (!string.IsNullOrWhiteSpace(cursor) && !TryDecodeCursor(cursor, out cursorValue))
             return BadRequest("The feed cursor is invalid.");
 
-        if (cursorValue is FeedCursor decodedCursor)
-        {
-            cases = cases
-                .Where(item => item.CreatedAtUtc < decodedCursor.CreatedAtUtc ||
-                    (item.CreatedAtUtc == decodedCursor.CreatedAtUtc && item.Id.CompareTo(decodedCursor.Id) < 0))
-                .ToList();
-        }
-
-        var page = cases.Take(limit).ToList();
-        var hasMore = cases.Count > page.Count;
+        var hiddenCaseIds = TrustSafetyRegistry.GetHiddenCaseIds();
+        var blockedUserIds = actor is null ? [] : TrustSafetyRegistry.GetBlockedUserIds(actor.Id);
+        var cases = _courtService.GetFeedCases(
+            cursorValue?.CreatedAtUtc,
+            cursorValue?.Id,
+            limit + 1,
+            hiddenCaseIds,
+            blockedUserIds);
+        var hasMore = cases.Count > limit;
+        var page = hasMore ? cases.Take(limit).ToList() : cases.ToList();
         var nextCursor = hasMore && page.Count > 0 ? EncodeCursor(page[^1]) : null;
         return Ok(new CaseFeedPage(page, nextCursor, hasMore));
     }
@@ -166,6 +152,7 @@ public class CasesController : ControllerBase
 
         PlaybackEvents.GetOrAdd(id, _ => new ConcurrentBag<PlaybackEvent>())
             .Add(new PlaybackEvent(actor.Id, request.Side, request.Event.Trim(), request.PositionSeconds, DateTime.UtcNow));
+        TrustSafetyRegistry.IncrementMetric("playback.event.accepted");
         return NoContent();
     }
 
@@ -338,6 +325,12 @@ public class CasesController : ControllerBase
             return BadRequest("You can only invite users who are connected as friends.");
         }
 
+        var sideAMediaError = await ValidateOwnedCaseMediaAsync(actor.Id, request.SideARecordUrl, cancellationToken);
+        if (sideAMediaError is not null)
+        {
+            return BadRequest(sideAMediaError);
+        }
+
         var created = _courtService.CreateCase(actor.Id, request);
         return CreatedAtAction(nameof(GetCaseById), new { id = created.Id }, created);
     }
@@ -451,11 +444,18 @@ public class CasesController : ControllerBase
 
         // Media is uploaded before the case exists, so it is partitioned by uploader rather than case.
         await using var content = request.File.OpenReadStream();
+        var mediaStorageKey = $"{actor.Id:N}/{Guid.NewGuid():N}{extension}";
         var storageKey = await TrustSafetyRegistry.WithRetryAsync(
             async () =>
             {
                 if (content.CanSeek) content.Position = 0;
-                return await _evidenceStorage.UploadAsync(actor.Id, extension, contentType, content, cancellationToken);
+                return await _evidenceStorage.UploadAsync(
+                    actor.Id,
+                    extension,
+                    contentType,
+                    content,
+                    cancellationToken,
+                    mediaStorageKey);
             },
             "media.upload", cancellationToken);
 
@@ -478,19 +478,23 @@ public class CasesController : ControllerBase
             return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
         }
 
-        await PurgeExpiredMediaUploadSessionsAsync(_evidenceStorage, cancellationToken);
-        if (!TrustSafetyRegistry.TryConsumeMediaQuota(actor.Id, DateTime.UtcNow))
-            return StatusCode(StatusCodes.Status429TooManyRequests, "Daily video upload quota exceeded.");
+        await PurgeExpiredMediaUploadSessionsAsync(cancellationToken);
 
         if (string.IsNullOrWhiteSpace(request.FileName))
         {
             return BadRequest("A file name is required.");
         }
 
-        var extension = Path.GetExtension(request.FileName);
+        var extension = Path.GetExtension(request.FileName).ToLowerInvariant();
         if (!AllowedCaseMediaTypes.TryGetValue(extension, out var contentType))
         {
             return BadRequest("Unsupported video type. Allowed types are mp4, m4v, mov, and webm.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.ContentType) &&
+            !string.Equals(request.ContentType, contentType, StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest("The requested content type does not match the file extension.");
         }
 
         if (request.SizeBytes <= 0 || request.SizeBytes > MaxCaseMediaSizeBytes)
@@ -503,18 +507,21 @@ public class CasesController : ControllerBase
             return BadRequest($"Video duration must be between 1 and {MaxCaseMediaDurationSeconds} seconds.");
         }
 
+        if (!TrustSafetyRegistry.TryConsumeMediaQuota(actor.Id, DateTime.UtcNow))
+            return StatusCode(StatusCodes.Status429TooManyRequests, "Daily video upload quota exceeded.");
+
         var uploadId = Guid.NewGuid();
         var session = new CaseMediaUploadSession(
             uploadId,
             actor.Id,
             request.FileName,
-            request.ContentType ?? contentType,
+            contentType,
             request.SizeBytes,
             request.DurationSeconds,
             CaseMediaUploadStatus.Pending,
             DateTime.UtcNow);
 
-        MediaUploadSessions[uploadId] = session;
+        await _mediaUploadSessions.SaveAsync(session, cancellationToken);
         return Ok(session);
     }
 
@@ -524,21 +531,27 @@ public class CasesController : ControllerBase
     {
         var actor = await _actorResolver.ResolveAsync(User, Request, cancellationToken);
         if (actor is null) return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
-        if (!MediaUploadSessions.TryGetValue(uploadId, out var session)) return NotFound();
+        var session = await _mediaUploadSessions.GetAsync(uploadId, cancellationToken);
+        if (session is null) return NotFound();
         if (session.OwnerId != actor.Id) return Forbid();
         if (session.Status != CaseMediaUploadStatus.Pending) return BadRequest("This upload is no longer accepting content.");
         if (Request.ContentLength is null || Request.ContentLength != session.SizeBytes)
             return BadRequest("The uploaded content length does not match the upload session.");
+        if (!string.IsNullOrWhiteSpace(Request.ContentType)
+            && !string.Equals(Request.ContentType, session.ContentType, StringComparison.OrdinalIgnoreCase))
+            return BadRequest("The uploaded content type does not match the upload session.");
 
         var extension = Path.GetExtension(session.FileName).ToLowerInvariant();
-        var storageKey = await _evidenceStorage.UploadAsync(
+        var storageKey = session.StorageKey ?? $"{actor.Id:N}/{uploadId:N}{extension}";
+        storageKey = await _evidenceStorage.UploadAsync(
             actor.Id,
             extension,
             session.ContentType,
             Request.Body,
-            cancellationToken);
+            cancellationToken,
+            storageKey);
         TrustSafetyRegistry.IncrementMetric("media.upload.success");
-        MediaUploadSessions[uploadId] = session with { StorageKey = storageKey };
+        await _mediaUploadSessions.SaveAsync(session with { StorageKey = storageKey }, cancellationToken);
         return Accepted();
     }
 
@@ -555,7 +568,8 @@ public class CasesController : ControllerBase
             return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
         }
 
-        if (!MediaUploadSessions.TryGetValue(uploadId, out var session))
+        var session = await _mediaUploadSessions.GetAsync(uploadId, cancellationToken);
+        if (session is null)
         {
             return NotFound();
         }
@@ -577,34 +591,51 @@ public class CasesController : ControllerBase
 
         if (request.File is null)
         {
-            MediaUploadSessions[uploadId] = session with
+            await _mediaUploadSessions.SaveAsync(session with
             {
                 Status = CaseMediaUploadStatus.Processing,
                 FinalizedAtUtc = DateTime.UtcNow,
-            };
+            }, cancellationToken);
             await _mediaUploadQueue.EnqueueAsync(uploadId, cancellationToken);
             return Accepted(new CaseMediaUploadStatusResponse(CaseMediaUploadStatus.Processing));
         }
 
         if (request.File.Length == 0)
         {
-            return BadRequest("A video file is required.");
+            return await FailMediaUploadAsync(session, "A video file is required.", cancellationToken);
         }
 
         if (request.File.Length > MaxCaseMediaSizeBytes)
         {
-            return BadRequest($"Video cannot exceed {MaxCaseMediaSizeBytes} bytes.");
+            return await FailMediaUploadAsync(session, $"Video cannot exceed {MaxCaseMediaSizeBytes} bytes.", cancellationToken);
         }
 
         var extension = Path.GetExtension(request.File.FileName).ToLowerInvariant();
         if (!AllowedCaseMediaTypes.TryGetValue(extension, out var contentType))
         {
-            return BadRequest("Unsupported video type. Allowed types are mp4, m4v, mov, and webm.");
+            return await FailMediaUploadAsync(session, "Unsupported video type. Allowed types are mp4, m4v, mov, and webm.", cancellationToken);
+        }
+
+        var sessionExtension = Path.GetExtension(session.FileName).ToLowerInvariant();
+        if (!string.Equals(extension, sessionExtension, StringComparison.OrdinalIgnoreCase))
+        {
+            return await FailMediaUploadAsync(session, "The uploaded file extension does not match the upload session.", cancellationToken);
+        }
+
+        if (!string.Equals(contentType, session.ContentType, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(request.File.ContentType, session.ContentType, StringComparison.OrdinalIgnoreCase))
+        {
+            return await FailMediaUploadAsync(session, "The uploaded content type does not match the upload session.", cancellationToken);
+        }
+
+        if (request.File.Length != session.SizeBytes)
+        {
+            return await FailMediaUploadAsync(session, "The uploaded content length does not match the upload session.", cancellationToken);
         }
 
         if (!await VideoFileValidator.IsValidAsync(request.File, extension, cancellationToken))
         {
-            return BadRequest("Uploaded file contents do not match the selected video type.");
+            return await FailMediaUploadAsync(session, "Uploaded file contents do not match the selected video type.", cancellationToken);
         }
 
         var durationSeconds = await VideoFileValidator.GetDurationSecondsAsync(
@@ -613,30 +644,61 @@ public class CasesController : ControllerBase
             cancellationToken);
         if (durationSeconds is null || durationSeconds > MaxCaseMediaDurationSeconds)
         {
-            return BadRequest($"Video duration could not be determined or exceeds {MaxCaseMediaDurationSeconds} seconds.");
+            return await FailMediaUploadAsync(
+                session,
+                $"Video duration could not be determined or exceeds {MaxCaseMediaDurationSeconds} seconds.",
+                cancellationToken);
         }
 
-        await using var content = request.File.OpenReadStream();
-        var storageKey = await TrustSafetyRegistry.WithRetryAsync(
-            async () =>
-            {
-                if (content.CanSeek) content.Position = 0;
-                return await _evidenceStorage.UploadAsync(actor.Id, extension, contentType, content, cancellationToken);
-            },
-            "media.upload", cancellationToken);
-
-        MediaUploadSessions[uploadId] = session with
+        if (session.DurationSeconds is int expectedDuration && durationSeconds.Value != expectedDuration)
         {
-            Status = CaseMediaUploadStatus.Ready,
-            FinalizedAtUtc = DateTime.UtcNow,
-        };
+            return await FailMediaUploadAsync(session, "The uploaded duration does not match the upload session.", cancellationToken);
+        }
 
-        var fileName = Path.GetFileName(storageKey);
-        return Ok(new CaseMediaUploadResponse(
-            $"/api/cases/media/{actor.Id:N}/{fileName}",
-            durationSeconds.Value,
-            request.File.Length,
-            contentType));
+        try
+        {
+            await using var content = request.File.OpenReadStream();
+            var persistedStorageKey = session.StorageKey ?? $"{actor.Id:N}/{uploadId:N}{extension}";
+            persistedStorageKey = await TrustSafetyRegistry.WithRetryAsync(
+                async () =>
+                {
+                    if (content.CanSeek) content.Position = 0;
+                    return await _evidenceStorage.UploadAsync(
+                        actor.Id,
+                        extension,
+                        contentType,
+                        content,
+                        cancellationToken,
+                        persistedStorageKey);
+                },
+                "media.upload",
+                cancellationToken);
+
+            await _mediaUploadSessions.SaveAsync(session with
+            {
+                Status = CaseMediaUploadStatus.Ready,
+                FinalizedAtUtc = DateTime.UtcNow,
+                DurationSeconds = durationSeconds,
+                StorageKey = persistedStorageKey,
+                Error = null,
+            }, cancellationToken);
+
+            var fileName = Path.GetFileName(persistedStorageKey);
+            return Ok(new CaseMediaUploadResponse(
+                $"/api/cases/media/{actor.Id:N}/{fileName}",
+                durationSeconds.Value,
+                request.File.Length,
+                contentType));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Failed to finalize uploaded media {UploadId}.", uploadId);
+            return await FailMediaUploadAsync(session, "Video upload failed.", cancellationToken);
+        }
     }
 
     [HttpGet("media/{uploadId:guid}/status")]
@@ -650,9 +712,10 @@ public class CasesController : ControllerBase
             return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
         }
 
-        await PurgeExpiredMediaUploadSessionsAsync(_evidenceStorage, cancellationToken);
+        await PurgeExpiredMediaUploadSessionsAsync(cancellationToken);
 
-        if (!MediaUploadSessions.TryGetValue(uploadId, out var session))
+        var session = await _mediaUploadSessions.GetAsync(uploadId, cancellationToken);
+        if (session is null)
         {
             return NotFound();
         }
@@ -673,18 +736,18 @@ public class CasesController : ControllerBase
         return Ok(new CaseMediaUploadStatusResponse(session.Status, response, session.Error));
     }
 
-    private static async Task PurgeExpiredMediaUploadSessionsAsync(
-        ICaseEvidenceStorage storage,
+    private async Task PurgeExpiredMediaUploadSessionsAsync(
         CancellationToken cancellationToken)
     {
         var cutoff = DateTime.UtcNow - TimeSpan.FromHours(24);
-        foreach (var item in MediaUploadSessions)
+        var sessions = await _mediaUploadSessions.ListAsync(cancellationToken);
+        foreach (var session in sessions)
         {
-            if (item.Value.CreatedAtUtc > cutoff || !MediaUploadSessions.TryRemove(item.Key, out var removed))
+            if (session.CreatedAtUtc > cutoff || !await _mediaUploadSessions.DeleteAsync(session.UploadId, cancellationToken))
                 continue;
 
-            if (!string.IsNullOrWhiteSpace(removed.StorageKey))
-                await storage.DeleteAsync(removed.StorageKey, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(session.StorageKey))
+                await _evidenceStorage.DeleteAsync(session.StorageKey, cancellationToken);
             TrustSafetyRegistry.IncrementMetric("media.upload_sessions.purged");
         }
     }
@@ -692,10 +755,12 @@ public class CasesController : ControllerBase
     internal static async Task ProcessMediaUploadAsync(
         Guid uploadId,
         ICaseEvidenceStorage storage,
+        ICaseMediaUploadSessionStore sessionStore,
         ILogger logger,
         CancellationToken cancellationToken)
     {
-        if (!MediaUploadSessions.TryGetValue(uploadId, out var session) || session.StorageKey is null)
+        var session = await sessionStore.GetAsync(uploadId, cancellationToken);
+        if (session is null || session.StorageKey is null)
             return;
 
         try
@@ -713,22 +778,22 @@ public class CasesController : ControllerBase
             if (duration is null || duration > MaxCaseMediaDurationSeconds)
                 throw new InvalidDataException($"Video duration could not be determined or exceeds {MaxCaseMediaDurationSeconds} seconds.");
 
-            MediaUploadSessions[uploadId] = session with
+            await sessionStore.SaveAsync(session with
             {
                 Status = CaseMediaUploadStatus.Ready,
                 DurationSeconds = duration,
                 Error = null,
-            };
+            }, cancellationToken);
             TrustSafetyRegistry.IncrementMetric("media.processing.ready");
         }
         catch (Exception exception) when (exception is InvalidDataException or IOException)
         {
             await storage.DeleteAsync(session.StorageKey, cancellationToken);
-            MediaUploadSessions[uploadId] = session with
+            await sessionStore.SaveAsync(session with
             {
                 Status = CaseMediaUploadStatus.Failed,
                 Error = exception.Message,
-            };
+            }, cancellationToken);
             TrustSafetyRegistry.IncrementMetric("media.processing.failed");
             logger.LogWarning(exception, "Rejected uploaded media {UploadId}.", uploadId);
         }
@@ -967,6 +1032,12 @@ public class CasesController : ControllerBase
             return Unauthorized("The authenticated identity could not be mapped to a Decidr profile.");
         }
 
+        var sideBMediaError = await ValidateOwnedCaseMediaAsync(actor.Id, request.SideBRecordUrl, cancellationToken);
+        if (sideBMediaError is not null)
+        {
+            return BadRequest(sideBMediaError);
+        }
+
         var result = _courtService.AcceptCaseInvitation(id, actor.Id, request);
         if (!result.Success)
         {
@@ -1136,6 +1207,67 @@ public class CasesController : ControllerBase
         {
             return false;
         }
+    }
+
+    private async Task<string?> ValidateOwnedCaseMediaAsync(Guid ownerId, string? mediaUrl, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(mediaUrl))
+        {
+            return null;
+        }
+
+        if (!TryGetOwnedMediaStorageKey(ownerId, mediaUrl, out var storageKey))
+        {
+            return "Video URL is invalid.";
+        }
+
+        var status = await _evidenceStorage.GetStatusAsync(storageKey, cancellationToken);
+        return status == EvidenceContentStatus.Clean
+            ? null
+            : "Video content is not available.";
+    }
+
+    private async Task<ActionResult<CaseMediaUploadResponse>> FailMediaUploadAsync(
+        CaseMediaUploadSession session,
+        string error,
+        CancellationToken cancellationToken)
+    {
+        await _mediaUploadSessions.SaveAsync(session with
+        {
+            Status = CaseMediaUploadStatus.Failed,
+            Error = error,
+            FinalizedAtUtc = DateTime.UtcNow,
+        }, cancellationToken);
+        return BadRequest(error);
+    }
+
+    private static bool TryGetOwnedMediaStorageKey(Guid ownerId, string mediaUrl, out string storageKey)
+    {
+        storageKey = string.Empty;
+        var normalized = NormalizeMediaStorageKey(mediaUrl);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return false;
+        }
+
+        var separatorIndex = normalized.IndexOf('/');
+        if (separatorIndex <= 0)
+        {
+            return false;
+        }
+
+        var ownerSegment = normalized[..separatorIndex];
+        var fileName = normalized[(separatorIndex + 1)..];
+        if (!string.Equals(ownerSegment, ownerId.ToString("N"), StringComparison.OrdinalIgnoreCase)
+            || Path.GetFileName(fileName) != fileName
+            || !IsHexIdentifier(Path.GetFileNameWithoutExtension(fileName))
+            || !AllowedCaseMediaTypes.ContainsKey(Path.GetExtension(fileName)))
+        {
+            return false;
+        }
+
+        storageKey = $"{ownerId:N}/{fileName}";
+        return true;
     }
 
     private static bool TryGetEvidenceType(string fileName, string contentType, out CaseEvidenceType evidenceType)

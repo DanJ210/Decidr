@@ -20,6 +20,24 @@ interface CaseMutationResult {
   error?: string
 }
 
+function isFeedCase(item: ArgumentCase): boolean {
+  return item.sideA.mediaStatus === 'Ready' && item.sideB?.mediaStatus === 'Ready'
+}
+
+function compareFeedCases(left: ArgumentCase, right: ArgumentCase): number {
+  const createdAtDifference = new Date(right.createdAtUtc).getTime() - new Date(left.createdAtUtc).getTime()
+  return createdAtDifference !== 0 ? createdAtDifference : right.id.localeCompare(left.id)
+}
+
+function mergeFeedCase(items: ArgumentCase[], updated: ArgumentCase): ArgumentCase[] {
+  const withoutUpdated = items.filter((existing) => existing.id !== updated.id)
+  if (!isFeedCase(updated)) {
+    return withoutUpdated
+  }
+
+  return [...withoutUpdated, updated].sort(compareFeedCases)
+}
+
 export const useCourtStore = defineStore('court', {
   state: (): CourtState => ({
     cases: [],
@@ -112,7 +130,7 @@ export const useCourtStore = defineStore('court', {
 
       try {
         const created = await createCase(request)
-        this.cases = [created, ...this.cases]
+        this.cases = mergeFeedCase(this.cases, created)
         this.selectedCase = created
         return created
       } catch {
@@ -200,7 +218,7 @@ export const useCourtStore = defineStore('court', {
       }
     },
     replaceCase(updated: ArgumentCase) {
-      this.cases = this.cases.map((existing) => (existing.id === updated.id ? updated : existing))
+      this.cases = mergeFeedCase(this.cases, updated)
     },
   },
 })

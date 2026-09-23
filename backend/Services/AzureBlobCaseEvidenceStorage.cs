@@ -16,10 +16,13 @@ public sealed class AzureBlobCaseEvidenceStorage(
         string fileExtension,
         string contentType,
         Stream content,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? storageKey = null)
     {
-        var storageKey = $"{caseId:N}/{Guid.NewGuid():N}{fileExtension}";
+        storageKey ??= $"{caseId:N}/{Guid.NewGuid():N}{fileExtension}";
         var blobClient = containerClient.GetBlobClient(storageKey);
+
+        await blobClient.DeleteIfExistsAsync(cancellationToken: cancellationToken);
 
         await blobClient.UploadAsync(
             content,

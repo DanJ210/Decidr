@@ -55,6 +55,39 @@ public static class TrustSafetyRegistry
         Blocks.ContainsKey(BlockKey(firstUserId, secondUserId)) ||
         Blocks.ContainsKey(BlockKey(secondUserId, firstUserId));
 
+    public static IReadOnlyCollection<Guid> GetHiddenCaseIds() =>
+        HiddenCases.Keys
+            .Select(key => Guid.TryParseExact(key, "N", out var caseId) ? caseId : Guid.Empty)
+            .Where(caseId => caseId != Guid.Empty)
+            .ToArray();
+
+    public static IReadOnlyCollection<Guid> GetBlockedUserIds(Guid actorId)
+    {
+        var actorKey = actorId.ToString("N");
+        var blockedUserIds = new HashSet<Guid>();
+        foreach (var blockKey in Blocks.Keys)
+        {
+            var parts = blockKey.Split(':', 2);
+            if (parts.Length != 2)
+            {
+                continue;
+            }
+
+            if (string.Equals(parts[0], actorKey, StringComparison.OrdinalIgnoreCase)
+                && Guid.TryParseExact(parts[1], "N", out var blockedUserId))
+            {
+                blockedUserIds.Add(blockedUserId);
+            }
+            else if (string.Equals(parts[1], actorKey, StringComparison.OrdinalIgnoreCase)
+                && Guid.TryParseExact(parts[0], "N", out var blockingUserId))
+            {
+                blockedUserIds.Add(blockingUserId);
+            }
+        }
+
+        return blockedUserIds;
+    }
+
     public static void IncrementMetric(string name) => Metrics.AddOrUpdate(name, 1, (_, count) => count + 1);
 
     public static IReadOnlyDictionary<string, long> GetMetrics() =>
