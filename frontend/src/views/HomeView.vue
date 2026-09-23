@@ -129,7 +129,10 @@ async function blockActiveParticipant() {
   if (!post || !window.confirm(`Block @${post.userName}?`)) return
   try {
     await courtStore.blockUser(post.userId)
-    activeCaseIndex.value = Math.min(activeCaseIndex.value, Math.max(0, filteredCaseFeed.value.length - 1))
+    const remainingCases = activeFilter.value === 'All'
+      ? courtStore.cases
+      : courtStore.cases.filter((feedItem) => feedItem.status === activeFilter.value)
+    activeCaseIndex.value = Math.min(activeCaseIndex.value, Math.max(0, remainingCases.length - 1))
     feedback.value = `@${post.userName} has been blocked.`
   } catch { feedback.value = 'The block could not be submitted.' }
 }
@@ -413,4 +416,3 @@ background: linear-gradient(140deg, var(--side-a-soft), #162d42 55%, var(--side-
   }
 }
 </style>
-

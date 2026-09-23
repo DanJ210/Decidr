@@ -591,12 +591,12 @@ public class CasesController : ControllerBase
 
         if (request.File is null)
         {
+            await _mediaUploadQueue.EnqueueAsync(uploadId, cancellationToken);
             await _mediaUploadSessions.SaveAsync(session with
             {
                 Status = CaseMediaUploadStatus.Processing,
                 FinalizedAtUtc = DateTime.UtcNow,
             }, cancellationToken);
-            await _mediaUploadQueue.EnqueueAsync(uploadId, cancellationToken);
             return Accepted(new CaseMediaUploadStatusResponse(CaseMediaUploadStatus.Processing));
         }
 
@@ -812,13 +812,31 @@ public class CasesController : ControllerBase
         }
         catch (Exception exception) when (exception is InvalidDataException or IOException)
         {
-            await storage.DeleteAsync(session.StorageKey, cancellationToken);
-            await sessionStore.SaveAsync(session with
+            var failedSession = session with
             {
                 Status = CaseMediaUploadStatus.Failed,
-                StorageKey = null,
                 Error = exception.Message,
-            }, cancellationToken);
+            };
+
+            try
+            {
+                await storage.DeleteAsync(session.StorageKey, cancellationToken);
+                failedSession = failedSession with { StorageKey = null };
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception cleanupException)
+            {
+                logger.LogWarning(
+                    cleanupException,
+                    "Failed to delete rejected media object {StorageKey} for upload {UploadId}.",
+                    session.StorageKey,
+                    uploadId);
+            }
+
+            await sessionStore.SaveAsync(failedSession, cancellationToken);
             TrustSafetyRegistry.IncrementMetric("media.processing.failed");
             logger.LogWarning(exception, "Rejected uploaded media {UploadId}.", uploadId);
         }
@@ -1088,7 +1106,7 @@ public class CasesController : ControllerBase
             return BadRequest(result.Error);
         }
 
-        if (pendingCase is not null)
+        if (pendingCase is { Status: CaseStatus.Pending, InvitedUserId: Guid invitedUserId } && invitedUserId == actor.Id)
         {
             await CleanupCaseMediaAsync(pendingCase, cancellationToken);
         }

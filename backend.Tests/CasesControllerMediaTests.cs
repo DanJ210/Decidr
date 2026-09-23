@@ -196,6 +196,71 @@ public sealed class CasesControllerMediaTests
     }
 
     [Fact]
+    public async Task Media_upload_content_then_finalize_queues_processing_and_becomes_ready()
+    {
+        var fixture = CreateFixture();
+        var file = WebmFile(12);
+        var storageKey = $"{fixture.UserId:N}/{Guid.NewGuid():N}.webm";
+        fixture.Storage
+            .Setup(storage => storage.UploadAsync(
+                fixture.UserId,
+                ".webm",
+                "video/webm",
+                It.IsAny<Stream>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>()))
+            .ReturnsAsync(storageKey);
+        fixture.Storage
+            .Setup(storage => storage.OpenReadAsync(storageKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            {
+                var source = file.OpenReadStream();
+                return new StoredEvidenceContent(EvidenceContentStatus.Clean, source, "video/webm");
+            });
+
+        var initiate = await fixture.Controller.InitiateCaseMediaUpload(
+            new CasesController.InitiateCaseMediaUploadRequest
+            {
+                FileName = "clip.webm",
+                ContentType = "video/webm",
+                SizeBytes = file.Length,
+                DurationSeconds = 12,
+            },
+            CancellationToken.None);
+        var upload = Assert.IsType<CasesController.CaseMediaUploadSession>(
+            Assert.IsType<OkObjectResult>(initiate.Result).Value);
+
+        var request = fixture.Controller.ControllerContext.HttpContext.Request;
+        request.Body = file.OpenReadStream();
+        request.ContentLength = file.Length;
+        request.ContentType = "video/webm; charset=binary";
+
+        var uploadContent = await fixture.Controller.UploadCaseMediaContent(upload.UploadId, CancellationToken.None);
+        Assert.IsType<AcceptedResult>(uploadContent);
+
+        var queued = await fixture.Controller.FinalizeCaseMediaUpload(
+            upload.UploadId,
+            new CasesController.FinalizeCaseMediaUploadRequest(),
+            CancellationToken.None);
+        var queuedResponse = Assert.IsType<AcceptedResult>(queued.Result);
+        var queuedStatus = Assert.IsType<CasesController.CaseMediaUploadStatusResponse>(queuedResponse.Value);
+        Assert.Equal(CasesController.CaseMediaUploadStatus.Processing, queuedStatus.Status);
+
+        await CasesController.ProcessMediaUploadAsync(
+            upload.UploadId,
+            fixture.Storage.Object,
+            fixture.SessionStore,
+            Mock.Of<ILogger>(),
+            CancellationToken.None);
+
+        var poll = await fixture.Controller.GetCaseMediaUploadStatus(upload.UploadId, CancellationToken.None);
+        var pollStatus = Assert.IsType<CasesController.CaseMediaUploadStatusResponse>(
+            Assert.IsType<OkObjectResult>(poll.Result).Value);
+        Assert.Equal(CasesController.CaseMediaUploadStatus.Ready, pollStatus.Status);
+        Assert.NotNull(pollStatus.Media);
+    }
+
+    [Fact]
     public async Task Media_upload_finalization_rejects_metadata_mismatches_and_marks_session_failed()
     {
         var fixture = CreateFixture();
@@ -236,30 +301,31 @@ public sealed class CasesControllerMediaTests
         var caseId = Guid.NewGuid();
         var service = new Mock<ICommunityCourtService>();
         service
-            .Setup(x => x.GetCase(caseId, It.IsAny<Guid?>()))
-            .Returns(new ArgumentCase(
-                caseId,
-                "Title",
-                "Category",
-                "Summary",
-                new ArgumentPost(CaseSide.A, Guid.NewGuid(), "creator", "Claim", DateTime.UtcNow)
-                {
-                    MediaUrl = $"/api/cases/media/{Guid.NewGuid():N}/side-a.webm",
-                    MediaStatus = MediaStatus.Ready,
-                },
-                null,
-                Guid.NewGuid(),
-                new CommunityVerdict(0, 0),
-                CaseStatus.Pending,
-                null,
-                DateTime.UtcNow,
-                null));
-        service
             .Setup(x => x.DeclineCaseInvitation(caseId, It.IsAny<Guid>()))
             .Returns((true, null));
 
         var fixture = CreateFixture(service.Object);
         var actorId = fixture.UserId;
+        var pendingCase = new ArgumentCase(
+            caseId,
+            "Title",
+            "Category",
+            "Summary",
+            new ArgumentPost(CaseSide.A, Guid.NewGuid(), "creator", "Claim", DateTime.UtcNow)
+            {
+                MediaUrl = $"/api/cases/media/{Guid.NewGuid():N}/side-a.webm",
+                MediaStatus = MediaStatus.Ready,
+            },
+            null,
+            actorId,
+            new CommunityVerdict(0, 0),
+            CaseStatus.Pending,
+            null,
+            DateTime.UtcNow,
+            null);
+        service
+            .Setup(x => x.GetCase(caseId, It.IsAny<Guid?>()))
+            .Returns(pendingCase);
 
         var result = await fixture.Controller.DeclineInvitation(caseId, CancellationToken.None);
 
@@ -333,11 +399,12 @@ public sealed class CasesControllerMediaTests
             .ReturnsAsync(new UserEntity { Id = userId });
 
         var storage = new Mock<ICaseEvidenceStorage>();
+        var sessionStore = new TestCaseMediaUploadSessionStore();
         var controller = new CasesController(
             service ?? Mock.Of<ICommunityCourtService>(),
             actorResolver.Object,
             storage.Object,
-            new TestCaseMediaUploadSessionStore(),
+            sessionStore,
             new MediaUploadProcessingQueue(),
             Mock.Of<ILogger<CasesController>>())
         {
@@ -347,12 +414,13 @@ public sealed class CasesControllerMediaTests
             },
         };
 
-        return new MediaFixture(userId, actorResolver, storage, controller);
+        return new MediaFixture(userId, actorResolver, storage, sessionStore, controller);
     }
 
     private sealed record MediaFixture(
         Guid UserId,
         Mock<IActorResolver> ActorResolver,
         Mock<ICaseEvidenceStorage> Storage,
+        TestCaseMediaUploadSessionStore SessionStore,
         CasesController Controller);
 }
