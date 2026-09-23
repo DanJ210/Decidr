@@ -913,13 +913,16 @@ public class InMemoryCommunityCourtService : ICommunityCourtService
         ArgumentPost sideB,
         DateTime createdAt)
     {
+        var readySideA = sideA with { MediaStatus = MediaStatus.Ready };
+        var readySideB = sideB with { MediaStatus = MediaStatus.Ready };
+
         return new ArgumentCase(
             id,
             title,
             category,
             summary,
-            sideA,
-            sideB,
+            readySideA,
+            readySideB,
             InvitedUserId: null,
             new CommunityVerdict(0, 0),
             CaseStatus.Open,
