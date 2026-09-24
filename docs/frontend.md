@@ -222,13 +222,14 @@ Defined in `router/index.ts`. Uses `createWebHistory` (HTML5 mode).
 ## Pinia Stores
 
 ### `auth` — `stores/auth.ts`
-Manages the Entra session when configured, or the Development selected-user
-fallback when Entra settings are absent. The fallback persists `selectedUserId`
-to `localStorage` under the key `decidr-selected-user-id`.
+Loads the backend's runtime authentication mode before the app mounts, then
+manages either the Entra session or the seeded-account selector. The selector
+persists `selectedUserId` to `localStorage` under the key
+`decidr-selected-user-id`.
 
 | State | Type | Description |
 |-------|------|-------------|
-| `users` | `AppUser[]` | User directory in Entra mode, or selectable Development users |
+| `users` | `AppUser[]` | User directory in Entra mode, or selectable seeded users |
 | `selectedUserId` | `string \| null` | Current local profile ID |
 | `authenticationStatus` | `AuthenticationStatus` | Signed-out, authenticating, account-present, profile-ready, or error state |
 | `loading` | `boolean` | API fetch in progress |
@@ -242,8 +243,8 @@ to `localStorage` under the key `decidr-selected-user-id`.
 
 | Action | Description |
 |--------|-------------|
-| `loadUsers()` | Loads `/api/auth/me` for Entra sessions, or selectable users in Development |
-| `login()` | Starts the MSAL interactive sign-in flow when Entra is configured |
+| `loadUsers()` | Loads `/api/auth/me` for Entra sessions, or selectable users in `SeededTesting` mode |
+| `login()` | Starts the MSAL interactive sign-in flow in `Entra` mode |
 | `logout()` | Ends the MSAL session and clears the local profile |
 | `setSelectedUser(userId)` | Updates selection and persists to `localStorage` |
 

@@ -65,10 +65,12 @@ builder.Services.AddRateLimiter(options =>
 
 var entraAuthority = builder.Configuration["Entra:Authority"];
 var entraAudience = builder.Configuration["Entra:Audience"];
-var entraConfigured = !string.IsNullOrWhiteSpace(entraAuthority) && !string.IsNullOrWhiteSpace(entraAudience);
-if (!entraConfigured && !builder.Environment.IsDevelopment())
+var authenticationMode = AuthenticationModeResolver.Resolve(builder.Configuration, builder.Environment);
+var entraEnabled = authenticationMode == AuthenticationMode.Entra;
+if (entraEnabled && (string.IsNullOrWhiteSpace(entraAuthority) || string.IsNullOrWhiteSpace(entraAudience)))
 {
-    throw new InvalidOperationException("Entra:Authority and Entra:Audience must be configured outside Development.");
+    throw new InvalidOperationException(
+        "Entra:Authority and Entra:Audience are required when Authentication:Mode is 'Entra'.");
 }
 
 builder.Services.AddAuthorization(options =>
@@ -79,7 +81,7 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAssertion(context => AuthorizationPolicies.HasAccessAsUserScope(context.User));
     });
 });
-if (entraConfigured)
+if (entraEnabled)
 {
     var audience = entraAudience!.TrimEnd('/');
 
@@ -107,7 +109,7 @@ if (!string.IsNullOrWhiteSpace(connectionString))
 }
 else
 {
-    if (entraConfigured)
+    if (entraEnabled)
     {
         throw new InvalidOperationException("A database connection is required when Entra authentication is configured.");
     }
@@ -159,12 +161,24 @@ else
 
 var app = builder.Build();
 
-// Apply EF Core migrations and seed data when a database connection is configured.
+if (authenticationMode == AuthenticationMode.SeededTesting)
+{
+    app.Logger.LogWarning(
+        "SeededTesting authentication is active. X-Dev-User-Id can impersonate any seeded account.");
+}
+
+// Apply EF Core migrations automatically only in Development.
 if (app.Environment.IsDevelopment() && !string.IsNullOrWhiteSpace(connectionString))
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<DecidirDbContext>();
     db.Database.Migrate();
+}
+
+if (authenticationMode == AuthenticationMode.SeededTesting && !string.IsNullOrWhiteSpace(connectionString))
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<DecidirDbContext>();
     DataSeeder.Seed(db);
 }
 
@@ -189,7 +203,7 @@ app.Use(async (context, next) =>
     await next();
 });
 
-if (entraConfigured)
+if (entraEnabled)
 {
     app.UseAuthentication();
     app.UseAuthorization();
@@ -197,7 +211,7 @@ if (entraConfigured)
 
 app.UseRateLimiter();
 var controllerEndpoints = app.MapControllers().RequireRateLimiting("api");
-if (entraConfigured)
+if (entraEnabled)
 {
     controllerEndpoints.RequireAuthorization(AuthorizationPolicies.AccessAsUser);
 }

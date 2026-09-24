@@ -8,10 +8,22 @@ import '@fontsource/newsreader/600.css'
 import '@fontsource/newsreader/700.css'
 import './style.css'
 import App from './App.vue'
+import { loadAuthenticationConfiguration } from './authConfig'
 import router from './router'
 
-const app = createApp(App)
+async function bootstrap(): Promise<void> {
+	await loadAuthenticationConfiguration()
 
-app.use(createPinia())
-app.use(router)
-app.mount('#app')
+	const app = createApp(App)
+	app.use(createPinia())
+	app.use(router)
+	app.mount('#app')
+}
+
+void bootstrap().catch((error: unknown) => {
+	console.error(error)
+	const root = document.querySelector<HTMLElement>('#app')
+	if (root) {
+		root.textContent = 'Unable to start Decidr because authentication configuration could not be loaded.'
+	}
+})

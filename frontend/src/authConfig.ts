@@ -18,9 +18,32 @@ const authorityHost = (() => {
 const authCallbackPath = '/auth/callback'
 const authenticationReturnPathKey = 'decidr-auth-return-path'
 
-export const entraConfigured = Boolean(clientId && authority && authorityHost && apiScope)
-export const msalInstance = entraConfigured
-  ? new PublicClientApplication({
+export let entraConfigured = false
+export let msalInstance: PublicClientApplication | null = null
+
+export async function loadAuthenticationConfiguration(): Promise<void> {
+  const response = await fetch('/api/config/authentication')
+  if (!response.ok) {
+    throw new Error('Unable to load authentication configuration.')
+  }
+
+  const configuration = await response.json() as { mode?: unknown }
+  if (configuration.mode === 'SeededTesting') {
+    entraConfigured = false
+    msalInstance = null
+    return
+  }
+
+  if (configuration.mode !== 'Entra') {
+    throw new Error('The server returned an unsupported authentication mode.')
+  }
+
+  if (!clientId || !authority || !authorityHost || !apiScope) {
+    throw new Error('The Entra frontend configuration is incomplete.')
+  }
+
+  entraConfigured = true
+  msalInstance = new PublicClientApplication({
       auth: {
         clientId,
         authority,
@@ -32,7 +55,7 @@ export const msalInstance = entraConfigured
         cacheLocation: 'sessionStorage',
       },
     })
-  : null
+}
 
 let initialization: Promise<void> | null = null
 

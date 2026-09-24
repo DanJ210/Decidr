@@ -4,15 +4,25 @@ Base URL: `/api`
 
 All request and response bodies are JSON. Enum values are serialized as strings (e.g., `"Open"`, `"A"`).
 
-Authenticated requests require a valid Entra v2 access token with the delegated
-`access_as_user` scope. Mutation actors and private viewer state are derived from
-that token. In Development only, when Entra is not configured, `X-Dev-User-Id`
-may identify a seeded local actor.
+In `Entra` mode, authenticated requests require a valid Entra v2 access token
+with the delegated `access_as_user` scope. Mutation actors and private viewer
+state are derived from that token. In `SeededTesting` mode, `X-Dev-User-Id`
+identifies a seeded actor instead.
 
-When Entra is configured, controller endpoints require `access_as_user` by
+In `Entra` mode, controller endpoints require `access_as_user` by
 default. Only the case feed, case detail, comments, evidence metadata, and result
 actions explicitly allow anonymous access. Pending cases and their related public
 read surfaces remain visible only to Side A, the invited/Side B user, or a moderator.
+
+---
+
+## Configuration
+
+### `GET /api/config/authentication`
+Returns the active runtime authentication mode before the SPA initializes its
+authentication client. This endpoint is anonymous in both modes.
+
+**Response `200 OK`** — `{ "mode": "Entra" | "SeededTesting" }`
 
 ---
 

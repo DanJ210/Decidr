@@ -79,13 +79,19 @@ public sealed class ActorResolverTests
     }
 
     [Fact]
-    public async Task Development_header_is_rejected_when_entra_is_configured()
+    public async Task Seeded_header_is_rejected_in_entra_mode()
     {
         var expected = new AppUser(Guid.NewGuid(), "casey_l", "Casey", UserRole.Member);
         var authService = new Mock<IAuthenticatedUserService>();
         var courtService = new Mock<ICommunityCourtService>();
         courtService.Setup(service => service.GetUser(expected.Id)).Returns(expected);
-        var resolver = CreateResolver(authService, courtService, isDevelopment: true, authority: "https://tenant.example/", audience: "api://decidr");
+        var resolver = CreateResolver(
+            authService,
+            courtService,
+            isDevelopment: true,
+            authenticationMode: AuthenticationMode.Entra,
+            authority: "https://tenant.example/",
+            audience: "api://decidr");
 
         var resolved = await resolver.ResolveAsync(
             new ClaimsPrincipal(new ClaimsIdentity()),
@@ -96,26 +102,32 @@ public sealed class ActorResolverTests
     }
 
     [Fact]
-    public async Task Development_header_is_rejected_outside_development()
+    public async Task Seeded_header_resolves_user_outside_development_when_mode_is_enabled()
     {
         var expected = new AppUser(Guid.NewGuid(), "casey_l", "Casey", UserRole.Member);
         var authService = new Mock<IAuthenticatedUserService>();
         var courtService = new Mock<ICommunityCourtService>();
         courtService.Setup(service => service.GetUser(expected.Id)).Returns(expected);
-        var resolver = CreateResolver(authService, courtService, isDevelopment: false);
+        var resolver = CreateResolver(
+            authService,
+            courtService,
+            isDevelopment: false,
+            authenticationMode: AuthenticationMode.SeededTesting);
 
         var resolved = await resolver.ResolveAsync(
             new ClaimsPrincipal(new ClaimsIdentity()),
             CreateRequest(expected.Id));
 
-        Assert.Null(resolved);
-        courtService.Verify(service => service.GetUser(It.IsAny<Guid>()), Times.Never);
+        Assert.NotNull(resolved);
+        Assert.Equal(expected.Id, resolved.Id);
+        courtService.Verify(service => service.GetUser(expected.Id), Times.Once);
     }
 
     private static ActorResolver CreateResolver(
         Mock<IAuthenticatedUserService> authService,
         Mock<ICommunityCourtService> courtService,
         bool isDevelopment,
+        AuthenticationMode? authenticationMode = null,
         string? authority = null,
         string? audience = null)
     {
@@ -123,6 +135,7 @@ public sealed class ActorResolverTests
         {
             ["Entra:Authority"] = authority,
             ["Entra:Audience"] = audience,
+            ["Authentication:Mode"] = authenticationMode?.ToString(),
         };
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(configurationValues)
