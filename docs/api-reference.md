@@ -10,9 +10,9 @@ state are derived from that token. In `SeededTesting` mode, `X-Dev-User-Id`
 identifies a seeded actor instead.
 
 In `Entra` mode, controller endpoints require `access_as_user` by
-default. Only the case feed, case detail, comments, evidence metadata, and result
-actions explicitly allow anonymous access. Pending cases and their related public
-read surfaces remain visible only to Side A, the invited/Side B user, or a moderator.
+default. The case feed, case detail, comments, evidence metadata, result, and
+authentication configuration actions are the only anonymous API surfaces. Pending
+cases and their related public read surfaces remain visible only to Side A, the invited/Side B user, or a moderator.
 
 ---
 
