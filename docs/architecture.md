@@ -139,8 +139,9 @@ Controller endpoints are secure by default in `Entra` mode: the
 `AccessAsUser` policy is attached to the controller endpoint convention, so new
 actions require a valid scoped token unless they explicitly opt into anonymous
 access. The public case feed, detail, comments, evidence metadata, and result
-actions are the only anonymous API surfaces. This convention is omitted in
-`SeededTesting` mode so its selected-user header workflow can reach mutations.
+actions, plus `GET /api/config/authentication`, are the only anonymous API
+surfaces. This convention is omitted in `SeededTesting` mode so its selected-user
+header workflow can reach mutations.
 
 Write endpoints resolve the acting user from the authenticated claims. Actor IDs
 are not accepted from request bodies. Request IDs remain only when they identify a
