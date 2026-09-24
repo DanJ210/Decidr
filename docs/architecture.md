@@ -52,7 +52,7 @@ Decidr is a full-stack single-page application (SPA). The ASP.NET Core backend e
 ## Key Design Decisions
 
 ### Persistence Strategy
-When a connection string is configured, the backend uses `EfCoreCourtService` with `DecidirDbContext` and Azure SQL or SQL Server. In development, migrations are applied and seed data is inserted when the database is empty.
+When a connection string is configured, the backend uses `EfCoreCourtService` with `DecidirDbContext` and Azure SQL or SQL Server. In Development, migrations are applied automatically. In `SeededTesting` authentication mode, seed data is inserted when the database is empty.
 
 If no `ConnectionStrings:DefaultConnection` is configured, the app falls back to `InMemoryCommunityCourtService` for local/demo execution.
 
@@ -120,20 +120,28 @@ Other users remain visible as provisional players. Records are independent from
 reward badges.
 
 ### User Identity and Authentication
-In configured environments, the Vue SPA authenticates with Microsoft Entra External
-ID through MSAL and sends bearer tokens with API requests. ASP.NET Core JWT bearer
+`Authentication:Mode` is the runtime control for authentication. `Entra` enables
+the production identity path; `SeededTesting` enables the seeded account selector.
+When the key is absent, complete Entra authority and audience settings select
+`Entra`; otherwise Development falls back to `SeededTesting`. Other environments
+require an explicit mode.
+
+The SPA reads the resolved mode from `GET /api/config/authentication` before it
+mounts. In `Entra` mode, it authenticates with Microsoft Entra External ID through
+MSAL and sends bearer tokens with API requests. ASP.NET Core JWT bearer
 validation checks the token authority and audience. `IAuthenticatedUserService`
 maps the token's stable `tid` and `oid` claims to the local `UserEntity`; a first
 sign-in creates a local Member profile. Authenticated API operations require the
 delegated `access_as_user` scope. Entra configuration also requires persistent
 SQL storage so external identities cannot be provisioned into transient memory.
 
-Controller endpoints are secure by default when Entra is configured: the
+Controller endpoints are secure by default in `Entra` mode: the
 `AccessAsUser` policy is attached to the controller endpoint convention, so new
 actions require a valid scoped token unless they explicitly opt into anonymous
 access. The public case feed, detail, comments, evidence metadata, and result
-actions are the only anonymous API surfaces. This convention is conditional so
-Development without Entra can retain its selected-user header workflow.
+actions, plus `GET /api/config/authentication`, are the only anonymous API
+surfaces. This convention is omitted in `SeededTesting` mode so its selected-user
+header workflow can reach mutations.
 
 Write endpoints resolve the acting user from the authenticated claims. Actor IDs
 are not accepted from request bodies. Request IDs remain only when they identify a
@@ -146,9 +154,11 @@ Object authorization also applies to anonymous case reads. `Open` and `Closed`
 cases are public, while a `Pending` case and its comments, evidence metadata, and
 result are visible only to Side A, the invited/Side B user, or a moderator.
 
-Development without Entra configuration retains the seeded selected-user fallback
-for local demos. This fallback is intentionally unavailable as an authentication
-mode outside Development.
+`SeededTesting` trusts the caller-provided `X-Dev-User-Id` header and therefore
+permits impersonation of any seeded account, including moderators. It is intended
+only for local work or an access-restricted, disposable test deployment. Entra
+identifiers may remain configured while this mode is active, allowing operators
+to switch back to `Entra` without rebuilding the SPA.
 
 API endpoints are rate limited per authenticated Entra object ID, falling back
 to the remote IP address for anonymous traffic. Responses include anti-sniffing,

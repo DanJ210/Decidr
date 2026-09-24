@@ -38,9 +38,7 @@ public sealed class ActorResolver : IActorResolver
             return await _authenticatedUserService.GetOrCreateAsync(principal, cancellationToken);
         }
 
-        if (!_environment.IsDevelopment() ||
-            !string.IsNullOrWhiteSpace(_configuration["Entra:Authority"]) ||
-            !string.IsNullOrWhiteSpace(_configuration["Entra:Audience"]) ||
+        if (AuthenticationModeResolver.Resolve(_configuration, _environment) != AuthenticationMode.SeededTesting ||
             !request.Headers.TryGetValue(DevelopmentUserHeader, out var values) ||
             !Guid.TryParse(values.FirstOrDefault(), out var userId))
         {

@@ -173,7 +173,7 @@ dotnet test backend.Tests/backend.Tests.csproj
 ```
 
 The suite covers actor resolution and authenticated-identity precedence, the
-Development-only selected-user header boundary, case authorization, evidence
+runtime authentication-mode boundary, case authorization, evidence
 upload/validation/removal, player-record calculation, and the users endpoints.
 Run the suite after any change to a controller, service, or model contract.
 
@@ -404,8 +404,9 @@ dotnet ef migrations bundle --project backend/backend.csproj --startup-project b
 - Migrations in `Data/Migrations/` (auto-applied on startup)
 
 **Authentication**: `IActorResolver` resolves the acting user from the validated
-token, falling back to the Development-only header. Never read a caller-supplied
-user id from a request body or query string to establish identity.
+token, falling back to the seeded-user header only in `SeededTesting` mode. Never
+read a caller-supplied user id from a request body or query string to establish
+identity.
 
 **Response Compression**: Brotli and Gzip enabled for JSON and static files.
 
@@ -461,8 +462,9 @@ user id from a request body or query string to establish identity.
    and controller endpoints require the `access_as_user` policy by default, with
    selected public reads marked `[AllowAnonymous]`. The acting user is always
    resolved server-side by `ActorResolver` — never from a client-supplied id.
-   The `X-Dev-User-Id` header is honored **only** in Development when Entra is
-   not configured; it is rejected outside Development or whenever Entra is set.
+  `Authentication:Mode` selects `Entra` or `SeededTesting` at runtime. The
+  `X-Dev-User-Id` header is honored **only** in `SeededTesting` mode, which must
+  be limited to local or access-restricted disposable deployments.
    Entra requires a non-empty `DefaultConnection`. See
    [docs/getting-started.md](../docs/getting-started.md) to disable it locally.
 

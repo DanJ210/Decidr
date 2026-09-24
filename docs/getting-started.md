@@ -39,8 +39,9 @@ deployment environment or secret store instead of committing credentials.
 
 ## Entra External ID Configuration
 
-Production and non-Development environments require Microsoft Entra External ID.
-Configure the backend with:
+Authentication is selected at runtime with `Authentication:Mode`. Supported
+values are `Entra` and `SeededTesting`. Configure the backend Entra identifiers
+independently so they can remain in place while modes are switched:
 
 ```dotenv
 Entra__Authority=https://<tenant>.ciamlogin.com/<tenant-id>/v2.0
@@ -67,49 +68,47 @@ delegated `access_as_user` scope, and maps stable `tid` plus `oid` claims to a
 local Decidr profile. A first authenticated sign-in creates a local Member
 profile; subsequent requests reuse that profile.
 
-Entra authentication requires a non-empty `DefaultConnection`. Startup fails
-when Entra is configured without persistent SQL Server or Azure SQL storage.
+The SPA reads the active mode from `GET /api/config/authentication` before it
+mounts. The `VITE_ENTRA_*` values remain build-time public identifiers, but they
+are ignored while the backend reports `SeededTesting`. Switching the backend
+mode therefore does not require rebuilding the SPA.
 
-### Disable Entra for Local Development
+`Entra` mode requires complete authority and audience settings plus a non-empty
+`DefaultConnection`. When `Authentication:Mode` is omitted, complete backend
+Entra settings select `Entra`; otherwise Development falls back to
+`SeededTesting`. Outside Development, an explicit mode is required when Entra
+settings are incomplete.
 
-Entra configuration is independent in the backend and SPA, so disable both
-halves before using the selected-user development workflow.
+### Switch Authentication Mode
 
-In the ignored `backend/appsettings.Development.local.json`, set both backend
-Entra values to empty strings while preserving any existing connection string:
+For local seeded-account testing, set the mode in the ignored
+`backend/appsettings.Development.local.json`. Existing Entra values can remain:
 
 ```json
 {
-  "ConnectionStrings": {
-    "DefaultConnection": "<existing local value, or empty for in-memory storage>"
-  },
-  "Entra": {
-    "Authority": "",
-    "Audience": ""
+  "Authentication": {
+    "Mode": "SeededTesting"
   }
 }
 ```
 
-In the ignored `frontend/.env.local`, remove the three Entra entries or leave
-them empty:
+To restore Entra, change only the mode and restart the backend:
 
-```dotenv
-VITE_ENTRA_CLIENT_ID=
-VITE_ENTRA_AUTHORITY=
-VITE_ENTRA_API_SCOPE=
+```json
+{
+  "Authentication": {
+    "Mode": "Entra"
+  }
+}
 ```
 
-Restart both `dotnet run` and `npm run dev` after changing these settings. Vite
-reads its environment variables only at startup. In this mode, the SPA restores
-the seeded/local user selector and sends `X-Dev-User-Id`; the backend accepts that
-header only in Development when Entra is not configured. The conditional
-controller authorization convention is also omitted so this development identity
-flow can reach protected actions.
-
-This fallback is not a deployment authentication mechanism. Non-Development
-startup requires Entra authority and audience settings, and the development user
-header is rejected outside Development or whenever Entra is configured. To
-re-enable Entra locally, restore all five settings and restart both processes.
+For Azure App Service, set `Authentication__Mode` under **Settings → Environment
+variables** and restart the app. Use `Entra` for public deployments.
+`SeededTesting` trusts `X-Dev-User-Id`, allowing callers to impersonate any seeded
+account, including the moderator. Use it only for local work or an
+access-restricted disposable test deployment with no production data. When a
+database connection is configured, this mode inserts seed data only if the Users
+table is empty; it does not apply migrations outside Development.
 
 ### Azure Deployment
 
@@ -151,6 +150,7 @@ Configure these App Service production settings with environment-specific values
 
 ```text
 ASPNETCORE_ENVIRONMENT=Production
+Authentication__Mode=Entra
 Entra__Authority=https://<tenant-subdomain>.ciamlogin.com/<tenant-id>/v2.0
 Entra__Audience=<api-application-client-id>
 EvidenceStorage__BlobServiceUri=https://<storage-account>.blob.core.windows.net/
