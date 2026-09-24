@@ -13,9 +13,14 @@ public static class AuthenticationModeResolver
         var configuredMode = configuration["Authentication:Mode"];
         if (!string.IsNullOrWhiteSpace(configuredMode))
         {
-            if (Enum.TryParse<AuthenticationMode>(configuredMode, ignoreCase: true, out var mode))
+if (string.Equals(configuredMode, nameof(AuthenticationMode.Entra), StringComparison.OrdinalIgnoreCase))
             {
-                return mode;
+                return AuthenticationMode.Entra;
+            }
+
+            if (string.Equals(configuredMode, nameof(AuthenticationMode.SeededTesting), StringComparison.OrdinalIgnoreCase))
+            {
+                return AuthenticationMode.SeededTesting;
             }
 
             throw new InvalidOperationException(
