@@ -356,7 +356,8 @@ and a reviewable idempotent SQL script. The protected `production` environment
 requires manual approval before its OIDC identity applies migrations and deploys
 the package. After deployment, the workflow polls the production site root,
 public cases API, and anonymous `GET /api/auth/me` response until the app is
-healthy. Production migrations and deployments are serialized.
+healthy. It also requires the runtime authentication endpoint to report `Entra`
+or `SeededTesting`. Production migrations and deployments are serialized.
 
 **Manual Validation Steps** (to replicate CI):
 ```bash
