@@ -268,7 +268,7 @@ jobs:
           curl --fail --location --retry 5 --retry-delay 5 --retry-all-errors "$base_url/api/cases" > /dev/null
           auth_status=""
           for attempt in {1..6}; do
-            auth_status=$(curl --silent --location --output /dev/null --write-out '%{http_code}' "$base_url/api/auth/me")
+            auth_status=$(curl --silent --location --output /dev/null --write-out '%{http_code}' "$base_url/api/auth/me" || true)
             if [ "$auth_status" = "401" ]; then
               break
             fi
