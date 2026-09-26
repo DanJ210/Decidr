@@ -26,6 +26,19 @@ authentication client. This endpoint is anonymous in both modes.
 
 ---
 
+## Authentication
+
+### `GET /api/auth/me`
+Returns the local Decidr profile mapped from the caller's valid Entra access
+token. The endpoint returns `401 Unauthorized` for anonymous requests in both
+authentication modes; the seeded-account workflow uses the user directory and
+does not call this endpoint.
+
+**Response `200 OK`** — authenticated `AppUser`
+**Response `401 Unauthorized`** — missing, invalid, or unmapped identity
+
+---
+
 ## Cases
 
 ### `GET /api/cases`

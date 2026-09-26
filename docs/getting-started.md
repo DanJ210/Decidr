@@ -218,8 +218,8 @@ authenticates to Azure through workload identity federation; no Azure client
 secret or publish profile is stored. The workflow opens a runner-specific Azure
 SQL firewall rule, applies the migration bundle, removes the rule even on failure,
 deploys the exact package built earlier, and checks the public root, case list,
-and anonymous authentication boundary. Production jobs are serialized so
-migrations and deployments cannot overlap.
+runtime authentication mode, and anonymous `GET /api/auth/me` boundary.
+Production jobs are serialized so migrations and deployments cannot overlap.
 
 The deployment identity uses a federated credential restricted to this
 repository's `production` environment. Azure management access is limited to
