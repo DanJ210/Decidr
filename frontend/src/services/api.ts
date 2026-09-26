@@ -135,7 +135,7 @@ export async function uploadCaseMedia(clip: { blob: Blob; durationSeconds: numbe
     headers: { 'Content-Type': session.contentType },
     timeout: 120_000,
   })
-  await apiClient.post(`/cases/media/${session.uploadId}/finalize`)
+  await apiClient.post(`/cases/media/${session.uploadId}/finalize`, new FormData())
 
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const { data: status } = await apiClient.get<CaseMediaUploadStatusResponse>(
