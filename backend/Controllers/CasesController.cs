@@ -806,11 +806,13 @@ public class CasesController : ControllerBase
             await content.CopyToAsync(buffered, cancellationToken);
 
             var extension = Path.GetExtension(session.FileName).ToLowerInvariant();
+            buffered.Position = 0;
             if (!await VideoFileValidator.IsValidAsync(buffered, extension, cancellationToken))
                 throw new InvalidDataException("Uploaded file contents do not match the selected video type.");
 
             // Browser-recorded WebM clips are streamed containers that can omit duration, so
             // fall back to the length declared when the session was initiated.
+            buffered.Position = 0;
             var duration = await VideoFileValidator.GetDurationSecondsAsync(buffered, extension, cancellationToken);
             if (duration is null
                 && string.Equals(extension, ".webm", StringComparison.OrdinalIgnoreCase))
