@@ -222,8 +222,11 @@ accepted for compatibility.
 
 ### `GET /api/cases/media/{uploadId}/status`
 Polls the status of a previously initiated upload session. Processing validates
-the stored signature and container duration. Rejected objects are deleted;
-ready responses include the playback URL and server-derived metadata.
+the stored signature and container duration, falling back to the duration
+declared at `initiate` when the container carries none — browser recordings are
+streamed containers that omit it. Sessions stay in `Processing` while Defender
+malware scanning is pending and only fail if no verdict arrives. Rejected objects
+are deleted; ready responses include the playback URL and server-derived metadata.
 
 **Response `200 OK`** — `CaseMediaUploadStatusResponse` with `status: "Pending" | "Processing" | "Ready" | "Failed"`
 **Response `401 Unauthorized`** — unresolved actor  

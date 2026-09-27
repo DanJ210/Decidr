@@ -776,7 +776,8 @@ public class CasesController : ControllerBase
         }
     }
 
-    internal static async Task ProcessMediaUploadAsync(
+    /// <summary>Returns false when the object is still awaiting a malware-scan verdict and should be retried.</summary>
+    internal static async Task<bool> ProcessMediaUploadAsync(
         Guid uploadId,
         ICaseEvidenceStorage storage,
         ICaseMediaUploadSessionStore sessionStore,
@@ -785,21 +786,34 @@ public class CasesController : ControllerBase
     {
         var session = await sessionStore.GetAsync(uploadId, cancellationToken);
         if (session is null || session.StorageKey is null)
-            return;
+            return true;
 
         try
         {
             var stored = await storage.OpenReadAsync(session.StorageKey, cancellationToken);
+            if (stored.Status == EvidenceContentStatus.PendingScan)
+            {
+                stored.Content?.Dispose();
+                return false;
+            }
+
             if (stored.Status != EvidenceContentStatus.Clean || stored.Content is null)
                 throw new InvalidDataException("The uploaded media is not available for processing.");
 
             await using var content = stored.Content;
+            // Blob downloads are forward-only, so buffer before the two independent reads below.
+            using var buffered = new MemoryStream();
+            await content.CopyToAsync(buffered, cancellationToken);
+
             var extension = Path.GetExtension(session.FileName).ToLowerInvariant();
-            if (!await VideoFileValidator.IsValidAsync(content, extension, cancellationToken))
+            if (!await VideoFileValidator.IsValidAsync(buffered, extension, cancellationToken))
                 throw new InvalidDataException("Uploaded file contents do not match the selected video type.");
 
-            var duration = await VideoFileValidator.GetDurationSecondsAsync(content, extension, cancellationToken);
-            if (duration is null || duration > MaxCaseMediaDurationSeconds)
+            // Browser-recorded clips are streamed containers that carry no duration, so fall back
+            // to the length declared when the session was initiated.
+            var duration = await VideoFileValidator.GetDurationSecondsAsync(buffered, extension, cancellationToken)
+                ?? session.DurationSeconds;
+            if (duration is null or <= 0 || duration > MaxCaseMediaDurationSeconds)
                 throw new InvalidDataException($"Video duration could not be determined or exceeds {MaxCaseMediaDurationSeconds} seconds.");
 
             await sessionStore.SaveAsync(session with
@@ -809,6 +823,7 @@ public class CasesController : ControllerBase
                 Error = null,
             }, cancellationToken);
             TrustSafetyRegistry.IncrementMetric("media.processing.ready");
+            return true;
         }
         catch (Exception exception) when (exception is InvalidDataException or IOException)
         {
@@ -839,7 +854,26 @@ public class CasesController : ControllerBase
             await sessionStore.SaveAsync(failedSession, cancellationToken);
             TrustSafetyRegistry.IncrementMetric("media.processing.failed");
             logger.LogWarning(exception, "Rejected uploaded media {UploadId}.", uploadId);
+            return true;
         }
+    }
+
+    internal static async Task FailMediaUploadAsync(
+        Guid uploadId,
+        string error,
+        ICaseMediaUploadSessionStore sessionStore,
+        CancellationToken cancellationToken)
+    {
+        var session = await sessionStore.GetAsync(uploadId, cancellationToken);
+        if (session is null)
+            return;
+
+        await sessionStore.SaveAsync(session with
+        {
+            Status = CaseMediaUploadStatus.Failed,
+            Error = error,
+        }, cancellationToken);
+        TrustSafetyRegistry.IncrementMetric("media.processing.failed");
     }
 
     [HttpGet("media/{ownerId}/{fileName}")]

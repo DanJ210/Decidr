@@ -261,6 +261,127 @@ public sealed class CasesControllerMediaTests
     }
 
     [Fact]
+    public async Task Media_processing_accepts_browser_recordings_streamed_from_blob_storage()
+    {
+        var fixture = CreateFixture();
+        var bytes = BrowserRecordedWebmBytes();
+        var storageKey = $"{fixture.UserId:N}/{Guid.NewGuid():N}.webm";
+        fixture.Storage
+            .Setup(storage => storage.UploadAsync(
+                fixture.UserId,
+                ".webm",
+                "video/webm",
+                It.IsAny<Stream>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>()))
+            .ReturnsAsync(storageKey);
+        fixture.Storage
+            .Setup(storage => storage.OpenReadAsync(storageKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new StoredEvidenceContent(
+                EvidenceContentStatus.Clean,
+                new ForwardOnlyStream(bytes),
+                "video/webm"));
+
+        var initiate = await fixture.Controller.InitiateCaseMediaUpload(
+            new CasesController.InitiateCaseMediaUploadRequest
+            {
+                FileName = "clip.webm",
+                ContentType = "video/webm",
+                SizeBytes = bytes.Length,
+                DurationSeconds = 9,
+            },
+            CancellationToken.None);
+        var upload = Assert.IsType<CasesController.CaseMediaUploadSession>(
+            Assert.IsType<OkObjectResult>(initiate.Result).Value);
+
+        var request = fixture.Controller.ControllerContext.HttpContext.Request;
+        request.Body = new MemoryStream(bytes);
+        request.ContentLength = bytes.Length;
+        request.ContentType = "video/webm";
+
+        Assert.IsType<AcceptedResult>(
+            await fixture.Controller.UploadCaseMediaContent(upload.UploadId, CancellationToken.None));
+
+        await fixture.Controller.FinalizeCaseMediaUpload(
+            upload.UploadId,
+            new CasesController.FinalizeCaseMediaUploadRequest(),
+            CancellationToken.None);
+
+        await CasesController.ProcessMediaUploadAsync(
+            upload.UploadId,
+            fixture.Storage.Object,
+            fixture.SessionStore,
+            Mock.Of<ILogger>(),
+            CancellationToken.None);
+
+        var poll = await fixture.Controller.GetCaseMediaUploadStatus(upload.UploadId, CancellationToken.None);
+        var pollStatus = Assert.IsType<CasesController.CaseMediaUploadStatusResponse>(
+            Assert.IsType<OkObjectResult>(poll.Result).Value);
+        Assert.Null(pollStatus.Error);
+        Assert.Equal(CasesController.CaseMediaUploadStatus.Ready, pollStatus.Status);
+        Assert.Equal(9, pollStatus.Media?.DurationSeconds);
+    }
+
+    [Fact]
+    public async Task Media_processing_defers_while_malware_scanning_is_pending()
+    {
+        var fixture = CreateFixture();
+        var bytes = BrowserRecordedWebmBytes();
+        var storageKey = $"{fixture.UserId:N}/{Guid.NewGuid():N}.webm";
+        fixture.Storage
+            .Setup(storage => storage.UploadAsync(
+                fixture.UserId,
+                ".webm",
+                "video/webm",
+                It.IsAny<Stream>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>()))
+            .ReturnsAsync(storageKey);
+        fixture.Storage
+            .Setup(storage => storage.OpenReadAsync(storageKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new StoredEvidenceContent(EvidenceContentStatus.PendingScan));
+
+        var initiate = await fixture.Controller.InitiateCaseMediaUpload(
+            new CasesController.InitiateCaseMediaUploadRequest
+            {
+                FileName = "clip.webm",
+                ContentType = "video/webm",
+                SizeBytes = bytes.Length,
+                DurationSeconds = 9,
+            },
+            CancellationToken.None);
+        var upload = Assert.IsType<CasesController.CaseMediaUploadSession>(
+            Assert.IsType<OkObjectResult>(initiate.Result).Value);
+
+        var request = fixture.Controller.ControllerContext.HttpContext.Request;
+        request.Body = new MemoryStream(bytes);
+        request.ContentLength = bytes.Length;
+        request.ContentType = "video/webm";
+        await fixture.Controller.UploadCaseMediaContent(upload.UploadId, CancellationToken.None);
+        await fixture.Controller.FinalizeCaseMediaUpload(
+            upload.UploadId,
+            new CasesController.FinalizeCaseMediaUploadRequest(),
+            CancellationToken.None);
+
+        var processed = await CasesController.ProcessMediaUploadAsync(
+            upload.UploadId,
+            fixture.Storage.Object,
+            fixture.SessionStore,
+            Mock.Of<ILogger>(),
+            CancellationToken.None);
+
+        Assert.False(processed);
+        fixture.Storage.Verify(
+            storage => storage.DeleteAsync(storageKey, It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        var poll = await fixture.Controller.GetCaseMediaUploadStatus(upload.UploadId, CancellationToken.None);
+        var pollStatus = Assert.IsType<CasesController.CaseMediaUploadStatusResponse>(
+            Assert.IsType<OkObjectResult>(poll.Result).Value);
+        Assert.Equal(CasesController.CaseMediaUploadStatus.Processing, pollStatus.Status);
+    }
+
+    [Fact]
     public async Task Media_upload_finalization_rejects_metadata_mismatches_and_marks_session_failed()
     {
         var fixture = CreateFixture();
@@ -365,6 +486,37 @@ public sealed class CasesControllerMediaTests
             Headers = new HeaderDictionary(),
             ContentType = "video/webm",
         };
+    }
+
+    // Mirrors what MediaRecorder produces: a live segment with no Duration element.
+    private static byte[] BrowserRecordedWebmBytes() =>
+    [
+        0x1A, 0x45, 0xDF, 0xA3, 0x80,
+        0x18, 0x53, 0x80, 0x67, 0xFF,
+        0x15, 0x49, 0xA9, 0x66, 0x87,
+        0x2A, 0xD7, 0xB1, 0x83, 0x0F, 0x42, 0x40,
+    ];
+
+    private sealed class ForwardOnlyStream(byte[] content) : Stream
+    {
+        private readonly MemoryStream _inner = new(content);
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => _inner.Read(buffer, offset, count);
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     private static FormFile Mp4File(int durationSeconds)
