@@ -323,6 +323,67 @@ public sealed class CasesControllerMediaTests
     }
 
     [Fact]
+    public async Task Media_processing_requires_embedded_duration_for_iso_media()
+    {
+        var fixture = CreateFixture();
+        var bytes = Mp4WithoutDurationBytes();
+        var storageKey = $"{fixture.UserId:N}/{Guid.NewGuid():N}.mp4";
+        fixture.Storage
+            .Setup(storage => storage.UploadAsync(
+                fixture.UserId,
+                ".mp4",
+                "video/mp4",
+                It.IsAny<Stream>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<string?>()))
+            .ReturnsAsync(storageKey);
+        fixture.Storage
+            .Setup(storage => storage.OpenReadAsync(storageKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new StoredEvidenceContent(
+                EvidenceContentStatus.Clean,
+                new ForwardOnlyStream(bytes),
+                "video/mp4"));
+
+        var initiate = await fixture.Controller.InitiateCaseMediaUpload(
+            new CasesController.InitiateCaseMediaUploadRequest
+            {
+                FileName = "clip.mp4",
+                ContentType = "video/mp4",
+                SizeBytes = bytes.Length,
+                DurationSeconds = 9,
+            },
+            CancellationToken.None);
+        var upload = Assert.IsType<CasesController.CaseMediaUploadSession>(
+            Assert.IsType<OkObjectResult>(initiate.Result).Value);
+
+        var request = fixture.Controller.ControllerContext.HttpContext.Request;
+        request.Body = new MemoryStream(bytes);
+        request.ContentLength = bytes.Length;
+        request.ContentType = "video/mp4";
+
+        Assert.IsType<AcceptedResult>(
+            await fixture.Controller.UploadCaseMediaContent(upload.UploadId, CancellationToken.None));
+
+        await fixture.Controller.FinalizeCaseMediaUpload(
+            upload.UploadId,
+            new CasesController.FinalizeCaseMediaUploadRequest(),
+            CancellationToken.None);
+
+        await CasesController.ProcessMediaUploadAsync(
+            upload.UploadId,
+            fixture.Storage.Object,
+            fixture.SessionStore,
+            Mock.Of<ILogger>(),
+            CancellationToken.None);
+
+        var poll = await fixture.Controller.GetCaseMediaUploadStatus(upload.UploadId, CancellationToken.None);
+        var pollStatus = Assert.IsType<CasesController.CaseMediaUploadStatusResponse>(
+            Assert.IsType<OkObjectResult>(poll.Result).Value);
+        Assert.Equal(CasesController.CaseMediaUploadStatus.Failed, pollStatus.Status);
+        Assert.Contains("Video duration could not be determined", pollStatus.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Media_processing_defers_while_malware_scanning_is_pending()
     {
         var fixture = CreateFixture();
@@ -458,6 +519,37 @@ public sealed class CasesControllerMediaTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task Fail_media_upload_does_not_overwrite_ready_status()
+    {
+        var sessionStore = new TestCaseMediaUploadSessionStore();
+        var uploadId = Guid.NewGuid();
+        var readySession = new CasesController.CaseMediaUploadSession(
+            uploadId,
+            Guid.NewGuid(),
+            "clip.webm",
+            "video/webm",
+            128,
+            9,
+            CasesController.CaseMediaUploadStatus.Ready,
+            DateTime.UtcNow)
+        {
+            StorageKey = "owner/clip.webm",
+        };
+        await sessionStore.SaveAsync(readySession, CancellationToken.None);
+
+        await CasesController.FailMediaUploadAsync(
+            uploadId,
+            "Video security scanning did not complete in time.",
+            sessionStore,
+            CancellationToken.None);
+
+        var session = await sessionStore.GetAsync(uploadId, CancellationToken.None);
+        Assert.NotNull(session);
+        Assert.Equal(CasesController.CaseMediaUploadStatus.Ready, session.Status);
+        Assert.Null(session.Error);
+    }
+
     private static void VerifyNoUpload(MediaFixture fixture) =>
         fixture.Storage.Verify(
             storage => storage.UploadAsync(
@@ -538,6 +630,11 @@ public sealed class CasesControllerMediaTests
             ContentType = "video/mp4",
         };
     }
+
+    private static byte[] Mp4WithoutDurationBytes() =>
+    [
+        0x00, 0x00, 0x00, 0x10, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6F, 0x6D, 0x00, 0x00, 0x00, 0x00,
+    ];
 
     private static MediaFixture CreateFixture(ICommunityCourtService? service = null)
     {

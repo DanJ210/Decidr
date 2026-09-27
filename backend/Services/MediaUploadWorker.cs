@@ -8,15 +8,24 @@ public sealed class MediaUploadWorker(
     ICaseMediaUploadSessionStore sessionStore,
     ILogger<MediaUploadWorker> logger) : BackgroundService
 {
+    private const int MaxConcurrentUploads = 4;
     private static readonly TimeSpan ScanPollInterval = TimeSpan.FromSeconds(5);
     private const int MaxScanPollAttempts = 60;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        var workers = Enumerable
+            .Range(0, MaxConcurrentUploads)
+            .Select(_ => RunWorkerAsync(stoppingToken))
+            .ToArray();
+        await Task.WhenAll(workers);
+    }
+
+    private async Task RunWorkerAsync(CancellationToken stoppingToken)
+    {
         await foreach (var uploadId in queue.ReadAllAsync(stoppingToken))
         {
-            // Detached so one clip waiting on a malware-scan verdict cannot stall the queue.
-            _ = ProcessAsync(uploadId, stoppingToken);
+            await ProcessAsync(uploadId, stoppingToken);
         }
     }
 
@@ -32,6 +41,11 @@ public sealed class MediaUploadWorker(
                 }
 
                 await Task.Delay(ScanPollInterval, stoppingToken);
+            }
+
+            if (await CasesController.ProcessMediaUploadAsync(uploadId, storage, sessionStore, logger, stoppingToken))
+            {
+                return;
             }
 
             logger.LogWarning("Media upload {UploadId} was never cleared by malware scanning.", uploadId);

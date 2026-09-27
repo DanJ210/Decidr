@@ -137,8 +137,8 @@ export async function uploadCaseMedia(clip: { blob: Blob; durationSeconds: numbe
   })
   await apiClient.post(`/cases/media/${session.uploadId}/finalize`, new FormData())
 
-  // Processing waits on a malware-scan verdict, so allow a couple of minutes.
-  for (let attempt = 0; attempt < 120; attempt += 1) {
+  // Processing waits on a malware-scan verdict, so allow up to five minutes.
+  for (let attempt = 0; attempt < 300; attempt += 1) {
     const { data: status } = await apiClient.get<CaseMediaUploadStatusResponse>(
       `/cases/media/${session.uploadId}/status`,
     )

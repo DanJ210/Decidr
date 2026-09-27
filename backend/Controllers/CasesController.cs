@@ -809,10 +809,14 @@ public class CasesController : ControllerBase
             if (!await VideoFileValidator.IsValidAsync(buffered, extension, cancellationToken))
                 throw new InvalidDataException("Uploaded file contents do not match the selected video type.");
 
-            // Browser-recorded clips are streamed containers that carry no duration, so fall back
-            // to the length declared when the session was initiated.
-            var duration = await VideoFileValidator.GetDurationSecondsAsync(buffered, extension, cancellationToken)
-                ?? session.DurationSeconds;
+            // Browser-recorded WebM clips are streamed containers that can omit duration, so
+            // fall back to the length declared when the session was initiated.
+            var duration = await VideoFileValidator.GetDurationSecondsAsync(buffered, extension, cancellationToken);
+            if (duration is null
+                && string.Equals(extension, ".webm", StringComparison.OrdinalIgnoreCase))
+            {
+                duration = session.DurationSeconds;
+            }
             if (duration is null or <= 0 || duration > MaxCaseMediaDurationSeconds)
                 throw new InvalidDataException($"Video duration could not be determined or exceeds {MaxCaseMediaDurationSeconds} seconds.");
 
@@ -851,11 +855,38 @@ public class CasesController : ControllerBase
                     uploadId);
             }
 
-            await sessionStore.SaveAsync(failedSession, cancellationToken);
-            TrustSafetyRegistry.IncrementMetric("media.processing.failed");
+            await TryMarkUploadFailedIfProcessingAsync(
+                failedSession.UploadId,
+                failedSession.Error ?? "Video processing failed.",
+                clearStorageKey: failedSession.StorageKey is null,
+                sessionStore,
+                cancellationToken);
             logger.LogWarning(exception, "Rejected uploaded media {UploadId}.", uploadId);
             return true;
         }
+    }
+
+    private static async Task<bool> TryMarkUploadFailedIfProcessingAsync(
+        Guid uploadId,
+        string error,
+        bool clearStorageKey,
+        ICaseMediaUploadSessionStore sessionStore,
+        CancellationToken cancellationToken)
+    {
+        var latestSession = await sessionStore.GetAsync(uploadId, cancellationToken);
+        if (latestSession is null || latestSession.Status != CaseMediaUploadStatus.Processing)
+        {
+            return false;
+        }
+
+        await sessionStore.SaveAsync(latestSession with
+        {
+            Status = CaseMediaUploadStatus.Failed,
+            Error = error,
+            StorageKey = clearStorageKey ? null : latestSession.StorageKey,
+        }, cancellationToken);
+        TrustSafetyRegistry.IncrementMetric("media.processing.failed");
+        return true;
     }
 
     internal static async Task FailMediaUploadAsync(
@@ -864,16 +895,12 @@ public class CasesController : ControllerBase
         ICaseMediaUploadSessionStore sessionStore,
         CancellationToken cancellationToken)
     {
-        var session = await sessionStore.GetAsync(uploadId, cancellationToken);
-        if (session is null)
-            return;
-
-        await sessionStore.SaveAsync(session with
-        {
-            Status = CaseMediaUploadStatus.Failed,
-            Error = error,
-        }, cancellationToken);
-        TrustSafetyRegistry.IncrementMetric("media.processing.failed");
+        await TryMarkUploadFailedIfProcessingAsync(
+            uploadId,
+            error,
+            clearStorageKey: false,
+            sessionStore,
+            cancellationToken);
     }
 
     [HttpGet("media/{ownerId}/{fileName}")]

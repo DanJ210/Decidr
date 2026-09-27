@@ -212,7 +212,8 @@ accepted for compatibility.
 **Validation**
 - `uploadId` must exist and belong to the authenticated user.
 - File contents must match the selected video type and the stored metadata.
-- Duration must be determined and remain within the 30-second limit.
+- Duration must be determined and remain within the 30-second limit; browser-recorded
+  WebM uploads may use the initiated duration when container metadata omits it.
 
 **Response `202 Accepted`** — `CaseMediaUploadStatusResponse` with `status: "Processing"`
 **Response `400 Bad Request`** — validation or state failure message  
@@ -222,9 +223,10 @@ accepted for compatibility.
 
 ### `GET /api/cases/media/{uploadId}/status`
 Polls the status of a previously initiated upload session. Processing validates
-the stored signature and container duration, falling back to the duration
-declared at `initiate` when the container carries none — browser recordings are
-streamed containers that omit it. Sessions stay in `Processing` while Defender
+the stored signature and container duration. Browser-recorded WebM uploads fall
+back to the duration declared at `initiate` when the container carries none,
+while ISO media (MP4/M4V/MOV) must provide an embedded duration. Sessions stay
+in `Processing` while Defender
 malware scanning is pending and only fail if no verdict arrives. Rejected objects
 are deleted; ready responses include the playback URL and server-derived metadata.
 
