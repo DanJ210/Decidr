@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   deleteCaseEvidence,
+  describeMediaUploadError,
   fetchCaseComments,
   fetchCaseEvidence,
   fetchCaseEvidenceFile,
@@ -799,8 +800,8 @@ export function useCaseDetail() {
       uploadingMedia.value = true
       try {
         media = await uploadCaseMedia(sideBRecording.value)
-      } catch {
-        courtStore.error = 'Your video could not be uploaded. Try recording it again.'
+      } catch (error) {
+        courtStore.error = describeMediaUploadError(error)
         return
       } finally {
         uploadingMedia.value = false

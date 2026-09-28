@@ -2719,3 +2719,16 @@ textarea {
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   }
 }
+
+/* ─── Touch input sizing ────────────────────────────────── */
+
+/* iOS Safari zooms the viewport whenever a focused control renders below 16px,
+   and never zooms back out. Overrides the `font: inherit` component rules. */
+@media (pointer: coarse) {
+  input:not([type='checkbox'], [type='radio']),
+  select,
+  textarea {
+    font-size: 1rem !important;
+  }
+}
+

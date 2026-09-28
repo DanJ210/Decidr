@@ -137,16 +137,26 @@ export async function uploadCaseMedia(clip: { blob: Blob; durationSeconds: numbe
   })
   await apiClient.post(`/cases/media/${session.uploadId}/finalize`, new FormData())
 
-  for (let attempt = 0; attempt < 30; attempt += 1) {
+  // Processing waits on a malware-scan verdict, so allow up to five minutes.
+  for (let attempt = 0; attempt < 300; attempt += 1) {
     const { data: status } = await apiClient.get<CaseMediaUploadStatusResponse>(
       `/cases/media/${session.uploadId}/status`,
     )
     if (status.status === 'Ready' && status.media) return status.media
     if (status.status === 'Failed') throw new Error(status.error ?? 'Media processing failed.')
-    await new Promise((resolve) => window.setTimeout(resolve, 500))
+    await new Promise((resolve) => window.setTimeout(resolve, 1_000))
   }
 
   throw new Error('Media processing timed out.')
+}
+
+export function describeMediaUploadError(error: unknown): string {
+  const fallback = 'Your video could not be uploaded. Try recording it again.'
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data
+    return typeof data === 'string' && data.trim() ? data : fallback
+  }
+  return error instanceof Error && error.message ? error.message : fallback
 }
 
 export async function postCaseEvidenceLink(caseId: string, request: AddCaseEvidenceLinkRequest): Promise<CaseEvidenceItem> {

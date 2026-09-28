@@ -5,7 +5,7 @@ namespace backend.Services;
 public sealed class MediaUploadProcessingQueue
 {
     private readonly Channel<Guid> _queue = Channel.CreateUnbounded<Guid>(
-        new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+        new UnboundedChannelOptions { SingleReader = false, SingleWriter = false });
 
     public ValueTask EnqueueAsync(Guid uploadId, CancellationToken cancellationToken) =>
         _queue.Writer.WriteAsync(uploadId, cancellationToken);

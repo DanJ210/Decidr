@@ -1,6 +1,6 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { uploadCaseMedia } from '../services/api'
+import { describeMediaUploadError, uploadCaseMedia } from '../services/api'
 import { useAuthStore } from '../stores/auth'
 import { useCourtStore } from '../stores/court'
 import { useFriendsStore } from '../stores/friends'
@@ -65,8 +65,8 @@ export function useCreateCase() {
       uploadingMedia.value = true
       try {
         media = await uploadCaseMedia(sideARecording.value)
-      } catch {
-        courtStore.error = 'Your video could not be uploaded. Try recording it again.'
+      } catch (error) {
+        courtStore.error = describeMediaUploadError(error)
         return
       } finally {
         uploadingMedia.value = false

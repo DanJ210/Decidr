@@ -40,6 +40,8 @@ public class CasesController : ControllerBase
     };
 
     private static readonly ConcurrentDictionary<Guid, ConcurrentBag<PlaybackEvent>> PlaybackEvents = new();
+    private static readonly ConcurrentDictionary<Guid, MediaUploadLockState> MediaUploadLocks = new();
+    private static readonly object MediaUploadLocksSync = new();
 
     private readonly ICommunityCourtService _courtService;
     private readonly IActorResolver _actorResolver;
@@ -591,13 +593,37 @@ public class CasesController : ControllerBase
 
         if (request.File is null)
         {
-            await _mediaUploadQueue.EnqueueAsync(uploadId, cancellationToken);
-            await _mediaUploadSessions.SaveAsync(session with
+            return await WithMediaUploadLockAsync<ActionResult<CaseMediaUploadResponse>>(uploadId, cancellationToken, async () =>
             {
-                Status = CaseMediaUploadStatus.Processing,
-                FinalizedAtUtc = DateTime.UtcNow,
-            }, cancellationToken);
-            return Accepted(new CaseMediaUploadStatusResponse(CaseMediaUploadStatus.Processing));
+                var latestSession = await _mediaUploadSessions.GetAsync(uploadId, cancellationToken);
+                if (latestSession is null)
+                {
+                    return NotFound();
+                }
+
+                if (latestSession.OwnerId != actor.Id)
+                {
+                    return Forbid();
+                }
+
+                if (latestSession.Status != CaseMediaUploadStatus.Pending)
+                {
+                    return BadRequest("This upload has already been finalized.");
+                }
+
+                if (string.IsNullOrWhiteSpace(latestSession.StorageKey))
+                {
+                    return BadRequest("Upload content before finalizing the media.");
+                }
+
+                await _mediaUploadSessions.SaveAsync(latestSession with
+                {
+                    Status = CaseMediaUploadStatus.Processing,
+                    FinalizedAtUtc = DateTime.UtcNow,
+                }, cancellationToken);
+                await _mediaUploadQueue.EnqueueAsync(uploadId, cancellationToken);
+                return Accepted(new CaseMediaUploadStatusResponse(CaseMediaUploadStatus.Processing));
+            });
         }
 
         if (request.File.Length == 0)
@@ -776,70 +802,147 @@ public class CasesController : ControllerBase
         }
     }
 
-    internal static async Task ProcessMediaUploadAsync(
+    /// <summary>Returns false when the object is still awaiting a malware-scan verdict and should be retried.</summary>
+    internal static async Task<bool> ProcessMediaUploadAsync(
         Guid uploadId,
         ICaseEvidenceStorage storage,
         ICaseMediaUploadSessionStore sessionStore,
         ILogger logger,
         CancellationToken cancellationToken)
     {
-        var session = await sessionStore.GetAsync(uploadId, cancellationToken);
-        if (session is null || session.StorageKey is null)
-            return;
-
-        try
+        return await WithMediaUploadLockAsync(uploadId, cancellationToken, async () =>
         {
-            var stored = await storage.OpenReadAsync(session.StorageKey, cancellationToken);
-            if (stored.Status != EvidenceContentStatus.Clean || stored.Content is null)
-                throw new InvalidDataException("The uploaded media is not available for processing.");
-
-            await using var content = stored.Content;
-            var extension = Path.GetExtension(session.FileName).ToLowerInvariant();
-            if (!await VideoFileValidator.IsValidAsync(content, extension, cancellationToken))
-                throw new InvalidDataException("Uploaded file contents do not match the selected video type.");
-
-            var duration = await VideoFileValidator.GetDurationSecondsAsync(content, extension, cancellationToken);
-            if (duration is null || duration > MaxCaseMediaDurationSeconds)
-                throw new InvalidDataException($"Video duration could not be determined or exceeds {MaxCaseMediaDurationSeconds} seconds.");
-
-            await sessionStore.SaveAsync(session with
-            {
-                Status = CaseMediaUploadStatus.Ready,
-                DurationSeconds = duration,
-                Error = null,
-            }, cancellationToken);
-            TrustSafetyRegistry.IncrementMetric("media.processing.ready");
-        }
-        catch (Exception exception) when (exception is InvalidDataException or IOException)
-        {
-            var failedSession = session with
-            {
-                Status = CaseMediaUploadStatus.Failed,
-                Error = exception.Message,
-            };
+            var session = await sessionStore.GetAsync(uploadId, cancellationToken);
+            if (session is null || session.StorageKey is null || session.Status != CaseMediaUploadStatus.Processing)
+                return true;
 
             try
             {
-                await storage.DeleteAsync(session.StorageKey, cancellationToken);
-                failedSession = failedSession with { StorageKey = null };
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception cleanupException)
-            {
-                logger.LogWarning(
-                    cleanupException,
-                    "Failed to delete rejected media object {StorageKey} for upload {UploadId}.",
-                    session.StorageKey,
-                    uploadId);
-            }
+                var stored = await storage.OpenReadAsync(session.StorageKey, cancellationToken);
+                if (stored.Status == EvidenceContentStatus.PendingScan)
+                {
+                    stored.Content?.Dispose();
+                    return false;
+                }
 
-            await sessionStore.SaveAsync(failedSession, cancellationToken);
-            TrustSafetyRegistry.IncrementMetric("media.processing.failed");
-            logger.LogWarning(exception, "Rejected uploaded media {UploadId}.", uploadId);
+                if (stored.Status != EvidenceContentStatus.Clean || stored.Content is null)
+                    throw new InvalidDataException("The uploaded media is not available for processing.");
+
+                await using var content = stored.Content;
+                // Blob downloads are forward-only, so buffer before the two independent reads below.
+                using var buffered = new MemoryStream();
+                await content.CopyToAsync(buffered, cancellationToken);
+
+                var extension = Path.GetExtension(session.FileName).ToLowerInvariant();
+                buffered.Position = 0;
+                if (!await VideoFileValidator.IsValidAsync(buffered, extension, cancellationToken))
+                    throw new InvalidDataException("Uploaded file contents do not match the selected video type.");
+
+                buffered.Position = 0;
+                var duration = await VideoFileValidator.GetDurationSecondsAsync(buffered, extension, cancellationToken);
+                if (duration is null or <= 0 || duration > MaxCaseMediaDurationSeconds)
+                    throw new InvalidDataException($"Video duration could not be determined or exceeds {MaxCaseMediaDurationSeconds} seconds.");
+
+                await sessionStore.SaveAsync(session with
+                {
+                    Status = CaseMediaUploadStatus.Ready,
+                    DurationSeconds = duration,
+                    Error = null,
+                }, cancellationToken);
+                TrustSafetyRegistry.IncrementMetric("media.processing.ready");
+                return true;
+            }
+            catch (Exception exception) when (exception is InvalidDataException or IOException)
+            {
+                var failedSession = session with
+                {
+                    Status = CaseMediaUploadStatus.Failed,
+                    Error = exception.Message,
+                };
+
+                try
+                {
+                    await storage.DeleteAsync(session.StorageKey, cancellationToken);
+                    failedSession = failedSession with { StorageKey = null };
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception cleanupException)
+                {
+                    logger.LogWarning(
+                        cleanupException,
+                        "Failed to delete rejected media object {StorageKey} for upload {UploadId}.",
+                        session.StorageKey,
+                        uploadId);
+                }
+
+                await TryMarkUploadFailedIfProcessingCoreAsync(
+                    failedSession.UploadId,
+                    failedSession.Error ?? "Video processing failed.",
+                    clearStorageKey: failedSession.StorageKey is null,
+                    sessionStore,
+                    cancellationToken);
+                logger.LogWarning(exception, "Rejected uploaded media {UploadId}.", uploadId);
+                return true;
+            }
+        });
+    }
+
+    private static async Task<bool> TryMarkUploadFailedIfProcessingAsync(
+        Guid uploadId,
+        string error,
+        bool clearStorageKey,
+        ICaseMediaUploadSessionStore sessionStore,
+        CancellationToken cancellationToken)
+    {
+        return await WithMediaUploadLockAsync(
+            uploadId,
+            cancellationToken,
+            () => TryMarkUploadFailedIfProcessingCoreAsync(
+                uploadId,
+                error,
+                clearStorageKey,
+                sessionStore,
+                cancellationToken));
+    }
+
+    private static async Task<bool> TryMarkUploadFailedIfProcessingCoreAsync(
+        Guid uploadId,
+        string error,
+        bool clearStorageKey,
+        ICaseMediaUploadSessionStore sessionStore,
+        CancellationToken cancellationToken)
+    {
+        var latestSession = await sessionStore.GetAsync(uploadId, cancellationToken);
+        if (latestSession is null || latestSession.Status != CaseMediaUploadStatus.Processing)
+        {
+            return false;
         }
+
+        await sessionStore.SaveAsync(latestSession with
+        {
+            Status = CaseMediaUploadStatus.Failed,
+            Error = error,
+            StorageKey = clearStorageKey ? null : latestSession.StorageKey,
+        }, cancellationToken);
+        TrustSafetyRegistry.IncrementMetric("media.processing.failed");
+        return true;
+    }
+
+    internal static async Task FailMediaUploadAsync(
+        Guid uploadId,
+        string error,
+        ICaseMediaUploadSessionStore sessionStore,
+        CancellationToken cancellationToken)
+    {
+        await TryMarkUploadFailedIfProcessingAsync(
+            uploadId,
+            error,
+            clearStorageKey: false,
+            sessionStore,
+            cancellationToken);
     }
 
     [HttpGet("media/{ownerId}/{fileName}")]
@@ -857,7 +960,21 @@ public class CasesController : ControllerBase
             return NotFound();
         }
 
-        var storedContent = await _evidenceStorage.OpenReadAsync($"{ownerId}/{fileName}", cancellationToken);
+        if (!Guid.TryParseExact(Path.GetFileNameWithoutExtension(fileName), "N", out var uploadId))
+        {
+            return NotFound();
+        }
+
+        var storageKey = $"{ownerId}/{fileName}";
+        var uploadSession = await _mediaUploadSessions.GetAsync(uploadId, cancellationToken);
+        if (uploadSession is not null
+            && (uploadSession.Status != CaseMediaUploadStatus.Ready
+                || !string.Equals(uploadSession.StorageKey, storageKey, StringComparison.OrdinalIgnoreCase)))
+        {
+            return NotFound();
+        }
+
+        var storedContent = await _evidenceStorage.OpenReadAsync(storageKey, cancellationToken);
         if (storedContent.Status != EvidenceContentStatus.Clean || storedContent.Content is null)
         {
             return NotFound();
@@ -868,6 +985,67 @@ public class CasesController : ControllerBase
 
     private static bool IsHexIdentifier(string value) =>
         value.Length == 32 && value.All(Uri.IsHexDigit);
+
+    private static async Task<T> WithMediaUploadLockAsync<T>(
+        Guid uploadId,
+        CancellationToken cancellationToken,
+        Func<Task<T>> action)
+    {
+        var lockState = RentMediaUploadLock(uploadId);
+        var acquired = false;
+        try
+        {
+            await lockState.Semaphore.WaitAsync(cancellationToken);
+            acquired = true;
+            return await action();
+        }
+        finally
+        {
+            if (acquired)
+            {
+                lockState.Semaphore.Release();
+            }
+
+            ReturnMediaUploadLock(uploadId, lockState);
+        }
+    }
+
+    private static MediaUploadLockState RentMediaUploadLock(Guid uploadId)
+    {
+        lock (MediaUploadLocksSync)
+        {
+            var lockState = MediaUploadLocks.GetOrAdd(uploadId, static _ => new MediaUploadLockState());
+            lockState.ReferenceCount++;
+            return lockState;
+        }
+    }
+
+    private static void ReturnMediaUploadLock(Guid uploadId, MediaUploadLockState lockState)
+    {
+        var dispose = false;
+        lock (MediaUploadLocksSync)
+        {
+            lockState.ReferenceCount--;
+            if (lockState.ReferenceCount == 0
+                && MediaUploadLocks.TryGetValue(uploadId, out var existing)
+                && ReferenceEquals(existing, lockState)
+                && MediaUploadLocks.TryRemove(uploadId, out _))
+            {
+                dispose = true;
+            }
+        }
+
+        if (dispose)
+        {
+            lockState.Semaphore.Dispose();
+        }
+    }
+
+    private sealed class MediaUploadLockState
+    {
+        public SemaphoreSlim Semaphore { get; } = new(1, 1);
+        public int ReferenceCount { get; set; }
+    }
 
     [HttpPost("{id:guid}/evidence/upload")]
     [RequestSizeLimit(MaxEvidenceFileSizeBytes + (1024 * 1024))]
