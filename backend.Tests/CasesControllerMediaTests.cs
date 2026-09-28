@@ -593,10 +593,11 @@ public sealed class CasesControllerMediaTests
     {
         var fixture = CreateFixture();
         var ownerId = Guid.NewGuid();
-        var fileName = $"{Guid.NewGuid():N}.webm";
+        var uploadId = Guid.NewGuid();
+        var fileName = $"{uploadId:N}.webm";
         await fixture.SessionStore.SaveAsync(
             new CasesController.CaseMediaUploadSession(
-                Guid.NewGuid(),
+                uploadId,
                 ownerId,
                 fileName,
                 "video/webm",
