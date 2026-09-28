@@ -960,7 +960,11 @@ public class CasesController : ControllerBase
             return NotFound();
         }
 
-        var uploadId = Guid.ParseExact(Path.GetFileNameWithoutExtension(fileName), "N");
+        if (!Guid.TryParseExact(Path.GetFileNameWithoutExtension(fileName), "N", out var uploadId))
+        {
+            return NotFound();
+        }
+
         var storageKey = $"{ownerId}/{fileName}";
         var uploadSession = await _mediaUploadSessions.GetAsync(uploadId, cancellationToken);
         if (uploadSession is not null
