@@ -261,7 +261,7 @@ public sealed class CasesControllerMediaTests
     }
 
     [Fact]
-    public async Task Media_processing_accepts_browser_recordings_streamed_from_blob_storage()
+    public async Task Media_processing_rejects_browser_recordings_without_embedded_duration()
     {
         var fixture = CreateFixture();
         var bytes = BrowserRecordedWebmBytes();
@@ -317,9 +317,8 @@ public sealed class CasesControllerMediaTests
         var poll = await fixture.Controller.GetCaseMediaUploadStatus(upload.UploadId, CancellationToken.None);
         var pollStatus = Assert.IsType<CasesController.CaseMediaUploadStatusResponse>(
             Assert.IsType<OkObjectResult>(poll.Result).Value);
-        Assert.Null(pollStatus.Error);
-        Assert.Equal(CasesController.CaseMediaUploadStatus.Ready, pollStatus.Status);
-        Assert.Equal(9, pollStatus.Media?.DurationSeconds);
+        Assert.Equal(CasesController.CaseMediaUploadStatus.Failed, pollStatus.Status);
+        Assert.Contains("Video duration could not be determined", pollStatus.Error, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -443,6 +442,45 @@ public sealed class CasesControllerMediaTests
     }
 
     [Fact]
+    public async Task Media_processing_ignores_uploads_that_are_not_marked_processing()
+    {
+        var fixture = CreateFixture();
+        var file = Mp4File(9);
+        var uploadId = Guid.NewGuid();
+        var storageKey = $"{fixture.UserId:N}/{Guid.NewGuid():N}.mp4";
+        await fixture.SessionStore.SaveAsync(
+            new CasesController.CaseMediaUploadSession(
+                uploadId,
+                fixture.UserId,
+                "clip.mp4",
+                "video/mp4",
+                file.Length,
+                9,
+                CasesController.CaseMediaUploadStatus.Pending,
+                DateTime.UtcNow)
+            {
+                StorageKey = storageKey,
+            },
+            CancellationToken.None);
+
+        var processed = await CasesController.ProcessMediaUploadAsync(
+            uploadId,
+            fixture.Storage.Object,
+            fixture.SessionStore,
+            Mock.Of<ILogger>(),
+            CancellationToken.None);
+
+        Assert.True(processed);
+        fixture.Storage.Verify(
+            storage => storage.OpenReadAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        var session = await fixture.SessionStore.GetAsync(uploadId, CancellationToken.None);
+        Assert.NotNull(session);
+        Assert.Equal(CasesController.CaseMediaUploadStatus.Pending, session.Status);
+    }
+
+    [Fact]
     public async Task Media_upload_finalization_rejects_metadata_mismatches_and_marks_session_failed()
     {
         var fixture = CreateFixture();
@@ -548,6 +586,35 @@ public sealed class CasesControllerMediaTests
         Assert.NotNull(session);
         Assert.Equal(CasesController.CaseMediaUploadStatus.Ready, session.Status);
         Assert.Null(session.Error);
+    }
+
+    [Fact]
+    public async Task Media_playback_requires_ready_upload_session_when_session_exists()
+    {
+        var fixture = CreateFixture();
+        var ownerId = Guid.NewGuid();
+        var fileName = $"{Guid.NewGuid():N}.webm";
+        await fixture.SessionStore.SaveAsync(
+            new CasesController.CaseMediaUploadSession(
+                Guid.NewGuid(),
+                ownerId,
+                fileName,
+                "video/webm",
+                128,
+                9,
+                CasesController.CaseMediaUploadStatus.Failed,
+                DateTime.UtcNow)
+            {
+                StorageKey = $"{ownerId:N}/{fileName}",
+            },
+            CancellationToken.None);
+
+        var result = await fixture.Controller.GetCaseMedia(ownerId.ToString("N"), fileName, CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result);
+        fixture.Storage.Verify(
+            storage => storage.OpenReadAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     private static void VerifyNoUpload(MediaFixture fixture) =>
