@@ -67,28 +67,195 @@ public static class VideoFileValidator
 
     private static double? TryReadIsoBaseMediaDuration(ReadOnlySpan<byte> content)
     {
-        for (var offset = 0; offset + 8 <= content.Length;)
+        var movieDuration = TryReadMovieDuration(content);
+        // Browser recorders emit fragmented MP4, whose mvhd duration is always zero.
+        return movieDuration is > 0 ? movieDuration : TryReadFragmentedDuration(content);
+    }
+
+    private static double? TryReadMovieDuration(ReadOnlySpan<byte> content)
+    {
+        var boxes = new BoxReader(content);
+        while (boxes.Read())
         {
-            var boxSize = ReadUInt32BigEndian(content[offset..]);
-            var headerSize = 8;
-            if (boxSize == 1 && offset + 16 <= content.Length)
-            {
-                var largeBoxSize = ReadUInt64BigEndian(content[(offset + 8)..]);
-                if (largeBoxSize > int.MaxValue) return null;
-                boxSize = (uint)largeBoxSize;
-                headerSize = 16;
-            }
-
-            if (boxSize < headerSize || offset + boxSize > content.Length) return null;
-            var boxType = content.Slice(offset + 4, 4);
-            var boxContent = content.Slice(offset + headerSize, (int)boxSize - headerSize);
-            if (boxType.SequenceEqual("mvhd"u8)) return TryReadMovieHeaderDuration(boxContent);
-            if (boxType.SequenceEqual("moov"u8)) return TryReadIsoBaseMediaDuration(boxContent);
-
-            offset += (int)boxSize;
+            if (boxes.Type.SequenceEqual("mvhd"u8)) return TryReadMovieHeaderDuration(boxes.Content);
+            if (boxes.Type.SequenceEqual("moov"u8)) return TryReadMovieDuration(boxes.Content);
         }
 
         return null;
+    }
+
+    private static double? TryReadFragmentedDuration(ReadOnlySpan<byte> content)
+    {
+        Dictionary<uint, uint>? timeScales = null;
+        var longest = 0d;
+
+        var boxes = new BoxReader(content);
+        while (boxes.Read())
+        {
+            if (boxes.Type.SequenceEqual("moov"u8))
+            {
+                timeScales = ReadTrackTimeScales(boxes.Content);
+            }
+            else if (boxes.Type.SequenceEqual("moof"u8) && timeScales is not null)
+            {
+                var fragments = new BoxReader(boxes.Content);
+                while (fragments.Read())
+                {
+                    if (!fragments.Type.SequenceEqual("traf"u8)) continue;
+                    if (!TryReadTrackFragmentEnd(fragments.Content, out var trackId, out var endTicks)) continue;
+                    if (!timeScales.TryGetValue(trackId, out var timeScale) || timeScale == 0) continue;
+
+                    longest = Math.Max(longest, (double)endTicks / timeScale);
+                }
+            }
+        }
+
+        return longest > 0 ? longest : null;
+    }
+
+    private static Dictionary<uint, uint> ReadTrackTimeScales(ReadOnlySpan<byte> movie)
+    {
+        var timeScales = new Dictionary<uint, uint>();
+        var boxes = new BoxReader(movie);
+        while (boxes.Read())
+        {
+            if (!boxes.Type.SequenceEqual("trak"u8)) continue;
+
+            uint trackId = 0;
+            uint timeScale = 0;
+            var trak = new BoxReader(boxes.Content);
+            while (trak.Read())
+            {
+                if (trak.Type.SequenceEqual("tkhd"u8) && trak.Content.Length >= 20)
+                {
+                    var trackIdOffset = trak.Content[0] == 1 ? 20 : 12;
+                    if (trak.Content.Length >= trackIdOffset + 4)
+                    {
+                        trackId = ReadUInt32BigEndian(trak.Content[trackIdOffset..]);
+                    }
+                }
+                else if (trak.Type.SequenceEqual("mdia"u8))
+                {
+                    var mdia = new BoxReader(trak.Content);
+                    while (mdia.Read())
+                    {
+                        if (!mdia.Type.SequenceEqual("mdhd"u8) || mdia.Content.Length < 20) continue;
+                        var timeScaleOffset = mdia.Content[0] == 1 ? 20 : 12;
+                        if (mdia.Content.Length >= timeScaleOffset + 4)
+                        {
+                            timeScale = ReadUInt32BigEndian(mdia.Content[timeScaleOffset..]);
+                        }
+                    }
+                }
+            }
+
+            if (trackId != 0 && timeScale != 0) timeScales[trackId] = timeScale;
+        }
+
+        return timeScales;
+    }
+
+    private static bool TryReadTrackFragmentEnd(ReadOnlySpan<byte> fragment, out uint trackId, out ulong endTicks)
+    {
+        trackId = 0;
+        endTicks = 0;
+        ulong baseDecodeTime = 0;
+        uint defaultSampleDuration = 0;
+        ulong sampleTicks = 0;
+
+        var boxes = new BoxReader(fragment);
+        while (boxes.Read())
+        {
+            if (boxes.Type.SequenceEqual("tfhd"u8))
+            {
+                if (boxes.Content.Length < 8) return false;
+                trackId = ReadUInt32BigEndian(boxes.Content[4..]);
+                var flags = (ReadUInt32BigEndian(boxes.Content) & 0x00FFFFFF);
+                var offset = 8;
+                if ((flags & 0x000001) != 0) offset += 8;
+                if ((flags & 0x000002) != 0) offset += 4;
+                if ((flags & 0x000008) != 0 && boxes.Content.Length >= offset + 4)
+                {
+                    defaultSampleDuration = ReadUInt32BigEndian(boxes.Content[offset..]);
+                }
+            }
+            else if (boxes.Type.SequenceEqual("tfdt"u8) && boxes.Content.Length >= 8)
+            {
+                baseDecodeTime = boxes.Content[0] == 1
+                    ? ReadUInt64BigEndian(boxes.Content[4..])
+                    : ReadUInt32BigEndian(boxes.Content[4..]);
+            }
+            else if (boxes.Type.SequenceEqual("trun"u8) && boxes.Content.Length >= 8)
+            {
+                sampleTicks += ReadTrackRunTicks(boxes.Content, defaultSampleDuration);
+            }
+        }
+
+        endTicks = baseDecodeTime + sampleTicks;
+        return trackId != 0 && endTicks > 0;
+    }
+
+    private static ulong ReadTrackRunTicks(ReadOnlySpan<byte> run, uint defaultSampleDuration)
+    {
+        var flags = ReadUInt32BigEndian(run) & 0x00FFFFFF;
+        var sampleCount = ReadUInt32BigEndian(run[4..]);
+        if ((flags & 0x000100) == 0) return (ulong)sampleCount * defaultSampleDuration;
+
+        var offset = 8;
+        if ((flags & 0x000001) != 0) offset += 4;
+        if ((flags & 0x000004) != 0) offset += 4;
+
+        var entrySize = 4
+            + ((flags & 0x000200) != 0 ? 4 : 0)
+            + ((flags & 0x000400) != 0 ? 4 : 0)
+            + ((flags & 0x000800) != 0 ? 4 : 0);
+
+        ulong ticks = 0;
+        for (var sample = 0u; sample < sampleCount; sample++)
+        {
+            if (offset + 4 > run.Length) break;
+            ticks += ReadUInt32BigEndian(run[offset..]);
+            offset += entrySize;
+        }
+
+        return ticks;
+    }
+
+    private ref struct BoxReader(ReadOnlySpan<byte> content)
+    {
+        private readonly ReadOnlySpan<byte> _content = content;
+        private int _offset = 0;
+
+        public ReadOnlySpan<byte> Type { get; private set; } = default;
+        public ReadOnlySpan<byte> Content { get; private set; } = default;
+
+        public bool Read()
+        {
+            if (_offset + 8 > _content.Length) return false;
+
+            long boxSize = ReadUInt32BigEndian(_content[_offset..]);
+            var headerSize = 8;
+            if (boxSize == 1)
+            {
+                if (_offset + 16 > _content.Length) return false;
+                var largeSize = ReadUInt64BigEndian(_content[(_offset + 8)..]);
+                if (largeSize > int.MaxValue) return false;
+                boxSize = (long)largeSize;
+                headerSize = 16;
+            }
+            else if (boxSize == 0)
+            {
+                // A zero size means the box runs to the end of the container.
+                boxSize = _content.Length - _offset;
+            }
+
+            if (boxSize < headerSize || _offset + boxSize > _content.Length) return false;
+
+            Type = _content.Slice(_offset + 4, 4);
+            Content = _content.Slice(_offset + headerSize, (int)boxSize - headerSize);
+            _offset += (int)boxSize;
+            return true;
+        }
     }
 
     private static double? TryReadMovieHeaderDuration(ReadOnlySpan<byte> content)
@@ -109,50 +276,142 @@ public static class VideoFileValidator
     private static double? TryReadWebmDuration(ReadOnlySpan<byte> content)
     {
         const uint segmentElementId = 0x18538067;
-        const uint infoElementId = 0x1549A966;
-        const uint timecodeScaleElementId = 0x2AD7B1;
-        const uint durationElementId = 0x4489;
 
         for (var offset = 0; offset < content.Length;)
         {
-            if (!TryReadEbmlElement(content, ref offset, out var elementId, out var elementContent)) return null;
+            if (!TryReadEbmlElement(content, ref offset, out var elementId, out var segment)) return null;
             if (elementId != segmentElementId) continue;
 
-            var segmentOffset = 0;
-            while (segmentOffset < elementContent.Length)
+            var timecodeScale = ReadWebmTimecodeScale(segment);
+            var duration = ReadWebmInfoDuration(segment);
+            if (duration is null or <= 0)
             {
-                if (!TryReadEbmlElement(elementContent, ref segmentOffset, out var segmentId, out var infoContent)) return null;
-                if (segmentId != infoElementId) continue;
-
-                long timecodeScale = 1_000_000;
-                double? duration = null;
-                var infoOffset = 0;
-                while (infoOffset < infoContent.Length)
-                {
-                    if (!TryReadEbmlElement(infoContent, ref infoOffset, out var infoId, out var valueContent)) return null;
-                if (infoId == timecodeScaleElementId && valueContent.Length is > 0 and <= 8)
-                {
-                    timecodeScale = 0;
-                        foreach (var value in valueContent) timecodeScale = (timecodeScale << 8) | value;
-                }
-                else if (infoId == durationElementId)
-                {
-                        duration = valueContent.Length switch
-                    {
-                            4 => BitConverter.Int32BitsToSingle((int)ReadUInt32BigEndian(valueContent)),
-                            8 => BitConverter.Int64BitsToDouble((long)ReadUInt64BigEndian(valueContent)),
-                        _ => null,
-                    };
-                }
+                // MediaRecorder writes a live segment with no Duration, so measure the clusters.
+                var ticks = ReadWebmClusterEndTicks(segment);
+                duration = ticks > 0 ? ticks : null;
             }
 
-                return duration is > 0 && timecodeScale > 0
-                    ? duration.Value * timecodeScale / 1_000_000_000d
-                    : null;
+            return duration is > 0 && timecodeScale > 0
+                ? duration.Value * timecodeScale / 1_000_000_000d
+                : null;
+        }
+
+        return null;
+    }
+
+    private static long ReadWebmTimecodeScale(ReadOnlySpan<byte> segment)
+    {
+        const uint infoElementId = 0x1549A966;
+        const uint timecodeScaleElementId = 0x2AD7B1;
+
+        var offset = 0;
+        while (offset < segment.Length)
+        {
+            if (!TryReadEbmlElement(segment, ref offset, out var elementId, out var info)) break;
+            if (elementId != infoElementId) continue;
+
+            var infoOffset = 0;
+            while (infoOffset < info.Length)
+            {
+                if (!TryReadEbmlElement(info, ref infoOffset, out var infoId, out var value)) break;
+                if (infoId != timecodeScaleElementId || value.Length is <= 0 or > 8) continue;
+
+                long timecodeScale = 0;
+                foreach (var part in value) timecodeScale = (timecodeScale << 8) | part;
+                if (timecodeScale > 0) return timecodeScale;
+            }
+        }
+
+        return 1_000_000;
+    }
+
+    private static double? ReadWebmInfoDuration(ReadOnlySpan<byte> segment)
+    {
+        const uint infoElementId = 0x1549A966;
+        const uint durationElementId = 0x4489;
+
+        var offset = 0;
+        while (offset < segment.Length)
+        {
+            if (!TryReadEbmlElement(segment, ref offset, out var elementId, out var info)) break;
+            if (elementId != infoElementId) continue;
+
+            var infoOffset = 0;
+            while (infoOffset < info.Length)
+            {
+                if (!TryReadEbmlElement(info, ref infoOffset, out var infoId, out var value)) break;
+                if (infoId != durationElementId) continue;
+
+                return value.Length switch
+                {
+                    4 => BitConverter.Int32BitsToSingle((int)ReadUInt32BigEndian(value)),
+                    8 => BitConverter.Int64BitsToDouble((long)ReadUInt64BigEndian(value)),
+                    _ => null,
+                };
             }
         }
 
         return null;
+    }
+
+    private static double ReadWebmClusterEndTicks(ReadOnlySpan<byte> segment)
+    {
+        const uint clusterElementId = 0x1F43B675;
+        const uint timecodeElementId = 0xE7;
+        const uint simpleBlockElementId = 0xA3;
+        const uint blockGroupElementId = 0xA0;
+        const uint blockElementId = 0xA1;
+
+        var end = 0d;
+        var offset = 0;
+        while (offset < segment.Length)
+        {
+            if (!TryReadEbmlElement(segment, ref offset, out var elementId, out var cluster)) break;
+            if (elementId != clusterElementId) continue;
+
+            double clusterTimecode = 0;
+            double lastBlockOffset = 0;
+            var clusterOffset = 0;
+            while (clusterOffset < cluster.Length)
+            {
+                if (!TryReadEbmlElement(cluster, ref clusterOffset, out var clusterId, out var value)) break;
+
+                if (clusterId == timecodeElementId && value.Length is > 0 and <= 8)
+                {
+                    long timecode = 0;
+                    foreach (var part in value) timecode = (timecode << 8) | part;
+                    clusterTimecode = timecode;
+                }
+                else if (clusterId == simpleBlockElementId)
+                {
+                    lastBlockOffset = Math.Max(lastBlockOffset, ReadWebmBlockTimecode(value));
+                }
+                else if (clusterId == blockGroupElementId)
+                {
+                    var groupOffset = 0;
+                    while (groupOffset < value.Length)
+                    {
+                        if (!TryReadEbmlElement(value, ref groupOffset, out var groupId, out var block)) break;
+                        if (groupId != blockElementId) continue;
+                        lastBlockOffset = Math.Max(lastBlockOffset, ReadWebmBlockTimecode(block));
+                    }
+                }
+            }
+
+            end = Math.Max(end, clusterTimecode + lastBlockOffset);
+        }
+
+        return end;
+    }
+
+    private static double ReadWebmBlockTimecode(ReadOnlySpan<byte> block)
+    {
+        if (block.Length == 0) return 0;
+        var trackNumberLength = EbmlLength(block[0]);
+        if (trackNumberLength == 0 || block.Length < trackNumberLength + 2) return 0;
+
+        var relative = (short)((block[trackNumberLength] << 8) | block[trackNumberLength + 1]);
+        return relative > 0 ? relative : 0;
     }
 
     private static bool TryReadEbmlElement(ReadOnlySpan<byte> content, ref int offset, out uint elementId, out ReadOnlySpan<byte> elementContent)

@@ -29,7 +29,9 @@ function readFileDuration(url: string) {
     const probe = document.createElement('video')
     probe.preload = 'metadata'
     probe.onloadedmetadata = () => {
-      const duration = Number.isFinite(probe.duration) ? Math.round(probe.duration) : Number.NaN
+      const duration = Number.isFinite(probe.duration) && probe.duration > 0
+        ? Math.max(1, Math.ceil(probe.duration))
+        : Number.NaN
       probe.src = ''
       resolve(duration)
     }
@@ -195,6 +197,12 @@ export function useVideoRecorder(maxSeconds: number, onCaptured: (clip: Recorded
     const url = URL.createObjectURL(file)
     const duration = await readFileDuration(url)
 
+    if (!Number.isFinite(duration) || duration < 1) {
+      URL.revokeObjectURL(url)
+      error.value = 'The length of that video could not be read. Try a different clip.'
+      return
+    }
+
     if (duration > maxSeconds) {
       URL.revokeObjectURL(url)
       error.value = `Keep it under ${maxSeconds} seconds. That clip is ${duration} seconds long.`
@@ -204,7 +212,7 @@ export function useVideoRecorder(maxSeconds: number, onCaptured: (clip: Recorded
     clipUrl.value = url
     elapsedSeconds.value = duration
     phase.value = 'captured'
-    onCaptured({ url, blob: file, durationSeconds: Math.max(1, duration), source: 'uploaded' })
+    onCaptured({ url, blob: file, durationSeconds: duration, source: 'uploaded' })
   }
 
   async function retake() {
