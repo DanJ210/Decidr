@@ -1,3 +1,4 @@
+name: decider-app
 services:
   db:
     image: mcr.microsoft.com/mssql/server:2022-latest
