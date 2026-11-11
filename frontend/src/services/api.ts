@@ -121,14 +121,31 @@ export async function fetchCaseEvidence(caseId: string): Promise<CaseEvidenceCol
   return data
 }
 
+// The backend pairs each extension with exactly one content type, so both must agree.
+const CASE_MEDIA_TYPES: Record<string, { extension: string; contentType: string }> = {
+  'video/mp4': { extension: 'mp4', contentType: 'video/mp4' },
+  'video/x-m4v': { extension: 'm4v', contentType: 'video/mp4' },
+  'video/quicktime': { extension: 'mov', contentType: 'video/quicktime' },
+  'video/webm': { extension: 'webm', contentType: 'video/webm' },
+}
+
 export async function uploadCaseMedia(clip: { blob: Blob; durationSeconds: number }): Promise<CaseMediaUploadResponse> {
-  const extension = clip.blob.type.includes('mp4') ? 'mp4' : 'webm'
-  const fileName = `clip.${extension}`
+  const durationSeconds = Math.round(clip.durationSeconds)
+  if (!Number.isFinite(durationSeconds) || durationSeconds < 1) {
+    throw new Error('The length of that video could not be read. Try a different clip.')
+  }
+
+  const baseType = clip.blob.type.split(';', 1)[0].trim().toLowerCase()
+  const media = CASE_MEDIA_TYPES[baseType]
+  if (!media) {
+    throw new Error('Unsupported video type. Use an mp4, m4v, mov, or webm clip.')
+  }
+
   const { data: session } = await apiClient.post<CaseMediaUploadSession>('/cases/media/initiate', {
-    fileName,
-    contentType: clip.blob.type || `video/${extension}`,
+    fileName: `clip.${media.extension}`,
+    contentType: media.contentType,
     sizeBytes: clip.blob.size,
-    durationSeconds: clip.durationSeconds,
+    durationSeconds,
   })
 
   await apiClient.put(`/cases/media/${session.uploadId}/content`, clip.blob, {

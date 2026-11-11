@@ -222,8 +222,10 @@ accepted for compatibility.
 
 ### `GET /api/cases/media/{uploadId}/status`
 Polls the status of a previously initiated upload session. Processing validates
-the stored signature and container duration, and all uploaded formats must carry
-an embedded duration within the 30-second limit. Sessions stay in `Processing`
+the stored signature and derives the duration from the container itself, never
+from the client-declared value: an explicit `mvhd`/`Duration` when present,
+otherwise the measured extent of the MP4 fragments or WebM clusters that browser
+recorders produce. Sessions stay in `Processing`
 while Defender malware scanning is pending. `Malicious` and `ScanFailed`
 verdicts fail immediately, and uploads also fail if no verdict arrives before
 the worker deadline. Ready responses include the playback URL and server-derived

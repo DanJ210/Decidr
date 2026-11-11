@@ -10,6 +10,7 @@ export interface RecordedClip {
 export type RecorderPhase = 'idle' | 'preview' | 'recording' | 'captured'
 
 const MAX_UPLOAD_BYTES = 64 * 1024 * 1024
+const DURATION_PROBE_TIMEOUT_MS = 3000
 
 // Ordered by preference; browsers ignore the ones they cannot produce.
 const PREFERRED_MIME_TYPES = [
@@ -24,19 +25,49 @@ function pickMimeType() {
   return PREFERRED_MIME_TYPES.find((type) => MediaRecorder.isTypeSupported(type))
 }
 
-function readFileDuration(url: string) {
+function readFileDuration(url: string, maxSeconds: number) {
   return new Promise<number>((resolve) => {
     const probe = document.createElement('video')
     probe.preload = 'metadata'
-    probe.onloadedmetadata = () => {
-      const duration = Number.isFinite(probe.duration) ? Math.round(probe.duration) : Number.NaN
+    let timeout: number
+    let completed = false
+
+    const finish = (duration: number) => {
+      if (completed) return
+      completed = true
+      window.clearTimeout(timeout)
+      probe.onloadedmetadata = null
+      probe.ondurationchange = null
+      probe.onseeked = null
+      probe.onerror = null
       probe.src = ''
       resolve(duration)
     }
-    probe.onerror = () => {
-      probe.src = ''
-      resolve(Number.NaN)
+
+    const finishIfDurationKnown = () => {
+      if (Number.isFinite(probe.duration) && probe.duration > 0) {
+        finish(Math.max(1, Math.ceil(probe.duration)))
+      }
     }
+
+    probe.onloadedmetadata = () => {
+      finishIfDurationKnown()
+      if (completed) return
+
+      probe.ondurationchange = finishIfDurationKnown
+      probe.onseeked = () => {
+        const duration = probe.currentTime
+        finish(Number.isFinite(duration) && duration > 0 ? Math.max(1, Math.ceil(duration)) : Number.NaN)
+      }
+
+      try {
+        probe.currentTime = maxSeconds + 1
+      } catch {
+        finish(Number.NaN)
+      }
+    }
+    probe.onerror = () => finish(Number.NaN)
+    timeout = window.setTimeout(() => finish(Number.NaN), DURATION_PROBE_TIMEOUT_MS)
     probe.src = url
   })
 }
@@ -189,11 +220,14 @@ export function useVideoRecorder(maxSeconds: number, onCaptured: (clip: Recorded
       return
     }
 
-    releaseClip()
-    releaseStream()
-
     const url = URL.createObjectURL(file)
-    const duration = await readFileDuration(url)
+    const duration = await readFileDuration(url, maxSeconds)
+
+    if (!Number.isFinite(duration) || duration < 1) {
+      URL.revokeObjectURL(url)
+      error.value = 'The length of that video could not be read. Try a different clip.'
+      return
+    }
 
     if (duration > maxSeconds) {
       URL.revokeObjectURL(url)
@@ -201,10 +235,12 @@ export function useVideoRecorder(maxSeconds: number, onCaptured: (clip: Recorded
       return
     }
 
+    releaseClip()
+    releaseStream()
     clipUrl.value = url
     elapsedSeconds.value = duration
     phase.value = 'captured'
-    onCaptured({ url, blob: file, durationSeconds: Math.max(1, duration), source: 'uploaded' })
+    onCaptured({ url, blob: file, durationSeconds: duration, source: 'uploaded' })
   }
 
   async function retake() {
