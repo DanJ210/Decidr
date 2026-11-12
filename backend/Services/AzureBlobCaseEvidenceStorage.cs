@@ -56,13 +56,19 @@ public sealed class AzureBlobCaseEvidenceStorage(
                 return new StoredEvidenceContent(scanStatus);
             }
 
-            var response = await blobClient
-                .DownloadStreamingAsync(cancellationToken: cancellationToken);
+            var properties = await blobClient.GetPropertiesAsync(cancellationToken: cancellationToken);
+            // A seekable stream lets ASP.NET serve HTTP Range (206) responses, which iOS Safari requires for video.
+            var content = await blobClient.OpenReadAsync(
+                new BlobOpenReadOptions(allowModifications: false)
+                {
+                    Conditions = new BlobRequestConditions { IfMatch = properties.Value.ETag },
+                },
+                cancellationToken);
 
             return new StoredEvidenceContent(
                 EvidenceContentStatus.Clean,
-                response.Value.Content,
-                response.Value.Details.ContentType ?? "application/octet-stream");
+                content,
+                properties.Value.ContentType ?? "application/octet-stream");
         }
         catch (RequestFailedException exception) when (exception.Status == StatusCodes.Status404NotFound)
         {

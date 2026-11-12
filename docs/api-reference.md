@@ -225,7 +225,8 @@ Polls the status of a previously initiated upload session. Processing validates
 the stored signature and derives the duration from the container itself, never
 from the client-declared value: an explicit `mvhd`/`Duration` when present,
 otherwise the measured extent of the MP4 fragments or WebM clusters that browser
-recorders produce. Sessions stay in `Processing`
+recorders produce. MP4 fragment extent is measured from each track's first decode
+time, because Safari recordings start at a non-zero timestamp. Sessions stay in `Processing`
 while Defender malware scanning is pending. `Malicious` and `ScanFailed`
 verdicts fail immediately, and uploads also fail if no verdict arrives before
 the worker deadline. Ready responses include the playback URL and server-derived
@@ -240,7 +241,9 @@ metadata.
 
 ### `GET /api/cases/media/{ownerId}/{fileName}`
 Streams an uploaded case video. Anonymous, because cases are publicly viewable,
-and range requests are enabled so clips can seek.
+and range requests (`206 Partial Content`) are enabled so clips can seek. Blob
+storage reads must stay seekable for this to work; iOS Safari will not play
+video without range support.
 
 Both segments must be 32-character hex identifiers with an allowed video
 extension; anything else returns `404` without touching storage.

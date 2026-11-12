@@ -19,7 +19,7 @@ public sealed class VideoFileValidatorTests
     [Fact]
     public async Task Fragmented_mp4_duration_is_measured_from_fragments_when_mvhd_is_zero()
     {
-        using var content = new MemoryStream(FragmentedMp4(baseDecodeTicks: 2800, sampleCount: 2, sampleDurationTicks: 100));
+        using var content = new MemoryStream(FragmentedMp4(baseDecodeTicks: 0, sampleCount: 30, sampleDurationTicks: 100));
 
         var duration = await VideoFileValidator.GetDurationSecondsAsync(content, ".mp4", CancellationToken.None);
 
@@ -27,9 +27,24 @@ public sealed class VideoFileValidatorTests
     }
 
     [Fact]
+    public async Task Fragmented_mp4_duration_is_measured_from_the_first_decode_time()
+    {
+        // Safari's MediaRecorder starts tfdt at a capture-clock offset rather than zero.
+        using var content = new MemoryStream(FragmentedMp4(
+            baseDecodeTicks: 3_600_000,
+            sampleCount: 6,
+            sampleDurationTicks: 1_000,
+            fragmentCount: 2));
+
+        var duration = await VideoFileValidator.GetDurationSecondsAsync(content, ".mp4", CancellationToken.None);
+
+        Assert.Equal(12, duration);
+    }
+
+    [Fact]
     public async Task Fragmented_mp4_duration_beyond_the_clip_limit_is_reported_in_full()
     {
-        using var content = new MemoryStream(FragmentedMp4(baseDecodeTicks: 90_000, sampleCount: 10, sampleDurationTicks: 1_000));
+        using var content = new MemoryStream(FragmentedMp4(baseDecodeTicks: 90_000, sampleCount: 100, sampleDurationTicks: 1_000));
 
         var duration = await VideoFileValidator.GetDurationSecondsAsync(content, ".mp4", CancellationToken.None);
 
@@ -51,7 +66,7 @@ public sealed class VideoFileValidatorTests
     {
         using var content = new MemoryStream(FragmentedMp4WithTrexDefault(
             baseDecodeTicks: 29_000,
-            sampleCount: 2,
+            sampleCount: 31,
             defaultSampleDurationTicks: 1_000));
 
         var duration = await VideoFileValidator.GetDurationSecondsAsync(content, ".mp4", CancellationToken.None);
@@ -146,19 +161,23 @@ public sealed class VideoFileValidatorTests
         return EbmlElement([0x1F, 0x43, 0xB6, 0x75], clusterContent);
     }
 
-    private static byte[] FragmentedMp4(uint baseDecodeTicks, uint sampleCount, uint sampleDurationTicks)
+    private static byte[] FragmentedMp4(uint baseDecodeTicks, uint sampleCount, uint sampleDurationTicks, int fragmentCount = 1)
     {
         const uint trackId = 1;
 
         var moov = MovieBox();
 
         // tf_flags 0x08 marks a default sample duration; tr_flags 0 makes every sample use it.
-        var tfhd = Box("tfhd", [.. UInt32(0x08), .. UInt32(trackId), .. UInt32(sampleDurationTicks)]);
-        var tfdt = Box("tfdt", [.. UInt32(0), .. UInt32(baseDecodeTicks)]);
-        var trun = Box("trun", [.. UInt32(0), .. UInt32(sampleCount)]);
-        var moof = Box("moof", Box("traf", [.. tfhd, .. tfdt, .. trun]));
+        var fragments = Enumerable.Range(0, fragmentCount)
+            .SelectMany(index =>
+            {
+                var tfhd = Box("tfhd", [.. UInt32(0x08), .. UInt32(trackId), .. UInt32(sampleDurationTicks)]);
+                var tfdt = Box("tfdt", [.. UInt32(0), .. UInt32(baseDecodeTicks + (uint)index * sampleCount * sampleDurationTicks)]);
+                var trun = Box("trun", [.. UInt32(0), .. UInt32(sampleCount)]);
+                return Box("moof", Box("traf", [.. tfhd, .. tfdt, .. trun]));
+            });
 
-        return [.. Box("ftyp", "isom\0\0\0\0"u8.ToArray()), .. moov, .. moof];
+        return [.. Box("ftyp", "isom\0\0\0\0"u8.ToArray()), .. moov, .. fragments];
     }
 
     private static byte[] FragmentedMp4WithoutTfdt(int fragmentCount, uint fragmentDurationTicks)

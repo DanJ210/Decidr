@@ -88,6 +88,8 @@ public static class VideoFileValidator
     {
         Dictionary<uint, TrackDefaults>? trackDefaults = null;
         var previousDecodeEnds = new Dictionary<uint, ulong>();
+        // Safari stamps the first fragment with a capture-clock decode time, so measure from each track's first fragment.
+        var firstDecodeStarts = new Dictionary<uint, ulong>();
         var longest = 0d;
 
         var boxes = new BoxReader(content);
@@ -108,6 +110,7 @@ public static class VideoFileValidator
                         trackDefaults,
                         previousDecodeEnds,
                         out var trackId,
+                        out var startTicks,
                         out var endTicks,
                         out var malformed))
                     {
@@ -116,7 +119,11 @@ public static class VideoFileValidator
                     }
 
                     previousDecodeEnds[trackId] = endTicks;
-                    longest = Math.Max(longest, (double)endTicks / trackDefaults[trackId].TimeScale);
+                    var firstStart = firstDecodeStarts.TryGetValue(trackId, out var knownStart)
+                        ? Math.Min(knownStart, startTicks)
+                        : startTicks;
+                    firstDecodeStarts[trackId] = firstStart;
+                    longest = Math.Max(longest, (double)(endTicks - firstStart) / trackDefaults[trackId].TimeScale);
                 }
             }
         }
@@ -188,10 +195,12 @@ public static class VideoFileValidator
         IReadOnlyDictionary<uint, TrackDefaults> trackDefaults,
         IReadOnlyDictionary<uint, ulong> previousDecodeEnds,
         out uint trackId,
+        out ulong startTicks,
         out ulong endTicks,
         out bool malformed)
     {
         trackId = 0;
+        startTicks = 0;
         endTicks = 0;
         malformed = false;
         ulong? explicitBaseDecodeTime = null;
@@ -270,6 +279,7 @@ public static class VideoFileValidator
             return false;
         }
 
+        startTicks = baseDecodeTime;
         endTicks = baseDecodeTime + sampleTicks;
         return endTicks > 0;
     }
